@@ -1,0 +1,79 @@
+services:
+  postgres:
+    image: postgres:15
+    container_name: enterprise_ai_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-enterprise_ai_demo}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    ports:
+      - "${POSTGRES_PORT:-55432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+      - ./database/seed/seed.sql:/docker-entrypoint-initdb.d/02_seed.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-enterprise_ai_demo}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  mcp-gateway:
+    image: node:20-alpine
+    container_name: enterprise_ai_mcp_gateway
+    working_dir: /app
+    command: sh -c "npm install && npm run build && npm run start"
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      PORT: 8081
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:-enterprise_ai_demo}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    ports:
+      - "${MCP_GATEWAY_PORT:-8081}:8081"
+    volumes:
+      - ./apps/mcp-gateway:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  ai-orchestrator:
+    image: node:20-alpine
+    container_name: enterprise_ai_orchestrator
+    working_dir: /app
+    command: sh -c "npm install && npm run build && npm run start"
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      PORT: 8082
+      MCP_GATEWAY_URL: http://mcp-gateway:8081
+      LLM_PROVIDER: mock
+    ports:
+      - "${AI_ORCHESTRATOR_PORT:-8082}:8082"
+    volumes:
+      - ./apps/ai-orchestrator:/app
+    depends_on:
+      - mcp-gateway
+
+  chat-ui:
+    image: node:20-alpine
+    container_name: enterprise_ai_chat_ui
+    working_dir: /app
+    command: sh -c "npm install && npm run dev"
+    restart: unless-stopped
+    environment:
+      CHAT_UI_PORT: 3000
+      AI_ORCHESTRATOR_URL: http://ai-orchestrator:8082
+    ports:
+      - "${CHAT_UI_PORT:-3000}:3000"
+    volumes:
+      - ./apps/chat-ui:/app
+    depends_on:
+      - ai-orchestrator
+
+volumes:
+  postgres_data:
