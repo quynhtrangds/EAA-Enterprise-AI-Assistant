@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { AppError } from '../errors/app-error.js';
+import { env } from '../config/env.js';
 import type { McpConnector, McpTool, ToolContext } from '../types/tool.js';
 
 export class McpRuntime {
@@ -32,8 +33,22 @@ export class McpRuntime {
     const tool = this.getTool(toolName);
     this.validateInput(tool.inputSchema, input);
 
+    const timeoutMs = process.env.TEST_TOOL_TIMEOUT_MS
+      ? Number(process.env.TEST_TOOL_TIMEOUT_MS)
+      : env.TOOL_TIMEOUT_MS;
+
+    let timeoutId: NodeJS.Timeout | undefined;
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeoutId = setTimeout(() => {
+        reject(new AppError('TOOL_TIMEOUT', `Tool execution timed out after ${timeoutMs}ms`, 504));
+      }, timeoutMs);
+    });
+
     try {
-      const output = await tool.execute(input, context);
+      const output = await Promise.race([
+        tool.execute(input, context),
+        timeoutPromise
+      ]);
       this.validateOutput(tool.outputSchema, output);
       return output;
     } catch (error) {
@@ -42,6 +57,10 @@ export class McpRuntime {
       }
 
       throw new AppError('CONNECTOR_ERROR', 'Connector failed while executing tool', 500);
+    } finally {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
     }
   }
 

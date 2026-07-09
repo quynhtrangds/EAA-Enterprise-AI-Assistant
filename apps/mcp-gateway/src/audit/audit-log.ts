@@ -6,7 +6,7 @@ export interface WriteAuditLogInput {
   toolName: string | null;
   input: unknown;
   output: unknown;
-  status: 'success' | 'failed';
+  status: 'success' | 'failed' | 'request-start';
   errorMessage: string | null;
   durationMs: number;
 }

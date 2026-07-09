@@ -26,7 +26,7 @@ const auditLogQuerySchema = z.object({
   toDate: z.string().optional(),
   toolName: z.string().optional(),
   userId: z.string().uuid().optional(),
-  status: z.enum(['success', 'failed']).optional()
+  status: z.enum(['success', 'failed', 'request-start']).optional()
 });
 
 interface LoginUserRow {
@@ -160,6 +160,15 @@ toolsRouter.post('/login', async (req, res, next) => {
   }
 });
 
+toolsRouter.get('/me', async (req, res, next) => {
+  try {
+    const user = await getCurrentUser(req);
+    res.json({ user });
+  } catch (error) {
+    next(error);
+  }
+});
+
 toolsRouter.get('/tools', async (req, res, next) => {
   try {
     const user = await getCurrentUser(req);
@@ -197,6 +206,17 @@ toolsRouter.post('/tools/call', async (req, res, next) => {
     if (!(await canExecuteTool(user.roles, parsed.toolName))) {
       throw new AppError('PERMISSION_DENIED', 'Ban khong co quyen goi tool nay.', 403);
     }
+
+    await writeAuditLog({
+      userId: user.id,
+      sessionId: parsed.sessionId,
+      toolName: parsed.toolName,
+      input: parsed.arguments,
+      output: null,
+      status: 'request-start',
+      errorMessage: null,
+      durationMs: 0
+    });
 
     const context = createToolContext(req, user, parsed.sessionId);
     const data = await runtime.callTool(parsed.toolName, parsed.arguments, context);

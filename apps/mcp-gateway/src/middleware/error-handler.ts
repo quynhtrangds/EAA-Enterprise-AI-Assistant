@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { AppError } from '../errors/app-error.js';
 
 export const errorHandler: ErrorRequestHandler = (error, _req, res, _next) => {
+  console.error('[Error Handler Log]:', error);
   if (error instanceof AppError) {
     res.status(error.statusCode).json({
       success: false,

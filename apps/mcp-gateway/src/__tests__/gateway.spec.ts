@@ -2,6 +2,8 @@ import request from 'supertest';
 import { afterAll, describe, expect, it } from 'vitest';
 import { createApp } from '../app.js';
 import { pool, query } from '../db/pool.js';
+import { runtime } from '../runtime/runtime-instance.js';
+import { z } from 'zod';
 
 const app = createApp();
 
@@ -141,5 +143,183 @@ describe('mcp-gateway integration', () => {
       status: 'failed',
       error_message: 'Ban khong co quyen goi tool nay.'
     });
+  });
+
+  it('GET /api/tools filters tools based on role', async () => {
+    const viewerToken = await login('viewer', 'viewer123');
+    const viewerResponse = await request(app)
+      .get('/api/tools')
+      .set('Authorization', `Bearer ${viewerToken}`)
+      .expect(200);
+
+    const viewerTools = viewerResponse.body.tools.map((t: any) => t.name);
+    expect(viewerTools).toContain('get_revenue_summary');
+    expect(viewerTools).toContain('get_product_sales_summary');
+    expect(viewerTools).not.toContain('search_customer');
+
+    const staffToken = await login('staff', 'staff123');
+    const staffResponse = await request(app)
+      .get('/api/tools')
+      .set('Authorization', `Bearer ${staffToken}`)
+      .expect(200);
+
+    const staffTools = staffResponse.body.tools.map((t: any) => t.name);
+    expect(staffTools).toContain('search_customer');
+    expect(staffTools).toContain('get_customer_orders');
+    expect(staffTools).toContain('get_order_detail');
+    expect(staffTools).not.toContain('get_revenue_summary');
+  });
+
+  it('GET /api/audit-logs allows admin but denies manager access', async () => {
+    const adminToken = await login('admin', 'admin123');
+    const adminResponse = await request(app)
+      .get('/api/audit-logs')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+
+    expect(Array.isArray(adminResponse.body.items)).toBe(true);
+
+    const managerToken = await login('manager', 'manager123');
+    const managerResponse = await request(app)
+      .get('/api/audit-logs')
+      .set('Authorization', `Bearer ${managerToken}`)
+      .expect(403);
+
+    expect(managerResponse.body.success).toBe(false);
+    expect(managerResponse.body.errorCode).toBe('PERMISSION_DENIED');
+  });
+
+  it('POST /api/tools/call happy path for search_customer', async () => {
+    const token = await login('manager', 'manager123');
+    const response = await request(app)
+      .post('/api/tools/call')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        toolName: 'search_customer',
+        arguments: {
+          keyword: 'Nguyen',
+          limit: 2
+        },
+        sessionId: `test-search-${Date.now()}`
+      })
+      .expect(200);
+
+    expect(response.body.success).toBe(true);
+    expect(response.body.toolName).toBe('search_customer');
+    expect(response.body.data).toHaveProperty('customers');
+    expect(Array.isArray(response.body.data.customers)).toBe(true);
+    expect(response.body.data.customers.length).toBeGreaterThan(0);
+    expect(response.body.data.customers[0]).toHaveProperty('customerId');
+    expect(response.body.data.customers[0]).toHaveProperty('customerCode');
+    expect(response.body.data.customers[0]).toHaveProperty('fullName');
+  });
+
+  it('POST /api/tools/call happy path for get_order_detail with nested items/payments', async () => {
+    const token = await login('manager', 'manager123');
+    
+    const response = await request(app)
+      .post('/api/tools/call')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        toolName: 'get_order_detail',
+        arguments: {
+          orderCode: 'ORD-001'
+        },
+        sessionId: `test-order-detail-${Date.now()}`
+      })
+      .expect(200);
+
+    expect(response.body.success).toBe(true);
+    expect(response.body.toolName).toBe('get_order_detail');
+    expect(response.body.data).toHaveProperty('order');
+    const orderObj = response.body.data.order;
+    expect(orderObj).toHaveProperty('orderId');
+    expect(orderObj).toHaveProperty('orderCode', 'ORD-001');
+    expect(orderObj).toHaveProperty('items');
+    expect(Array.isArray(orderObj.items)).toBe(true);
+    expect(orderObj).toHaveProperty('payments');
+    expect(Array.isArray(orderObj.payments)).toBe(true);
+  });
+
+  it('POST /api/tools/call happy path for get_revenue_summary', async () => {
+    const token = await login('manager', 'manager123');
+    const response = await request(app)
+      .post('/api/tools/call')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        toolName: 'get_revenue_summary',
+        arguments: {
+          fromDate: '2026-01-01',
+          toDate: '2026-12-31',
+          groupBy: 'day'
+        },
+        sessionId: `test-revenue-${Date.now()}`
+      })
+      .expect(200);
+
+    expect(response.body.success).toBe(true);
+    expect(response.body.toolName).toBe('get_revenue_summary');
+    expect(response.body.data).toHaveProperty('fromDate');
+    expect(response.body.data).toHaveProperty('toDate');
+    expect(response.body.data).toHaveProperty('totalRevenue');
+    expect(response.body.data).toHaveProperty('totalOrders');
+    expect(response.body.data).toHaveProperty('groups');
+    expect(Array.isArray(response.body.data.groups)).toBe(true);
+  });
+
+  it('POST /api/tools/call returns TOOL_TIMEOUT when tool execution takes too long', async () => {
+    runtime.registerConnector({
+      name: 'mock_test_connector',
+      listTools() {
+        return [
+          {
+            name: 'slow_test_tool',
+            title: 'Slow Test Tool',
+            description: 'Runs slowly to trigger timeout',
+            inputSchema: z.object({}),
+            outputSchema: z.object({ ok: z.boolean() }),
+            riskLevel: 'low',
+            readOnly: true,
+            requiresConfirmation: false,
+            async execute() {
+              await new Promise((resolve) => setTimeout(resolve, 300));
+              return { ok: true };
+            }
+          }
+        ];
+      }
+    });
+
+    // Add permissions for slow_test_tool in database
+    await query(
+      `INSERT INTO tool_permissions (role_code, tool_name, can_execute)
+       VALUES ('manager', 'slow_test_tool', true)
+       ON CONFLICT (role_code, tool_name) DO UPDATE SET can_execute = true`
+    );
+
+    const token = await login('manager', 'manager123');
+    
+    // Set short timeout env variable
+    process.env.TEST_TOOL_TIMEOUT_MS = '50';
+
+    try {
+      const response = await request(app)
+        .post('/api/tools/call')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          toolName: 'slow_test_tool',
+          arguments: {},
+          sessionId: `test-timeout-${Date.now()}`
+        })
+        .expect(504);
+
+      expect(response.body).toMatchObject({
+        success: false,
+        errorCode: 'TOOL_TIMEOUT'
+      });
+    } finally {
+      delete process.env.TEST_TOOL_TIMEOUT_MS;
+      await query(`DELETE FROM tool_permissions WHERE tool_name = 'slow_test_tool'`);
+    }
   });
 });

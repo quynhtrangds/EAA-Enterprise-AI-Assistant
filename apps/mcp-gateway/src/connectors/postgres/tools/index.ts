@@ -6,7 +6,7 @@ import type { McpTool } from '../../../types/tool.js';
 interface OrderDetailRow {
   id: string;
   order_code: string;
-  order_date: string;
+  order_date: Date | string;
   status: string;
   total_amount: string;
   customer_name: string;
@@ -33,13 +33,13 @@ interface PaymentRow {
   payment_method: string;
   amount: string;
   status: string;
-  paid_at: string | null;
+  paid_at: Date | string | null;
 }
 
 interface CustomerOrderRow {
   id: string;
   order_code: string;
-  order_date: string;
+  order_date: Date | string;
   status: string;
   total_amount: string;
 }
@@ -281,7 +281,7 @@ export function createPostgresTools(): McpTool[] {
           orders: result.rows.map((order) => ({
             orderId: order.id,
             orderCode: order.order_code,
-            orderDate: order.order_date,
+            orderDate: order.order_date instanceof Date ? order.order_date.toISOString() : String(order.order_date),
             status: order.status,
             totalAmount: toNumber(order.total_amount)
           }))
@@ -352,7 +352,7 @@ export function createPostgresTools(): McpTool[] {
             orderId: order.id,
             orderCode: order.order_code,
             customerName: order.customer_name,
-            orderDate: order.order_date,
+            orderDate: order.order_date instanceof Date ? order.order_date.toISOString() : String(order.order_date),
             status: order.status,
             totalAmount: toNumber(order.total_amount),
             items: itemsResult.rows.map((item) => ({
@@ -366,7 +366,7 @@ export function createPostgresTools(): McpTool[] {
               paymentMethod: payment.payment_method,
               amount: toNumber(payment.amount),
               status: payment.status,
-              paidAt: payment.paid_at ?? ''
+              paidAt: payment.paid_at instanceof Date ? payment.paid_at.toISOString() : (payment.paid_at ? String(payment.paid_at) : '')
             }))
           }
         };

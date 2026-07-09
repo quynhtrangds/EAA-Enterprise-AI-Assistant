@@ -167,7 +167,7 @@ CREATE TABLE IF NOT EXISTS audit_logs (
     REFERENCES users(id)
     ON UPDATE CASCADE
     ON DELETE SET NULL,
-  CONSTRAINT chk_audit_logs_status CHECK (status IN ('success', 'failed')),
+  CONSTRAINT chk_audit_logs_status CHECK (status IN ('success', 'failed', 'request-start')),
   CONSTRAINT chk_audit_logs_duration_ms CHECK (duration_ms IS NULL OR duration_ms >= 0)
 );
 

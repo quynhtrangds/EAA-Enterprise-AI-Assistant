@@ -10,7 +10,29 @@ interface GatewayToolCallResponse {
   message?: string;
 }
 
+interface GatewayCurrentUserResponse {
+  user: {
+    id: string;
+    username: string;
+    displayName: string;
+    roles: string[];
+  };
+}
+
 export class McpGatewayClient {
+  async getCurrentUser(authToken: string): Promise<GatewayCurrentUserResponse['user']> {
+    const response = await fetch(`${env.MCP_GATEWAY_URL}/api/me`, {
+      headers: { authorization: `Bearer ${authToken}` }
+    });
+
+    if (!response.ok) {
+      throw new AppError('GATEWAY_ERROR', `Gateway current user lookup failed: ${response.status}`, 502);
+    }
+
+    const payload = (await response.json()) as GatewayCurrentUserResponse;
+    return payload.user;
+  }
+
   async listTools(authToken: string): Promise<unknown[]> {
     const response = await fetch(`${env.MCP_GATEWAY_URL}/api/tools`, {
       headers: { authorization: `Bearer ${authToken}` }

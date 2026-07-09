@@ -90,8 +90,8 @@ export class ChatService {
   private readonly llm = new MockLLMProvider();
 
   async chat(input: ChatInput): Promise<ChatOutput> {
-    if (env.LLM_PROVIDER === 'openai') {
-      return this.chatWithOpenAI(input);
+    if (env.LLM_PROVIDER === 'openai' || env.LLM_PROVIDER === 'local') {
+      return this.chatWithLLM(input);
     }
 
     return this.chatWithMock(input);
@@ -121,7 +121,7 @@ export class ChatService {
     if (!gatewayResult.success) {
       return {
         sessionId: input.sessionId,
-        answer: gatewayResult.message ?? 'Kh\u00f4ng th\u1ec3 g\u1ecdi tool.',
+        answer: gatewayResult.message ?? 'Không thể gọi tool.',
         toolCalls: [trace]
       };
     }
@@ -133,7 +133,7 @@ export class ChatService {
       if (!customer) {
         return {
           sessionId: input.sessionId,
-          answer: 'Kh\u00f4ng t\u00ecm th\u1ea5y kh\u00e1ch h\u00e0ng ph\u00f9 h\u1ee3p.',
+          answer: 'Không tìm thấy khách hàng phù hợp.',
           toolCalls: [trace]
         };
       }
@@ -154,7 +154,7 @@ export class ChatService {
       if (!ordersResult.success) {
         return {
           sessionId: input.sessionId,
-          answer: ordersResult.message ?? 'Kh\u00f4ng th\u1ec3 l\u1ea5y danh s\u00e1ch \u0111\u01a1n h\u00e0ng.',
+          answer: ordersResult.message ?? 'Không thể lấy danh sách đơn hàng.',
           toolCalls: [trace, ordersTrace]
         };
       }
@@ -174,20 +174,36 @@ export class ChatService {
     };
   }
 
-  private async chatWithOpenAI(input: ChatInput): Promise<ChatOutput> {
+  private async chatWithLLM(input: ChatInput): Promise<ChatOutput> {
     try {
-      if (!env.OPENAI_API_KEY) {
+      const isLocal = env.LLM_PROVIDER === 'local';
+      const apiKey = isLocal ? (env.OPENAI_API_KEY || 'local-key') : env.OPENAI_API_KEY;
+
+      if (!isLocal && !apiKey) {
         throw new AppError('LLM_ERROR', 'OPENAI_API_KEY is required when LLM_PROVIDER=openai.', 500);
       }
 
-      const client = new OpenAI({ apiKey: env.OPENAI_API_KEY });
+      const client = new OpenAI({
+        apiKey,
+        ...(isLocal && env.LOCAL_LLM_BASE_URL ? { baseURL: env.LOCAL_LLM_BASE_URL } : {})
+      });
+
       const gatewayTools = (await this.gateway.listTools(input.authToken)) as GatewayTool[];
       const tools = gatewayTools.map(toOpenAITool);
+      const systemPrompt = 
+        `Bạn là trợ lý AI (Enterprise AI Assistant) cho hệ thống quản lý bán hàng có kết nối cơ sở dữ liệu PostgreSQL. ` +
+        `Nhiệm vụ của bạn là hỗ trợ người dùng truy vấn thông tin bán hàng thông qua các công cụ (tools) được cung cấp.\n\n` +
+        `Quy tắc bắt buộc:\n` +
+        `1. CHỈ trả lời các câu hỏi về thông tin doanh nghiệp (khách hàng, đơn hàng, doanh thu, thanh toán, sản phẩm) dựa trên dữ liệu thực tế lấy được từ các công cụ (tools) được cung cấp.\n` +
+        `2. KHÔNG tự bịa, giả lập hoặc phỏng đoán bất kỳ thông tin nào nếu tool không trả về hoặc không tìm thấy dữ liệu. Nếu không tìm thấy, hãy thông báo rõ ràng bằng tiếng Việt rằng không tìm thấy thông tin trên hệ thống.\n` +
+        `3. TUYỆT ĐỐI KHÔNG sinh câu lệnh SQL thô, không yêu cầu người dùng nhập SQL và không hiển thị câu lệnh SQL thô cho người dùng.\n` +
+        `4. KHÔNG tiết lộ bất kỳ thông tin nhạy cảm nào ngoài phạm vi dữ liệu được trả về bởi các công cụ.\n` +
+        `5. Luôn phản hồi bằng tiếng Việt ngắn gọn, rõ ràng, tập trung trực tiếp vào câu hỏi của người dùng.`;
+
       const messages: ChatCompletionMessageParam[] = [
         {
           role: 'system',
-          content:
-            'Ban la tro ly AI cho he thong quan ly ban hang. Hay tra loi bang tieng Viet, ngan gon, ro rang. Chi su dung tool duoc cung cap khi can du lieu thuc te.'
+          content: systemPrompt
         },
         {
           role: 'user',
@@ -196,14 +212,14 @@ export class ChatService {
       ];
 
       const firstCompletion = await client.chat.completions.create({
-        model: env.OPENAI_MODEL,
+        model: env.OPENAI_MODEL || 'local-model',
         messages,
         ...(tools.length > 0 ? { tools, tool_choice: 'auto' as const } : {})
       });
 
       const firstMessage = firstCompletion.choices[0]?.message;
       if (!firstMessage) {
-        throw new AppError('LLM_ERROR', 'OpenAI did not return a chat message.', 502);
+        throw new AppError('LLM_ERROR', 'LLM did not return a chat message.', 502);
       }
 
       const toolCalls = firstMessage.tool_calls ?? [];
@@ -250,13 +266,13 @@ export class ChatService {
       }
 
       const finalCompletion = await client.chat.completions.create({
-        model: env.OPENAI_MODEL,
+        model: env.OPENAI_MODEL || 'local-model',
         messages
       });
       const answer = finalCompletion.choices[0]?.message?.content;
 
       if (!answer) {
-        throw new AppError('LLM_ERROR', 'OpenAI did not return a final answer.', 502);
+        throw new AppError('LLM_ERROR', 'LLM did not return a final answer.', 502);
       }
 
       return {
@@ -270,7 +286,7 @@ export class ChatService {
       }
 
       const message = error instanceof Error ? error.message : 'Unknown LLM error';
-      throw new AppError('LLM_ERROR', `OpenAI provider failed: ${message}`, 502);
+      throw new AppError('LLM_ERROR', `LLM provider failed: ${message}`, 502);
     }
   }
 }
