@@ -1,0 +1,20 @@
+export type AppErrorCode =
+  | 'TOOL_NOT_FOUND'
+  | 'INVALID_TOOL_INPUT'
+  | 'PERMISSION_DENIED'
+  | 'CONNECTOR_ERROR'
+  | 'TOOL_TIMEOUT'
+  | 'UNAUTHORIZED'
+  | 'UNAUTHENTICATED'
+  | 'INTERNAL_ERROR';
+
+export class AppError extends Error {
+  constructor(
+    public readonly code: AppErrorCode,
+    message: string,
+    public readonly statusCode = 400
+  ) {
+    super(message);
+    this.name = 'AppError';
+  }
+}
