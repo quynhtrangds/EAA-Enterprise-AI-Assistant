@@ -86,21 +86,35 @@ npm run dev
 
 ## ⚙️ Cấu hình mô hình ngôn ngữ lớn (LLM)
 
-Mặc định, AI Orchestrator sử dụng **Mock Provider** để chạy demo offline không cần kết nối internet và không mất phí:
+AI Orchestrator hỗ trợ 3 chế độ cấu hình LLM khác nhau tùy nhu cầu sử dụng:
+
+### 1. Chế độ Mock (LLM_PROVIDER=mock)
+Mặc định, hệ thống sử dụng Mock Provider để chạy demo offline nhanh chóng không cần kết nối internet và không tốn chi phí API:
 ```env
 LLM_PROVIDER=mock
 ```
 
-Nếu muốn kết nối với mô hình **OpenAI** thực tế:
-1. Tạo một file `.env` tại đường dẫn `apps/ai-orchestrator/.env`.
-2. Điền khóa API và cấu hình như sau:
+### 2. Chế độ OpenAI (LLM_PROVIDER=openai)
+Để kết nối với mô hình OpenAI thương mại (ví dụ GPT-4o, GPT-4o-mini):
+1. Tạo một file `.env` tại thư mục `apps/ai-orchestrator/.env`.
+2. Khai báo các thông tin sau:
    ```env
    LLM_PROVIDER=openai
-   OPENAI_API_KEY=sk-tên_khóa_api_của_bạn_ở_đây
+   OPENAI_API_KEY=sk-tên_khóa_api_của_bạn
    OPENAI_MODEL=gpt-4o-mini
    ```
 
-Ở chế độ OpenAI, Orchestrator sẽ lấy danh sách các công cụ khả dụng từ MCP Gateway bằng `GET /api/tools`, chuyển đổi `inputSchema` thành cấu trúc OpenAI Function Tools, thực thi các công cụ qua `POST /api/tools/call`, sau đó truyền kết quả trả về cho OpenAI để tổng hợp thành câu trả lời bằng tiếng Việt cho người dùng.
+### 3. Chế độ Local LLM (LLM_PROVIDER=local)
+Để chạy mô hình ngôn ngữ cục bộ hoàn toàn offline bảo mật (ví dụ Ollama, LM Studio, vLLM):
+1. Tạo một file `.env` tại thư mục `apps/ai-orchestrator/.env`.
+2. Khai báo cấu hình kết nối tới server API local tương thích OpenAI:
+   ```env
+   LLM_PROVIDER=local
+   LOCAL_LLM_BASE_URL=http://localhost:11434/v1 # Ví dụ cho Ollama
+   OPENAI_MODEL=llama3 # Tên mô hình đang chạy cục bộ
+   ```
+
+Khi sử dụng OpenAI hoặc Local LLM, Orchestrator tự động lấy danh sách tools từ Gateway, ánh xạ thành cấu trúc Function Tools của LLM, lập kế hoạch gọi và tổng hợp dữ liệu phản hồi bằng tiếng Việt ngắn gọn theo đúng tài liệu đặc tả nghiệp vụ.
 
 ---
 
@@ -185,15 +199,26 @@ npm run build
 *(Trên PowerShell, nếu gặp lỗi về phân quyền thực thi của npm, hãy đổi lệnh thành `npm.cmd run typecheck`)*
 
 ### 2. Chạy test case tự động:
-```powershell
-cd C:\2025-2026\SPEC_MPV\apps\mcp-gateway
-npm run test
-```
+
+Dự án có sẵn suite kiểm thử tích hợp (integration tests) cho cả MCP Gateway và AI Orchestrator để đảm bảo tính ổn định:
+
+* **Chạy test tự động cho MCP Gateway:**
+  ```powershell
+  cd C:\2025-2026\SPEC_MPV\apps\mcp-gateway
+  npm run test
+  ```
+  *(Kiểm thử 22 test case bao gồm kiểm tra: health check, validate đầu vào tối đa, xử lý phân quyền, ghi audit log success/failed và log thời gian chờ `TOOL_TIMEOUT`)*
+
+* **Chạy test tự động cho AI Orchestrator:**
+  ```powershell
+  cd C:\2025-2026\SPEC_MPV\apps\ai-orchestrator
+  npm run test
+  ```
+  *(Kiểm thử kịch bản sinh câu trả lời của LLM, tự động lập kế hoạch gọi tool, cấu hình timeout và lưu trữ nhật ký chat)*
 
 ---
 
 ## 📌 Các bước phát triển tiếp theo
 
-1. Viết thêm các test case Vitest cho các tools và phân quyền trong file `gateway.spec.ts`.
-2. Tạo thêm các local LLM provider (như Llama, Ollama) phục vụ việc chạy mô hình ngôn ngữ hoàn toàn offline.
-3. Khi triển khai lên production, sử dụng các Dockerfile multi-stage được tối ưu hóa cho từng service thay vì sử dụng container dev như hiện tại.
+1. Khi triển khai lên production, sử dụng các Dockerfile multi-stage được tối ưu hóa cho từng service để giảm kích thước image thay vì sử dụng container dev gắn ổ đĩa trực tiếp như hiện tại.
+2. Tinh chỉnh (fine-tune) hoặc lựa chọn các local LLM chuyên dụng cho tiếng Việt để nâng cao chất lượng dịch thuật và xử lý ngữ cảnh nghiệp vụ doanh nghiệp.
