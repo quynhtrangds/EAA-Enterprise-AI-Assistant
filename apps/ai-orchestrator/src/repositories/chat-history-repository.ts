@@ -180,10 +180,10 @@ export async function listChatSessions(userId: string): Promise<StoredChatSessio
     lastMessage:
       session.last_role && session.last_content && session.last_created_at
         ? {
-            role: session.last_role,
-            content: session.last_content,
-            createdAt: toIsoString(session.last_created_at)
-          }
+          role: session.last_role,
+          content: session.last_content,
+          createdAt: toIsoString(session.last_created_at)
+        }
         : null,
     messageCount: Number(session.message_count),
     createdAt: toIsoString(session.created_at),
@@ -213,4 +213,43 @@ export async function getChatMessages(userId: string, sessionId: string): Promis
     ...(message.tool_calls ? { toolCalls: message.tool_calls } : {}),
     createdAt: toIsoString(message.created_at)
   }));
+}
+
+export async function deleteChatSession(userId: string, sessionId: string): Promise<void> {
+  await ensureChatHistoryTables();
+
+  const ownerResult = await query<ChatSessionOwnerRow>(
+    `
+    SELECT user_id
+    FROM chat_sessions
+    WHERE session_id = $1
+    LIMIT 1
+    `,
+    [sessionId]
+  );
+  const owner = ownerResult.rows[0];
+
+  if (!owner) {
+    return;
+  }
+
+  if (owner.user_id !== userId) {
+    throw new AppError('SESSION_FORBIDDEN', 'Ban khong co quyen xoa phien chat nay.', 403);
+  }
+
+  await query(
+    `
+    DELETE FROM chat_messages
+    WHERE session_id = $1
+    `,
+    [sessionId]
+  );
+
+  await query(
+    `
+    DELETE FROM chat_sessions
+    WHERE session_id = $1
+    `,
+    [sessionId]
+  );
 }
