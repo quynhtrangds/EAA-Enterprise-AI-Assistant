@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { env } from '../config/env.js';
 import { AppError } from '../errors/app-error.js';
 import { McpGatewayClient } from '../gateway/mcp-gateway-client.js';
-import { appendChatTurn, getChatMessages, listChatSessions } from '../repositories/chat-history-repository.js';
+import { appendChatTurn, deleteChatSession, getChatMessages, listChatSessions } from '../repositories/chat-history-repository.js';
 import { ChatService } from '../services/chat-service.js';
 
 export const chatRouter = Router();
@@ -105,6 +105,17 @@ chatRouter.get('/chat/sessions/:sessionId', async (req, res, next) => {
       sessionId: req.params.sessionId,
       messages
     });
+  } catch (error) {
+    next(error);
+  }
+});
+
+chatRouter.delete('/chat/sessions/:sessionId', async (req, res, next) => {
+  try {
+    const authToken = getBearerToken(req.header('authorization'));
+    const user = await gatewayClient.getCurrentUser(authToken);
+    await deleteChatSession(user.id, req.params.sessionId);
+    res.status(204).send();
   } catch (error) {
     next(error);
   }
