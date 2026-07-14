@@ -25,13 +25,16 @@ function normalizeVietnamese(value: string): string {
 
 function cleanCustomerKeyword(message: string): string {
   return message
-    .replace(/kh\u00e1ch h\u00e0ng/gi, '')
+    .replace(/khách hàng/gi, '')
     .replace(/khach hang/gi, '')
-    .replace(/c\u00f3 nh\u1eefng \u0111\u01a1n h\u00e0ng n\u00e0o/gi, '')
+    .replace(/có những đơn hàng nào/gi, '')
     .replace(/co nhung don hang nao/gi, '')
+    .replace(/\bcủa\b/gi, '')
+    .replace(/\bcua\b/gi, '')
     .replace(/[?.!]/g, '')
     .trim();
 }
+
 
 export class MockLLMProvider implements LLMProvider {
   planToolCall(message: string): PlannedToolCall | null {
@@ -64,9 +67,14 @@ export class MockLLMProvider implements LLMProvider {
       };
     }
 
+    if (normalized.includes('dia chi')) {
+      const keyword = cleanCustomerKeyword(message.replace(/địa chỉ/gi, '').replace(/dia chi/gi, ''));
+      return { toolName: 'search_customer', arguments: { keyword: keyword.trim() || 'Nguyễn', limit: 5 } };
+    }
+
     if (normalized.includes('khach hang')) {
       const keyword = cleanCustomerKeyword(message);
-      return { toolName: 'search_customer', arguments: { keyword: keyword || 'Nguy\u1ec5n', limit: 5 } };
+      return { toolName: 'search_customer', arguments: { keyword: keyword || 'Nguyễn', limit: 5 } };
     }
 
     return null;
@@ -91,9 +99,14 @@ export class MockLLMProvider implements LLMProvider {
     if (toolCall.toolName === 'search_customer') {
       const customers = Array.isArray(data.customers) ? data.customers : [];
       if (customers.length === 0) {
-        return 'Kh\u00f4ng t\u00ecm th\u1ea5y kh\u00e1ch h\u00e0ng ph\u00f9 h\u1ee3p.';
+        return 'Không tìm thấy khách hàng phù hợp.';
       }
-      return `T\u00ecm th\u1ea5y ${customers.length} kh\u00e1ch h\u00e0ng: ${customers.map((customer: any) => customer.fullName).join(', ')}.`;
+      if (customers.length === 1) {
+        const c = customers[0];
+        const address = c.address ? ` - Địa chỉ: ${c.address}` : '';
+        return `Thông tin khách hàng: ${c.fullName} (${c.customerCode}) | SĐT: ${c.phone || 'N/A'} | Email: ${c.email || 'N/A'}${address} | Trạng thái: ${c.status}.`;
+      }
+      return `Tìm thấy ${customers.length} khách hàng: ${customers.map((customer: any) => `${customer.fullName} (${customer.phone || 'N/A'}${customer.address ? ', ' + customer.address : ''})`).join('; ')}.`;
     }
 
     if (toolCall.toolName === 'get_top_customers') {

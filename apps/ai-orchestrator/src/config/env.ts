@@ -13,7 +13,8 @@ const EnvSchema = z.object({
   LLM_PROVIDER: z.enum(['mock', 'openai', 'local']).default('mock'),
   OPENAI_API_KEY: z.string().optional(),
   OPENAI_MODEL: z.string().default('gpt-4.1-mini'),
-  LOCAL_LLM_BASE_URL: z.string().url().optional()
+  LOCAL_LLM_BASE_URL: z.string().url().optional(),
+  MAX_TOOL_CALL_ROUNDS: z.coerce.number().int().min(1).max(10).default(5)
 });
 
 export const env = EnvSchema.parse(process.env);

@@ -1,4 +1,4 @@
-export type ToolRiskLevel = 'low' | 'medium' | 'high';
+import { z } from 'zod';
 
 export interface ToolContext {
   userId: string;
@@ -12,12 +12,9 @@ export interface McpTool {
   name: string;
   title: string;
   description: string;
-  inputSchema: object;
-  outputSchema?: object;
-  riskLevel: ToolRiskLevel;
-  readOnly: boolean;
-  requiresConfirmation: boolean;
-  execute(input: unknown, context: ToolContext): Promise<unknown>;
+  inputSchema: z.ZodObject<any>;
+  outputSchema?: z.ZodObject<any>;
+  execute(input: any, context: ToolContext): Promise<any>;
 }
 
 export interface McpConnector {

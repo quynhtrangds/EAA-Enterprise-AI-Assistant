@@ -278,9 +278,6 @@ describe('mcp-gateway integration', () => {
             description: 'Runs slowly to trigger timeout',
             inputSchema: z.object({}),
             outputSchema: z.object({ ok: z.boolean() }),
-            riskLevel: 'low',
-            readOnly: true,
-            requiresConfirmation: false,
             async execute() {
               await new Promise((resolve) => setTimeout(resolve, 300));
               return { ok: true };

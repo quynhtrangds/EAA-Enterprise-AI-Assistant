@@ -7,6 +7,7 @@ import { query } from '../db/pool.js';
 import { AppError } from '../errors/app-error.js';
 import { canExecuteTool } from '../policies/tool-permissions.js';
 import { runtime } from '../runtime/runtime-instance.js';
+import { getToolConfig } from '../config/tools-config.js';
 
 export const toolsRouter = Router();
 
@@ -68,41 +69,16 @@ function zodToJsonSchema(schema: unknown): Record<string, unknown> {
     return {
       type: 'object',
       properties,
-      ...(required.length > 0 ? { required } : {}),
-      additionalProperties: false
+      ...(required.length > 0 ? { required } : {})
     };
   }
 
   if (typeName === 'ZodString') {
-    const jsonSchema: Record<string, unknown> = { type: 'string' };
-    for (const check of zodSchema._def.checks ?? []) {
-      if (check.kind === 'min') {
-        jsonSchema.minLength = check.value;
-      }
-      if (check.kind === 'regex') {
-        jsonSchema.pattern = check.regex.source;
-      }
-      if (check.kind === 'uuid') {
-        jsonSchema.format = 'uuid';
-      }
-    }
-    return jsonSchema;
+    return { type: 'string' };
   }
 
   if (typeName === 'ZodNumber') {
-    const jsonSchema: Record<string, unknown> = { type: 'number' };
-    for (const check of zodSchema._def.checks ?? []) {
-      if (check.kind === 'int') {
-        jsonSchema.type = 'integer';
-      }
-      if (check.kind === 'min') {
-        jsonSchema.minimum = check.value;
-      }
-      if (check.kind === 'max') {
-        jsonSchema.maximum = check.value;
-      }
-    }
-    return jsonSchema;
+    return { type: 'number' };
   }
 
   if (typeName === 'ZodEnum') {
@@ -177,13 +153,14 @@ toolsRouter.get('/tools', async (req, res, next) => {
 
     for (const tool of allTools) {
       if (await canExecuteTool(user.roles, tool.name)) {
+        const config = getToolConfig(tool.name);
         visibleTools.push({
           name: tool.name,
           title: tool.title,
           description: tool.description,
-          riskLevel: tool.riskLevel,
-          readOnly: tool.readOnly,
-          requiresConfirmation: tool.requiresConfirmation,
+          riskLevel: config.riskLevel,
+          readOnly: config.readOnly,
+          requiresConfirmation: config.requiresConfirmation,
           inputSchema: zodToJsonSchema(tool.inputSchema)
         });
       }
@@ -240,6 +217,7 @@ toolsRouter.post('/tools/call', async (req, res, next) => {
       durationMs
     });
   } catch (error) {
+    console.error('Real error in tools.ts:', error);
     const durationMs = Date.now() - startedAt;
     const appError =
       error instanceof AppError

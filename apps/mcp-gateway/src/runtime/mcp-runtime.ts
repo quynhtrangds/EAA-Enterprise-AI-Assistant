@@ -31,7 +31,7 @@ export class McpRuntime {
 
   async callTool(toolName: string, input: unknown, context: ToolContext): Promise<unknown> {
     const tool = this.getTool(toolName);
-    this.validateInput(tool.inputSchema, input);
+    const parsedInput = this.validateInput(tool.inputSchema, input);
 
     const timeoutMs = process.env.TEST_TOOL_TIMEOUT_MS
       ? Number(process.env.TEST_TOOL_TIMEOUT_MS)
@@ -46,7 +46,7 @@ export class McpRuntime {
 
     try {
       const output = await Promise.race([
-        tool.execute(input, context),
+        tool.execute(parsedInput, context),
         timeoutPromise
       ]);
       this.validateOutput(tool.outputSchema, output);
@@ -64,13 +64,15 @@ export class McpRuntime {
     }
   }
 
-  private validateInput(schema: object, input: unknown): void {
+  private validateInput(schema: object, input: unknown): unknown {
     if (schema instanceof z.ZodType) {
       const result = schema.safeParse(input);
       if (!result.success) {
         throw new AppError('INVALID_TOOL_INPUT', result.error.issues[0]?.message ?? 'Invalid tool input', 400);
       }
+      return result.data;
     }
+    return input;
   }
 
   private validateOutput(schema: object | undefined, output: unknown): void {

@@ -52,10 +52,12 @@ describe('ai-orchestrator integration', () => {
     };
 
     global.fetch = vi.fn().mockImplementation((url: string, init?: RequestInit) => {
+      const mockHeaders = new Headers({ 'Content-Type': 'application/json' });
       if (url.endsWith('/api/me')) {
         return Promise.resolve({
           ok: true,
           status: 200,
+          headers: mockHeaders,
           json: () => Promise.resolve({ user: mockUser })
         } as unknown as Response);
       }
@@ -63,6 +65,7 @@ describe('ai-orchestrator integration', () => {
         return Promise.resolve({
           ok: true,
           status: 200,
+          headers: mockHeaders,
           json: () => Promise.resolve({ tools: mockTools })
         } as unknown as Response);
       }
@@ -70,8 +73,52 @@ describe('ai-orchestrator integration', () => {
         return Promise.resolve({
           ok: true,
           status: 200,
+          headers: mockHeaders,
           json: () => Promise.resolve(mockToolCallResponse)
         } as unknown as Response);
+      }
+      if (url.endsWith('/chat/completions')) {
+        const body = init?.body ? JSON.parse(init.body as string) : { messages: [] };
+        const messages = body.messages || [];
+        const isToolResponse = messages.length > 0 && messages[messages.length - 1].role === 'tool';
+        
+        if (!isToolResponse) {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            headers: mockHeaders,
+            json: () => Promise.resolve({
+              choices: [{
+                message: {
+                  role: 'assistant',
+                  content: null,
+                  tool_calls: [{
+                    id: 'call_123',
+                    type: 'function',
+                    function: {
+                      name: 'get_revenue_summary',
+                      arguments: '{}'
+                    }
+                  }]
+                }
+              }]
+            })
+          } as unknown as Response);
+        } else {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            headers: mockHeaders,
+            json: () => Promise.resolve({
+              choices: [{
+                message: {
+                  role: 'assistant',
+                  content: 'Doanh thu hôm nay là 25.000.000 VND với 10 đơn hàng.'
+                }
+              }]
+            })
+          } as unknown as Response);
+        }
       }
       return Promise.reject(new Error(`Unhandled mock fetch for ${url}`));
     });
