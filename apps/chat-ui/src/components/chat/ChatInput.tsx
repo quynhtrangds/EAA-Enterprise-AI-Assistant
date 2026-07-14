@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 
 interface ChatInputProps {
   onSendMessage: (message: string) => void;
   isLoading: boolean;
+  isCentered?: boolean;
 }
 
 // Khai báo mảng 5 quick prompts
@@ -14,42 +15,77 @@ const QUICK_PROMPTS = [
   { icon: '📈', text: 'Sản phẩm nào bán chạy nhất tháng này?' }
 ];
 
-const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage, isLoading }) => {
+const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage, isLoading, isCentered = false }) => {
   const [input, setInput] = useState('');
+  const [showPrompts, setShowPrompts] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!isLoading) {
+      setTimeout(() => {
+        inputRef.current?.focus();
+      }, 50);
+    }
+  }, [isLoading]);
+
+  useEffect(() => {
+    const handleEditPrompt = (e: Event) => {
+      const customEvent = e as CustomEvent<string>;
+      setInput(customEvent.detail);
+      setTimeout(() => {
+        inputRef.current?.focus();
+      }, 50);
+    };
+    window.addEventListener('edit-prompt', handleEditPrompt);
+    return () => window.removeEventListener('edit-prompt', handleEditPrompt);
+  }, []);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (input.trim() && !isLoading) {
-      onSendMessage(input);
+      onSendMessage(input.trim());
       setInput('');
     }
   };
 
   return (
-    <div className="p-4 bg-white/80 backdrop-blur-md border-t border-slate-200 sticky bottom-0 z-10">
+    <div className={`p-4 ${isCentered ? 'bg-transparent w-full' : 'bg-white/80 backdrop-blur-md border-t border-slate-200 sticky bottom-0 z-10'}`}>
 
       {/* Vùng render Quick Prompts bằng map() */}
-      <div className="max-w-4xl mx-auto flex flex-wrap gap-2 mb-3 px-2">
-        {QUICK_PROMPTS.map((prompt, index) => (
-          <button
-            key={index}
-            onClick={() => onSendMessage(prompt.text)}
-            disabled={isLoading}
-            className="text-xs font-medium bg-white border border-slate-200 text-slate-600 px-4 py-2 rounded-full hover:border-indigo-300 hover:text-indigo-600 shadow-sm transition-all disabled:opacity-50"
-          >
-            {prompt.icon} {prompt.text}
-          </button>
-        ))}
+      <div className="max-w-4xl mx-auto mb-3 px-2">
+        <button
+          onClick={() => setShowPrompts(!showPrompts)}
+          className="text-xs text-indigo-600 font-medium mb-2 flex items-center gap-1 hover:underline focus:outline-none transition-colors"
+        >
+          <svg className={`w-4 h-4 transition-transform duration-300 ${showPrompts ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+          </svg>
+          {showPrompts ? 'Thu gọn gợi ý' : 'Hiển thị gợi ý câu hỏi'}
+        </button>
+
+        <div className={`flex flex-wrap gap-2 transition-all duration-300 overflow-hidden ${showPrompts ? 'max-h-40 opacity-100' : 'max-h-0 opacity-0'}`}>
+          {QUICK_PROMPTS.map((prompt, index) => (
+            <button
+              key={index}
+              onClick={() => onSendMessage(prompt.text)}
+              disabled={isLoading}
+              className="text-xs font-medium bg-white border border-slate-200 text-slate-600 px-4 py-2 rounded-full hover:border-indigo-300 hover:text-indigo-600 shadow-sm transition-all disabled:opacity-50"
+            >
+              {prompt.icon} {prompt.text}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Khung nhập text */}
       <form onSubmit={handleSubmit} className="max-w-4xl mx-auto flex gap-3 relative">
         <input
+          ref={inputRef}
           type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
           disabled={isLoading}
-          placeholder="Nhập yêu cầu truy vấn dữ liệu..."
+          placeholder="Nhập câu hỏi..."
           className="flex-1 pl-6 pr-14 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white shadow-inner disabled:opacity-60 transition-all text-[15px]"
         />
         <button

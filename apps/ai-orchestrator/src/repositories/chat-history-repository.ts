@@ -23,6 +23,11 @@ export interface StoredChatSessionSummary {
   messageCount: number;
   createdAt: string;
   updatedAt: string;
+  isStarred: boolean;
+}
+
+export interface SearchResultSummary extends StoredChatSessionSummary {
+  matchedMessage?: string;
 }
 
 interface ChatSessionOwnerRow {
@@ -38,6 +43,7 @@ interface ChatSessionRow {
   message_count: string;
   created_at: Date | string;
   updated_at: Date | string;
+  is_starred: boolean;
 }
 
 interface ChatMessageRow {
@@ -66,6 +72,7 @@ export async function ensureChatHistoryTables(): Promise<void> {
       created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
+    ALTER TABLE chat_sessions ADD COLUMN IF NOT EXISTS is_starred BOOLEAN DEFAULT FALSE;
 
     CREATE TABLE IF NOT EXISTS chat_messages (
       message_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -144,6 +151,68 @@ export async function appendChatTurn(input: {
   );
 }
 
+export async function editChatTurn(input: {
+  sessionId: string;
+  userId: string;
+  messageId: string;
+  userMessage: string;
+  assistantMessage: string;
+  toolCalls: ToolCallTrace[];
+}): Promise<void> {
+  await ensureChatHistoryTables();
+
+  const result = await query(
+    `SELECT created_at FROM chat_messages WHERE message_id = $1 AND session_id = $2`,
+    [input.messageId, input.sessionId]
+  );
+  
+  if (result.rows.length === 0) {
+    throw new AppError('NOT_FOUND', 'Message not found', 404);
+  }
+
+  const createdAt = result.rows[0].created_at;
+
+  await query(
+    `DELETE FROM chat_messages WHERE session_id = $1 AND created_at >= $2`,
+    [input.sessionId, createdAt]
+  );
+
+  await appendChatTurn({
+    sessionId: input.sessionId,
+    userId: input.userId,
+    userMessage: input.userMessage,
+    assistantMessage: input.assistantMessage,
+    toolCalls: input.toolCalls
+  });
+}
+
+export async function renameSession(sessionId: string, userId: string, title: string): Promise<void> {
+  await ensureChatHistoryTables();
+  const result = await query(
+    `UPDATE chat_sessions SET title = $3, updated_at = now() WHERE session_id = $1 AND user_id = $2`,
+    [sessionId, userId, title]
+  );
+  if (result.rowCount === 0) throw new AppError('NOT_FOUND', 'Session not found', 404);
+}
+
+export async function toggleStarSession(sessionId: string, userId: string, isStarred: boolean): Promise<void> {
+  await ensureChatHistoryTables();
+  const result = await query(
+    `UPDATE chat_sessions SET is_starred = $3, updated_at = now() WHERE session_id = $1 AND user_id = $2`,
+    [sessionId, userId, isStarred]
+  );
+  if (result.rowCount === 0) throw new AppError('NOT_FOUND', 'Session not found', 404);
+}
+
+export async function deleteSession(sessionId: string, userId: string): Promise<void> {
+  await ensureChatHistoryTables();
+  const result = await query(
+    `DELETE FROM chat_sessions WHERE session_id = $1 AND user_id = $2`,
+    [sessionId, userId]
+  );
+  if (result.rowCount === 0) throw new AppError('NOT_FOUND', 'Session not found', 404);
+}
+
 export async function listChatSessions(userId: string): Promise<StoredChatSessionSummary[]> {
   await ensureChatHistoryTables();
 
@@ -154,6 +223,7 @@ export async function listChatSessions(userId: string): Promise<StoredChatSessio
       s.title,
       s.created_at,
       s.updated_at,
+      s.is_starred,
       COUNT(m.message_id)::text AS message_count,
       last_message.role AS last_role,
       last_message.content AS last_content,
@@ -164,12 +234,12 @@ export async function listChatSessions(userId: string): Promise<StoredChatSessio
       SELECT role, content, created_at
       FROM chat_messages
       WHERE session_id = s.session_id
-      ORDER BY created_at DESC, message_id DESC
+      ORDER BY created_at DESC, CASE WHEN role = 'assistant' THEN 1 ELSE 2 END ASC, message_id DESC
       LIMIT 1
     ) last_message ON true
     WHERE s.user_id = $1
-    GROUP BY s.session_id, s.title, s.created_at, s.updated_at, last_message.role, last_message.content, last_message.created_at
-    ORDER BY s.updated_at DESC
+    GROUP BY s.session_id, s.title, s.created_at, s.updated_at, s.is_starred, last_message.role, last_message.content, last_message.created_at
+    ORDER BY s.is_starred DESC, s.updated_at DESC
     `,
     [userId]
   );
@@ -180,14 +250,15 @@ export async function listChatSessions(userId: string): Promise<StoredChatSessio
     lastMessage:
       session.last_role && session.last_content && session.last_created_at
         ? {
-          role: session.last_role,
-          content: session.last_content,
-          createdAt: toIsoString(session.last_created_at)
-        }
+            role: session.last_role,
+            content: session.last_content,
+            createdAt: toIsoString(session.last_created_at)
+          }
         : null,
     messageCount: Number(session.message_count),
     createdAt: toIsoString(session.created_at),
-    updatedAt: toIsoString(session.updated_at)
+    updatedAt: toIsoString(session.updated_at),
+    isStarred: Boolean(session.is_starred)
   }));
 }
 
@@ -201,7 +272,9 @@ export async function getChatMessages(userId: string, sessionId: string): Promis
     JOIN chat_sessions s ON s.session_id = m.session_id
     WHERE s.user_id = $1
       AND s.session_id = $2
-    ORDER BY m.created_at ASC, m.message_id ASC
+    ORDER BY m.created_at ASC, 
+             CASE WHEN m.role = 'user' THEN 1 ELSE 2 END ASC, 
+             m.message_id ASC
     `,
     [userId, sessionId]
   );
@@ -215,41 +288,71 @@ export async function getChatMessages(userId: string, sessionId: string): Promis
   }));
 }
 
-export async function deleteChatSession(userId: string, sessionId: string): Promise<void> {
+export async function searchChatSessions(userId: string, searchTerm: string): Promise<SearchResultSummary[]> {
   await ensureChatHistoryTables();
 
-  const ownerResult = await query<ChatSessionOwnerRow>(
+  const searchPattern = `%${searchTerm}%`;
+
+  const result = await query<ChatSessionRow & { matched_content: string | null }>(
     `
-    SELECT user_id
-    FROM chat_sessions
-    WHERE session_id = $1
-    LIMIT 1
+    WITH matched_sessions AS (
+      SELECT DISTINCT s.session_id
+      FROM chat_sessions s
+      LEFT JOIN chat_messages m ON m.session_id = s.session_id
+      WHERE s.user_id = $1
+        AND (s.title ILIKE $2 OR m.content ILIKE $2)
+    )
+    SELECT
+      s.session_id,
+      s.title,
+      s.created_at,
+      s.updated_at,
+      s.is_starred,
+      COUNT(m.message_id)::text AS message_count,
+      last_message.role AS last_role,
+      last_message.content AS last_content,
+      last_message.created_at AS last_created_at,
+      match_message.content AS matched_content
+    FROM chat_sessions s
+    JOIN matched_sessions ms ON ms.session_id = s.session_id
+    LEFT JOIN chat_messages m ON m.session_id = s.session_id
+    LEFT JOIN LATERAL (
+      SELECT role, content, created_at
+      FROM chat_messages
+      WHERE session_id = s.session_id
+      ORDER BY created_at DESC, CASE WHEN role = 'assistant' THEN 1 ELSE 2 END ASC, message_id DESC
+      LIMIT 1
+    ) last_message ON true
+    LEFT JOIN LATERAL (
+      SELECT content
+      FROM chat_messages
+      WHERE session_id = s.session_id AND content ILIKE $2
+      ORDER BY created_at DESC
+      LIMIT 1
+    ) match_message ON true
+    WHERE s.user_id = $1
+    GROUP BY s.session_id, s.title, s.created_at, s.updated_at, s.is_starred, last_message.role, last_message.content, last_message.created_at, match_message.content
+    ORDER BY s.updated_at DESC
+    LIMIT 20
     `,
-    [sessionId]
-  );
-  const owner = ownerResult.rows[0];
-
-  if (!owner) {
-    return;
-  }
-
-  if (owner.user_id !== userId) {
-    throw new AppError('SESSION_FORBIDDEN', 'Ban khong co quyen xoa phien chat nay.', 403);
-  }
-
-  await query(
-    `
-    DELETE FROM chat_messages
-    WHERE session_id = $1
-    `,
-    [sessionId]
+    [userId, searchPattern]
   );
 
-  await query(
-    `
-    DELETE FROM chat_sessions
-    WHERE session_id = $1
-    `,
-    [sessionId]
-  );
+  return result.rows.map((session) => ({
+    sessionId: session.session_id,
+    title: session.title,
+    lastMessage:
+      session.last_role && session.last_content && session.last_created_at
+        ? {
+            role: session.last_role,
+            content: session.last_content,
+            createdAt: toIsoString(session.last_created_at)
+          }
+        : null,
+    messageCount: Number(session.message_count),
+    createdAt: toIsoString(session.created_at),
+    updatedAt: toIsoString(session.updated_at),
+    isStarred: Boolean(session.is_starred),
+    matchedMessage: session.matched_content || undefined
+  }));
 }

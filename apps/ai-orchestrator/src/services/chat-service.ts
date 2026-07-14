@@ -198,7 +198,16 @@ export class ChatService {
         `2. KHÔNG tự bịa, giả lập hoặc phỏng đoán bất kỳ thông tin nào nếu tool không trả về hoặc không tìm thấy dữ liệu. Nếu không tìm thấy, hãy thông báo rõ ràng bằng tiếng Việt rằng không tìm thấy thông tin trên hệ thống.\n` +
         `3. TUYỆT ĐỐI KHÔNG sinh câu lệnh SQL thô, không yêu cầu người dùng nhập SQL và không hiển thị câu lệnh SQL thô cho người dùng.\n` +
         `4. KHÔNG tiết lộ bất kỳ thông tin nhạy cảm nào ngoài phạm vi dữ liệu được trả về bởi các công cụ.\n` +
-        `5. Luôn phản hồi bằng tiếng Việt ngắn gọn, rõ ràng, tập trung trực tiếp vào câu hỏi của người dùng.`;
+        `5. Luôn phản hồi bằng tiếng Việt ngắn gọn, rõ ràng, tập trung trực tiếp vào câu hỏi của người dùng. TUYỆT ĐỐI không sử dụng tiếng Trung (như "吗", "的", v.v.), tiếng Anh hay bất kỳ ngôn ngữ nào khác.\n` +
+        `6. KHI CẦN NHIỀU DỮ LIỆU: Nếu câu hỏi yêu cầu thông tin từ nhiều đối tượng (ví dụ: so sánh 2 đơn hàng, xem thông tin nhiều khách hàng), hãy GỌI TOOL NHIỀU LẦN LIÊN TIẾP — mỗi lần gọi cho một đối tượng — cho đến khi thu thập đủ dữ liệu, RỒI MỚI tổng hợp câu trả lời. KHÔNG được từ chối hoặc giải thích "không hỗ trợ" khi tool đã có sẵn.\n` +
+        `7. Mỗi tool có thể được gọi nhiều lần với các tham số khác nhau trong cùng một yêu cầu.\n` +
+        `8. Ngay cả khi người dùng chào bằng ngôn ngữ khác (VD: Hello, Hi), BẮT BUỘC phải chào lại và trả lời bằng Tiếng Việt.\n` +
+        `9. Nếu câu hỏi nằm ngoài phạm vi các tool hiện có, hãy trả lời: "Xin lỗi, tôi chưa có công cụ để trả lời câu hỏi này. Tôi có thể hỗ trợ tìm kiếm khách hàng, xem đơn hàng, doanh thu, sản phẩm bán chạy."\n\n` +
+        `THÔNG TIN HỆ THỐNG:\n` +
+        `- Ngày giờ hiện tại: ${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}\n` +
+        `- Hôm nay là ngày: ${today()}\n` +
+        `- Hôm qua là ngày: ${daysAgo(1)}\n` +
+        `Khi người dùng hỏi "hôm nay", "hôm qua", "tháng này", "năm nay", hãy sử dụng mốc thời gian trên để điền fromDate và toDate với định dạng YYYY-MM-DD.`;
 
       const messages: ChatCompletionMessageParam[] = [
         {
@@ -211,66 +220,72 @@ export class ChatService {
         }
       ];
 
-      const firstCompletion = await client.chat.completions.create({
-        model: env.OPENAI_MODEL || 'local-model',
-        messages,
-        ...(tools.length > 0 ? { tools, tool_choice: 'auto' as const } : {})
-      });
-
-      const firstMessage = firstCompletion.choices[0]?.message;
-      if (!firstMessage) {
-        throw new AppError('LLM_ERROR', 'LLM did not return a chat message.', 502);
-      }
-
-      const toolCalls = firstMessage.tool_calls ?? [];
-      if (toolCalls.length === 0) {
-        return {
-          sessionId: input.sessionId,
-          answer: firstMessage.content ?? '',
-          toolCalls: []
-        };
-      }
-
-      messages.push(firstMessage);
-
+      const MAX_ROUNDS = env.MAX_TOOL_CALL_ROUNDS ?? 5;
       const traces: ToolCallTrace[] = [];
-      for (const toolCall of toolCalls) {
-        if (toolCall.type !== 'function') {
-          continue;
+      let round = 0;
+
+      while (round < MAX_ROUNDS) {
+        round++;
+        const completion = await client.chat.completions.create({
+          model: env.OPENAI_MODEL || 'local-model',
+          messages,
+          ...(tools.length > 0 ? { tools, tool_choice: 'auto' as const } : {})
+        });
+
+        const assistantMessage = completion.choices[0]?.message;
+        if (!assistantMessage) {
+          throw new AppError('LLM_ERROR', 'LLM did not return a chat message.', 502);
         }
 
-        const plannedToolCall: PlannedToolCall = {
-          toolName: toolCall.function.name,
-          arguments: parseToolArguments(toolCall.function.arguments)
-        };
+        const toolCalls = assistantMessage.tool_calls ?? [];
 
-        const gatewayResult = await this.gateway.callTool(
-          input.authToken,
-          input.sessionId,
-          plannedToolCall.toolName,
-          plannedToolCall.arguments
-        );
-        const trace = toTrace(plannedToolCall, gatewayResult);
-        traces.push(trace);
+        // No more tool calls → LLM produced a final answer
+        if (toolCalls.length === 0) {
+          return {
+            sessionId: input.sessionId,
+            answer: assistantMessage.content ?? '',
+            toolCalls: traces
+          };
+        }
 
-        messages.push({
-          role: 'tool',
-          tool_call_id: toolCall.id,
-          content: JSON.stringify({
-            success: gatewayResult.success,
-            data: gatewayResult.data,
-            errorCode: gatewayResult.errorCode,
-            message: gatewayResult.message
-          })
-        });
+        // Execute all tool calls in this round
+        messages.push(assistantMessage);
+        for (const toolCall of toolCalls) {
+          if (toolCall.type !== 'function') continue;
+
+          const plannedToolCall: PlannedToolCall = {
+            toolName: toolCall.function.name,
+            arguments: parseToolArguments(toolCall.function.arguments)
+          };
+
+          const gatewayResult = await this.gateway.callTool(
+            input.authToken,
+            input.sessionId,
+            plannedToolCall.toolName,
+            plannedToolCall.arguments
+          );
+          traces.push(toTrace(plannedToolCall, gatewayResult));
+
+          messages.push({
+            role: 'tool',
+            tool_call_id: toolCall.id,
+            content: JSON.stringify({
+              success: gatewayResult.success,
+              data: gatewayResult.data,
+              errorCode: gatewayResult.errorCode,
+              message: gatewayResult.message
+            })
+          });
+        }
+        // Loop continues — LLM will decide next step
       }
 
-      const finalCompletion = await client.chat.completions.create({
+      // Fallback if max rounds reached
+      const fallback = await client.chat.completions.create({
         model: env.OPENAI_MODEL || 'local-model',
         messages
       });
-      const answer = finalCompletion.choices[0]?.message?.content;
-
+      const answer = fallback.choices[0]?.message?.content;
       if (!answer) {
         throw new AppError('LLM_ERROR', 'LLM did not return a final answer.', 502);
       }
@@ -286,7 +301,14 @@ export class ChatService {
       }
 
       const message = error instanceof Error ? error.message : 'Unknown LLM error';
-      throw new AppError('LLM_ERROR', `LLM provider failed: ${message}`, 502);
+      console.error('LLM Error Details:', (error as any).error || error);
+
+      // Trả về câu trả lời thân thiện thay vì ném lỗi 502 để UI không báo "Mất kết nối"
+      return {
+        sessionId: input.sessionId,
+        answer: 'Xin lỗi, tôi đã gặp khó khăn khi xử lý yêu cầu này (có thể do thiếu thông tin cụ thể hoặc công cụ không hỗ trợ). Bạn vui lòng cung cấp thêm chi tiết hoặc thử đổi cách hỏi nhé.',
+        toolCalls: []
+      };
     }
   }
 }

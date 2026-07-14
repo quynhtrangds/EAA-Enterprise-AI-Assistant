@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { env } from '../config/env.js';
 import { AppError } from '../errors/app-error.js';
 import { McpGatewayClient } from '../gateway/mcp-gateway-client.js';
-import { appendChatTurn, deleteChatSession, getChatMessages, listChatSessions } from '../repositories/chat-history-repository.js';
+import { appendChatTurn, editChatTurn, getChatMessages, listChatSessions, renameSession, toggleStarSession, searchChatSessions, deleteSession } from '../repositories/chat-history-repository.js';
 import { ChatService } from '../services/chat-service.js';
 
 export const chatRouter = Router();
@@ -16,9 +16,20 @@ const chatSchema = z.object({
   message: z.string().trim().min(1)
 });
 
+const chatEditSchema = z.object({
+  sessionId: z.string().trim().min(1),
+  messageId: z.string().trim().min(1),
+  message: z.string().trim().min(1)
+});
+
 const loginSchema = z.object({
   username: z.string().trim().min(1),
   password: z.string().min(1)
+});
+
+const sessionUpdateSchema = z.object({
+  title: z.string().trim().min(1).optional(),
+  isStarred: z.boolean().optional()
 });
 
 function getBearerToken(rawAuthorization: string | undefined): string {
@@ -85,11 +96,51 @@ chatRouter.post('/chat', async (req, res, next) => {
   }
 });
 
+chatRouter.post('/chat/edit', async (req, res, next) => {
+  try {
+    const body = chatEditSchema.parse(req.body);
+    const authToken = getBearerToken(req.header('authorization'));
+    const user = await gatewayClient.getCurrentUser(authToken);
+    const output = await chatService.chat({ sessionId: body.sessionId, message: body.message, authToken });
+    
+    await editChatTurn({
+      sessionId: output.sessionId,
+      userId: user.id,
+      messageId: body.messageId,
+      userMessage: body.message,
+      assistantMessage: output.answer,
+      toolCalls: output.toolCalls
+    });
+
+    res.json(output);
+  } catch (error) {
+    next(error);
+  }
+});
+
 chatRouter.get('/chat/sessions', async (req, res, next) => {
   try {
     const authToken = getBearerToken(req.header('authorization'));
     const user = await gatewayClient.getCurrentUser(authToken);
     const sessions = await listChatSessions(user.id);
+    res.json({ sessions });
+  } catch (error) {
+    next(error);
+  }
+});
+
+chatRouter.get('/chat/search', async (req, res, next) => {
+  try {
+    const authToken = getBearerToken(req.header('authorization'));
+    const user = await gatewayClient.getCurrentUser(authToken);
+    const q = req.query.q as string;
+    
+    if (!q || q.trim() === '') {
+      res.json({ sessions: [] });
+      return;
+    }
+
+    const sessions = await searchChatSessions(user.id, q);
     res.json({ sessions });
   } catch (error) {
     next(error);
@@ -110,12 +161,30 @@ chatRouter.get('/chat/sessions/:sessionId', async (req, res, next) => {
   }
 });
 
+chatRouter.patch('/chat/sessions/:sessionId', async (req, res, next) => {
+  try {
+    const body = sessionUpdateSchema.parse(req.body);
+    const authToken = getBearerToken(req.header('authorization'));
+    const user = await gatewayClient.getCurrentUser(authToken);
+    
+    if (body.title !== undefined) {
+      await renameSession(req.params.sessionId, user.id, body.title);
+    }
+    if (body.isStarred !== undefined) {
+      await toggleStarSession(req.params.sessionId, user.id, body.isStarred);
+    }
+    res.json({ success: true });
+  } catch (error) {
+    next(error);
+  }
+});
+
 chatRouter.delete('/chat/sessions/:sessionId', async (req, res, next) => {
   try {
     const authToken = getBearerToken(req.header('authorization'));
     const user = await gatewayClient.getCurrentUser(authToken);
-    await deleteChatSession(user.id, req.params.sessionId);
-    res.status(204).send();
+    await deleteSession(req.params.sessionId, user.id);
+    res.json({ success: true });
   } catch (error) {
     next(error);
   }

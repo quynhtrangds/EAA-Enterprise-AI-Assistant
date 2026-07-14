@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { query } from '../../../db/pool.js';
 import { AppError } from '../../../errors/app-error.js';
-import type { McpTool } from '../../../types/tool.js';
+import type { McpTool, ToolContext } from '../../../types/tool.js';
 
 interface OrderDetailRow {
   id: string;
@@ -10,6 +10,7 @@ interface OrderDetailRow {
   status: string;
   total_amount: string;
   customer_name: string;
+  customer_address: string | null;
 }
 
 interface SearchCustomerRow {
@@ -18,6 +19,7 @@ interface SearchCustomerRow {
   full_name: string;
   phone: string | null;
   email: string | null;
+  address: string | null;
   status: string;
 }
 
@@ -114,6 +116,7 @@ const searchCustomerOutputSchema = z.object({
       fullName: z.string(),
       phone: z.string(),
       email: z.string(),
+      address: z.string(),
       status: z.string()
     })
   )
@@ -136,6 +139,7 @@ const getOrderDetailOutputSchema = z.object({
     orderId: z.string().uuid(),
     orderCode: z.string(),
     customerName: z.string(),
+    customerAddress: z.string(),
     orderDate: z.string(),
     status: z.string(),
     totalAmount: z.number(),
@@ -222,14 +226,11 @@ export function createPostgresTools(): McpTool[] {
       description: 'Find customer by name, phone, email or customer code.',
       inputSchema: searchCustomerInput,
       outputSchema: searchCustomerOutputSchema,
-      riskLevel: 'low',
-      readOnly: true,
-      requiresConfirmation: false,
-      async execute(input) {
-        const { keyword, limit } = searchCustomerInput.parse(input);
+      async execute(parsedInput: any, context: ToolContext) {
+        const { keyword, limit } = parsedInput;
         const result = await query<SearchCustomerRow>(
           `
-          SELECT id, customer_code, full_name, phone, email, status
+          SELECT id, customer_code, full_name, phone, email, address, status
           FROM customers
           WHERE unaccent(full_name) ILIKE unaccent($1)
              OR phone ILIKE $1
@@ -248,6 +249,7 @@ export function createPostgresTools(): McpTool[] {
             fullName: customer.full_name,
             phone: customer.phone ?? '',
             email: customer.email ?? '',
+            address: customer.address ?? '',
             status: customer.status
           }))
         };
@@ -256,14 +258,11 @@ export function createPostgresTools(): McpTool[] {
     {
       name: 'get_customer_orders',
       title: 'Get Customer Orders',
-      description: 'Get recent orders for a customer.',
+      description: 'Get recent orders for a customer. IMPORTANT: customerId MUST be a valid UUID format. If you only have the customer name, you MUST call search_customer tool first to get the correct customerId.',
       inputSchema: getCustomerOrdersInput,
       outputSchema: getCustomerOrdersOutputSchema,
-      riskLevel: 'low',
-      readOnly: true,
-      requiresConfirmation: false,
-      async execute(input) {
-        const parsed = getCustomerOrdersInput.parse(input);
+      async execute(parsedInput: any, context: ToolContext) {
+        const parsed = parsedInput;
         const result = await query<CustomerOrderRow>(
           `
           SELECT id, order_code, order_date, status, total_amount
@@ -294,11 +293,8 @@ export function createPostgresTools(): McpTool[] {
       description: 'Get order, customer, items and payments by order code.',
       inputSchema: getOrderDetailInput,
       outputSchema: getOrderDetailOutputSchema,
-      riskLevel: 'low',
-      readOnly: true,
-      requiresConfirmation: false,
-      async execute(input) {
-        const { orderCode } = getOrderDetailInput.parse(input);
+      async execute(parsedInput: any, context: ToolContext) {
+        const { orderCode } = parsedInput;
         const orderResult = await query<OrderDetailRow>(
           `
           SELECT
@@ -307,10 +303,11 @@ export function createPostgresTools(): McpTool[] {
             o.order_date,
             o.status,
             o.total_amount,
-            c.full_name AS customer_name
+            c.full_name AS customer_name,
+            c.address AS customer_address
           FROM orders o
           JOIN customers c ON c.id = o.customer_id
-          WHERE o.order_code = $1
+          WHERE UPPER(o.order_code) = UPPER($1)
           LIMIT 1
           `,
           [orderCode]
@@ -352,6 +349,7 @@ export function createPostgresTools(): McpTool[] {
             orderId: order.id,
             orderCode: order.order_code,
             customerName: order.customer_name,
+            customerAddress: order.customer_address ?? '',
             orderDate: order.order_date instanceof Date ? order.order_date.toISOString() : String(order.order_date),
             status: order.status,
             totalAmount: toNumber(order.total_amount),
@@ -378,11 +376,8 @@ export function createPostgresTools(): McpTool[] {
       description: 'Summarize paid revenue by day, month or payment method.',
       inputSchema: getRevenueSummaryInput,
       outputSchema: getRevenueSummaryOutputSchema,
-      riskLevel: 'low',
-      readOnly: true,
-      requiresConfirmation: false,
-      async execute(input) {
-        const parsed = getRevenueSummaryInput.parse(input);
+      async execute(parsedInput: any, context: ToolContext) {
+        const parsed = parsedInput;
         assertDateRange(parsed.fromDate, parsed.toDate);
 
         const groupExpression =
@@ -430,11 +425,8 @@ export function createPostgresTools(): McpTool[] {
       description: 'Rank customers by paid revenue.',
       inputSchema: getTopCustomersInput,
       outputSchema: getTopCustomersOutputSchema,
-      riskLevel: 'low',
-      readOnly: true,
-      requiresConfirmation: false,
-      async execute(input) {
-        const parsed = getTopCustomersInput.parse(input);
+      async execute(parsedInput: any, context: ToolContext) {
+        const parsed = parsedInput;
         assertDateRange(parsed.fromDate, parsed.toDate);
 
         const result = await query<TopCustomerRow>(
@@ -477,11 +469,8 @@ export function createPostgresTools(): McpTool[] {
       description: 'Rank products by paid order sales.',
       inputSchema: getProductSalesSummaryInput,
       outputSchema: getProductSalesSummaryOutputSchema,
-      riskLevel: 'low',
-      readOnly: true,
-      requiresConfirmation: false,
-      async execute(input) {
-        const parsed = getProductSalesSummaryInput.parse(input);
+      async execute(parsedInput: any, context: ToolContext) {
+        const parsed = parsedInput;
         assertDateRange(parsed.fromDate, parsed.toDate);
 
         const result = await query<ProductSalesRow>(
