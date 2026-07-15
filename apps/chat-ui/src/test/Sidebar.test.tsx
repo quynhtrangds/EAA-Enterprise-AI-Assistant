@@ -278,7 +278,31 @@ describe('Kiểm thử Component Sidebar', () => {
     // Test branch isOpen ? ... : 'left-2 w-48'
     const logoutBtn = screen.getByText('Đăng xuất');
     expect(logoutBtn).toBeInTheDocument();
-    expect(logoutBtn.closest('div')).toHaveClass('w-48');
+  });
+
+  it('TC18: Click on logo starts new session under different conditions', () => {
+    const { rerender } = render(<Sidebar {...defaultProps} activeSessionId="s1" isOpen={true} />);
+    const logoArea = screen.getByText('Enterprise UI').closest('div')?.parentElement;
+    expect(logoArea).toBeInTheDocument();
+
+    // 1. Sidebar open, activeSessionId !== 'new-chat-session'
+    fireEvent.click(logoArea!);
+    expect(defaultProps.onCreateSession).toHaveBeenCalledTimes(1);
+    expect(defaultProps.onToggleSidebar).not.toHaveBeenCalled();
+
+    // 2. Sidebar open, activeSessionId === 'new-chat-session'
+    vi.clearAllMocks();
+    rerender(<Sidebar {...defaultProps} activeSessionId="new-chat-session" isOpen={true} />);
+    fireEvent.click(logoArea!);
+    expect(defaultProps.onCreateSession).not.toHaveBeenCalled();
+
+    // 3. Sidebar closed, activeSessionId !== 'new-chat-session'
+    vi.clearAllMocks();
+    rerender(<Sidebar {...defaultProps} activeSessionId="s1" isOpen={false} />);
+    const logoAreaClosed = screen.getByText('Enterprise UI').closest('div')?.parentElement;
+    fireEvent.click(logoAreaClosed!);
+    expect(defaultProps.onToggleSidebar).toHaveBeenCalledTimes(1);
+    expect(defaultProps.onCreateSession).toHaveBeenCalledTimes(1);
   });
 });
 

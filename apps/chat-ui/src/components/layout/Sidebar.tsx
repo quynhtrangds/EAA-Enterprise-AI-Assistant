@@ -41,6 +41,15 @@ const Sidebar: React.FC<SidebarProps> = ({
 
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState('');
+
+  const handleLogoClick = () => {
+    if (!isOpen) {
+      onToggleSidebar?.();
+    }
+    if (activeSessionId !== 'new-chat-session' && onCreateSession) {
+      onCreateSession();
+    }
+  };
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -153,8 +162,9 @@ const Sidebar: React.FC<SidebarProps> = ({
       {/* Header */}
       <div className={`pt-4 pb-2 px-4 flex items-center justify-between overflow-hidden shrink-0`}>
         <div
-          className={`flex items-center gap-2 ${!isOpen ? 'cursor-pointer group' : ''} shrink-0`}
-          onClick={() => !isOpen && onToggleSidebar?.()}
+          className="flex items-center gap-2 cursor-pointer group shrink-0 transition-transform duration-200 active:scale-95"
+          onClick={handleLogoClick}
+          title={activeSessionId !== 'new-chat-session' ? "Bắt đầu cuộc trò chuyện mới" : undefined}
         >
           <div className="w-10 h-10 flex items-center justify-center shrink-0">
             <div className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${!isOpen ? 'bg-indigo-500 group-hover:bg-slate-800 shadow-lg shadow-indigo-500/30 group-hover:shadow-none' : 'bg-indigo-500 shadow-lg shadow-indigo-500/30'}`}>
