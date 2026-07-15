@@ -17,6 +17,7 @@ describe('useChat', () => {
   const mockCurrentUser = 'test-user';
 
   beforeEach(() => {
+    mockFetch.mockReset();
     vi.clearAllMocks();
     (useAuth as any).mockReturnValue({
       authToken: mockAuthToken,
@@ -465,5 +466,164 @@ describe('useChat', () => {
     });
 
     expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it('TC27: Should truncate session title when it exceeds 25 characters', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        sessions: [
+          { sessionId: 'session-long', title: 'This is a extremely long title that exceeds 25 characters', updatedAt: '2023-01-01T10:00:00Z' }
+        ]
+      })
+    });
+
+    const { result } = renderHook(() => useChat());
+    await act(async () => {
+      await new Promise(resolve => setTimeout(resolve, 0));
+    });
+
+    expect(result.current.sessions[0].title).toBe('This is a extremely long ...');
+  });
+
+  it('TC28: Should handle sendMessage failure when response is not ok', async () => {
+    mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ sessions: [] }) });
+    const { result } = renderHook(() => useChat());
+    await act(async () => {
+      await new Promise(resolve => setTimeout(resolve, 0));
+    });
+
+    mockFetch.mockResolvedValueOnce({ ok: false }); // sendMessage response not ok
+
+    await act(async () => {
+      await result.current.sendMessage('Hello');
+    });
+
+    // The code catches the error and appends an error message
+    expect(result.current.messages.length).toBeGreaterThan(0);
+    const lastMsg = result.current.messages[result.current.messages.length - 1];
+    expect(lastMsg.content).toContain('Không thể kết nối tới máy chủ AI Orchestrator');
+  });
+
+  it('TC29: Should log error when renameSession API throws an error', async () => {
+    mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ sessions: [{ sessionId: 'session-1', title: 'Session 1' }] }) });
+    const { result } = renderHook(() => useChat());
+    await act(async () => {
+      await new Promise(resolve => setTimeout(resolve, 0));
+    });
+
+    mockFetch.mockRejectedValueOnce(new Error('Network failure')); // renameSession throws error
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    await act(async () => {
+      result.current.renameSession('session-1', 'New Name');
+    });
+
+    expect(consoleErrorSpy).toHaveBeenCalledWith('Failed to rename session:', expect.any(Error));
+    consoleErrorSpy.mockRestore();
+  });
+
+  it('TC30: Should handle deleteSession when no authToken', async () => {
+    vi.mocked(useAuth).mockReturnValue({
+      authToken: null,
+      currentUser: null,
+      login: vi.fn(),
+      logout: vi.fn()
+    });
+    mockFetch.mockClear();
+
+    const { result } = renderHook(() => useChat());
+    
+    act(() => {
+      result.current.deleteSession('session-1');
+    });
+
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it('TC31: Should handle fetchSessionDetails returning empty or null messages', async () => {
+    mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ sessions: [{ sessionId: 'session-1' }] }) });
+    const { result } = renderHook(() => useChat());
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 0)); });
+
+    mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ messages: null }) }); // messages is null
+    act(() => { result.current.selectSession('session-1'); });
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 0)); });
+
+    expect(result.current.messages).toEqual([]);
+  });
+
+  it('TC32: Should execute false branch of maps in rename and toggleStar when there are multiple sessions', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        sessions: [
+          { sessionId: 'session-1', title: 'S1' },
+          { sessionId: 'session-2', title: 'S2' }
+        ]
+      })
+    });
+    const { result } = renderHook(() => useChat());
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 0)); });
+
+    mockFetch.mockResolvedValueOnce({ ok: true });
+    await act(async () => {
+      result.current.renameSession('session-1', 'New Title');
+    });
+
+    mockFetch.mockResolvedValueOnce({ ok: true });
+    await act(async () => {
+      result.current.toggleStarSession('session-1', true);
+    });
+
+    // Sessions are mapped, session-2 remains unchanged
+    expect(result.current.sessions.find(s => s.id === 'session-2')?.title).toBe('S2');
+  });
+
+  it('TC33: Should handle fetchSessions returning null sessions list', async () => {
+    mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ sessions: null }) });
+    const { result } = renderHook(() => useChat());
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 0)); });
+    expect(result.current.sessions.length).toBe(1);
+    expect(result.current.sessions[0].id).toBe('new-chat-session');
+  });
+
+  it('TC34: Should handle searchSessions failing or returning null sessions', async () => {
+    mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ sessions: [] }) });
+    const { result } = renderHook(() => useChat());
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 0)); });
+
+    // search failure (response.ok = false)
+    mockFetch.mockResolvedValueOnce({ ok: false });
+    let searchResult: any;
+    await act(async () => {
+      searchResult = await result.current.searchSessions('test');
+    });
+    expect(searchResult).toEqual([]);
+
+    // search success but sessions is null
+    mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ sessions: null }) });
+    await act(async () => {
+      searchResult = await result.current.searchSessions('test');
+    });
+    expect(searchResult).toEqual([]);
+  });
+
+  it('TC35: Should handle searchSessions returning session without title', async () => {
+    mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ sessions: [] }) });
+    const { result } = renderHook(() => useChat());
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 0)); });
+
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        sessions: [{ sessionId: 's1', title: null, matchedMessage: 'match' }]
+      })
+    });
+    let searchResult: any;
+    await act(async () => {
+      searchResult = await result.current.searchSessions('test');
+    });
+    expect(searchResult[0].title).toBe('Hội thoại mới');
   });
 });

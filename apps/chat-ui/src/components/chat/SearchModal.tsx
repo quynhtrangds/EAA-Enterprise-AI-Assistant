@@ -19,7 +19,8 @@ const SearchModal: React.FC<SearchModalProps> = ({ isOpen, onClose, sessions, se
     if (isOpen) {
       setSearchTerm('');
       setResults(sessions.slice(0, 10));
-      setTimeout(() => inputRef.current?.focus(), 100);
+      const t = setTimeout(() => inputRef.current?.focus(), 100);
+      return () => clearTimeout(t);
     }
   }, [isOpen, sessions]);
 
@@ -31,19 +32,23 @@ const SearchModal: React.FC<SearchModalProps> = ({ isOpen, onClose, sessions, se
       return;
     }
 
+    let isMounted = true;
     const timer = setTimeout(async () => {
-      if (searchSessions) {
+      if (searchSessions && isMounted) {
         setIsSearching(true);
         try {
           const res = await searchSessions(searchTerm);
-          setResults(res);
+          if (isMounted) setResults(res);
         } finally {
-          setIsSearching(false);
+          if (isMounted) setIsSearching(false);
         }
       }
     }, 300);
 
-    return () => clearTimeout(timer);
+    return () => {
+      isMounted = false;
+      clearTimeout(timer);
+    };
   }, [searchTerm, searchSessions, isOpen, sessions]);
 
   if (!isOpen) return null;

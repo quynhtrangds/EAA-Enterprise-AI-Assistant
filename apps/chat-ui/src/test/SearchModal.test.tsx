@@ -204,4 +204,31 @@ describe('Kiểm thử Component SearchModal', () => {
     // Resolve để tránh memory leak
     resolveSearch([]);
   });
+
+  it('TC16: Bỏ qua kết quả trả về nếu component bị unmount trong lúc gọi API', async () => {
+    vi.useFakeTimers();
+    let resolveSearch!: (value: any[]) => void;
+    const searchSessions = vi.fn().mockReturnValue(
+      new Promise(resolve => { resolveSearch = resolve; })
+    );
+    const { unmount } = render(<SearchModal {...defaultProps} searchSessions={searchSessions} />);
+    
+    const input = screen.getByPlaceholderText('Tìm kiếm trong các cuộc trò chuyện');
+    fireEvent.change(input, { target: { value: 'unmount test' } });
+    
+    // Chạy hết 300ms debounce
+    await act(async () => {
+      vi.advanceTimersByTime(350);
+    });
+    
+    // Unmount component TRƯỚC KHI api trả về
+    unmount();
+    
+    // Resolve api (lúc này isMounted đã là false)
+    await act(async () => {
+      resolveSearch([]);
+    });
+    
+    vi.useRealTimers();
+  });
 });
