@@ -154,16 +154,7 @@ export const useChat = () => {
   };
 
   const createNewSession = () => {
-    const newId = `session-${Date.now()}`;
-    const newSession: Session = {
-      id: newId,
-      session_code: newId,
-      title: 'Hội thoại mới',
-      updatedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      isStarred: false
-    };
-    setSessions(prev => [newSession, ...prev]);
-    setActiveSessionId(newId);
+    setActiveSessionId('new-chat-session');
     setMessages([]);
   };
 

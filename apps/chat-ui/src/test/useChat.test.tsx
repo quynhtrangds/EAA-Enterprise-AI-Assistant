@@ -123,9 +123,8 @@ describe('useChat', () => {
       result.current.createNewSession();
     });
 
-    expect(result.current.sessions.length).toBe(1);
-    expect(result.current.sessions[0].id).toMatch(/^session-\d+$/);
-    expect(result.current.activeSessionId).toMatch(/^session-\d+$/);
+    expect(result.current.sessions.length).toBe(0);
+    expect(result.current.activeSessionId).toBe('new-chat-session');
     expect(result.current.messages).toEqual([]);
   });
 
@@ -625,5 +624,41 @@ describe('useChat', () => {
       searchResult = await result.current.searchSessions('test');
     });
     expect(searchResult[0].title).toBe('Hội thoại mới');
+  });
+
+  it('TC36: Should reset activeSessionId to new-chat-session if active session is missing from fetched sessions list', async () => {
+    // 1. Mount mock
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ sessions: [{ sessionId: 'session-1' }] })
+    });
+    const { result } = renderHook(() => useChat());
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 0)); });
+
+    // 2. Mock for selectSession's fetchSessionDetails
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ messages: [{ id: 'm1', role: 'user', content: 'test', createdAt: '2026-07-15T08:00:00Z' }] })
+    });
+    act(() => {
+      result.current.selectSession('session-1');
+    });
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 0)); });
+
+    // 3. Mock for editMessage POST call
+    mockFetch.mockResolvedValueOnce({ ok: true });
+    // 4. Mock for subsequent fetchSessions call (missing session-1)
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ sessions: [{ sessionId: 'session-2' }] })
+    });
+    // 5. Mock for subsequent fetchSessionDetails call in editMessage
+    mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ messages: [] }) });
+
+    await act(async () => {
+      await result.current.editMessage('m1', 'new content');
+    });
+
+    expect(result.current.activeSessionId).toBe('new-chat-session');
   });
 });
