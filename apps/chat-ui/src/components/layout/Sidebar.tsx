@@ -45,6 +45,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   const handleLogoClick = () => {
     if (!isOpen) {
       onToggleSidebar?.();
+      return;
     }
     if (activeSessionId !== 'new-chat-session' && onCreateSession) {
       onCreateSession();

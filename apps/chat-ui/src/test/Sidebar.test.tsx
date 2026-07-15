@@ -302,7 +302,7 @@ describe('Kiểm thử Component Sidebar', () => {
     const logoAreaClosed = screen.getByText('Enterprise UI').closest('div')?.parentElement;
     fireEvent.click(logoAreaClosed!);
     expect(defaultProps.onToggleSidebar).toHaveBeenCalledTimes(1);
-    expect(defaultProps.onCreateSession).toHaveBeenCalledTimes(1);
+    expect(defaultProps.onCreateSession).not.toHaveBeenCalled();
   });
 });
 
