@@ -202,7 +202,8 @@ export class ChatService {
         `6. KHI CẦN NHIỀU DỮ LIỆU: Nếu câu hỏi yêu cầu thông tin từ nhiều đối tượng (ví dụ: so sánh 2 đơn hàng, xem thông tin nhiều khách hàng), hãy GỌI TOOL NHIỀU LẦN LIÊN TIẾP — mỗi lần gọi cho một đối tượng — cho đến khi thu thập đủ dữ liệu, RỒI MỚI tổng hợp câu trả lời. KHÔNG được từ chối hoặc giải thích "không hỗ trợ" khi tool đã có sẵn.\n` +
         `7. Mỗi tool có thể được gọi nhiều lần với các tham số khác nhau trong cùng một yêu cầu.\n` +
         `8. Ngay cả khi người dùng chào bằng ngôn ngữ khác (VD: Hello, Hi), BẮT BUỘC phải chào lại và trả lời bằng Tiếng Việt.\n` +
-        `9. Nếu câu hỏi nằm ngoài phạm vi các tool hiện có, hãy trả lời: "Xin lỗi, tôi chưa có công cụ để trả lời câu hỏi này. Tôi có thể hỗ trợ tìm kiếm khách hàng, xem đơn hàng, doanh thu, sản phẩm bán chạy."\n\n` +
+        `9. Nếu câu hỏi nằm ngoài phạm vi các tool hiện có, hãy trả lời: "Xin lỗi, tôi chưa có công cụ để trả lời câu hỏi này. Tôi có thể hỗ trợ tìm kiếm khách hàng, xem đơn hàng, doanh thu, sản phẩm bán chạy."\n` +
+        `10. Khi gọi công cụ search_customer, bạn BẮT BUỘC phải chỉ trích xuất từ khoá tìm kiếm cốt lõi nhất (ví dụ: tên riêng "Nguyễn", "Trần Văn A", số điện thoại, email, hoặc mã khách hàng) làm tham số keyword. TUYỆT ĐỐI không đưa nguyên cả câu hỏi/câu lệnh yêu cầu của người dùng vào keyword.\n\n` +
         `THÔNG TIN HỆ THỐNG:\n` +
         `- Ngày giờ hiện tại: ${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}\n` +
         `- Hôm nay là ngày: ${today()}\n` +

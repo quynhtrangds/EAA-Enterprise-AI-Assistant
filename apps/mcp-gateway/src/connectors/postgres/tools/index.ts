@@ -75,8 +75,8 @@ interface ProductSalesRow {
 const DateString = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must use yyyy-mm-dd format');
 
 const searchCustomerInput = z.object({
-  keyword: z.string().trim().min(1),
-  limit: z.number().int().min(1).max(20).default(5)
+  keyword: z.string().trim().min(1).describe('Từ khoá tìm kiếm cốt lõi (tên riêng như "Nguyễn", "Trần Văn A", số điện thoại, email, hoặc mã khách hàng). Không truyền cả câu hỏi của người dùng.'),
+  limit: z.number().int().min(1).max(20).default(5).describe('Giới hạn số lượng kết quả trả về')
 });
 
 const getCustomerOrdersInput = z.object({
