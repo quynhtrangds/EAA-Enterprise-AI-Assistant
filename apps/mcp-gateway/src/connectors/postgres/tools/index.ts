@@ -80,7 +80,7 @@ const searchCustomerInput = z.object({
 });
 
 const getCustomerOrdersInput = z.object({
-  customerId: z.string().uuid(),
+  customerId: z.string().uuid().describe('Mã UUID của khách hàng (lấy từ kết quả trả về của tool search_customer). BẮT BUỘC phải là chuỗi định dạng UUID hợp lệ. Không được tự bịa hoặc sử dụng placeholder.'),
   fromDate: DateString.optional(),
   toDate: DateString.optional(),
   limit: z.number().int().min(1).max(50).default(10)

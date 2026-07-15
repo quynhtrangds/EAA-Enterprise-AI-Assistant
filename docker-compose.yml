@@ -87,3 +87,5 @@ services:
 
 volumes:
   postgres_data:
+    name: spec_mpv_postgres_data
+    external: true
