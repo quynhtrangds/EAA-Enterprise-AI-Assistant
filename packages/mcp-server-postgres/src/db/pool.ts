@@ -1,12 +1,14 @@
 import pg from 'pg';
-import { env } from '../config/env.js';
+import dotenv from 'dotenv';
+
+dotenv.config();
 
 export const pool = new pg.Pool({
-  host: env.POSTGRES_HOST,
-  port: env.POSTGRES_PORT,
-  database: env.POSTGRES_DB,
-  user: env.POSTGRES_USER,
-  password: env.POSTGRES_PASSWORD,
+  host: process.env.POSTGRES_HOST || 'localhost',
+  port: parseInt(process.env.POSTGRES_PORT || '5432'),
+  database: process.env.POSTGRES_DB || 'postgres',
+  user: process.env.POSTGRES_USER || 'postgres',
+  password: process.env.POSTGRES_PASSWORD || 'postgres',
   max: 10,
   idleTimeoutMillis: 30000
 });

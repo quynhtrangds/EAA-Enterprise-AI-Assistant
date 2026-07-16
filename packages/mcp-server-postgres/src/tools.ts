@@ -1,7 +1,5 @@
 import { z } from 'zod';
-import { query } from '../../../db/pool.js';
-import { AppError } from '../../../errors/app-error.js';
-import type { McpTool, ToolContext } from '../../../types/tool.js';
+import { query } from './db/pool.js';
 
 interface OrderDetailRow {
   id: string;
@@ -206,11 +204,11 @@ function assertDateRange(fromDate: string, toDate: string): void {
   const maxRangeMs = 366 * 24 * 60 * 60 * 1000;
 
   if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime()) || from > to) {
-    throw new AppError('INVALID_TOOL_INPUT', 'fromDate phải nhỏ hơn hoặc bằng toDate.', 400);
+    throw new Error('fromDate phải nhỏ hơn hoặc bằng toDate.');
   }
 
   if (to.getTime() - from.getTime() > maxRangeMs) {
-    throw new AppError('INVALID_TOOL_INPUT', 'Khoảng ngày không được vượt quá 1 năm.', 400);
+    throw new Error('Khoảng ngày không được vượt quá 1 năm.');
   }
 }
 
@@ -218,15 +216,15 @@ function toNumber(value: unknown): number {
   return Number(value ?? 0);
 }
 
-export function createPostgresTools(): McpTool[] {
+export function createPostgresTools() {
   return [
     {
       name: 'search_customer',
       title: 'Search Customer',
-      description: 'Find customer by name, phone, email or customer code.',
+      description: 'Search customers by keyword (name, phone, email, etc.)',
       inputSchema: searchCustomerInput,
       outputSchema: searchCustomerOutputSchema,
-      async execute(parsedInput: any, context: ToolContext) {
+      async execute(parsedInput: any) {
         const { keyword, limit } = parsedInput;
         const result = await query<SearchCustomerRow>(
           `
@@ -258,10 +256,10 @@ export function createPostgresTools(): McpTool[] {
     {
       name: 'get_customer_orders',
       title: 'Get Customer Orders',
-      description: 'Get recent orders for a customer. IMPORTANT: customerId MUST be a valid UUID format. If you only have the customer name, you MUST call search_customer tool first to get the correct customerId.',
+      description: 'Get recent orders for a specific customer. Requires a valid customer UUID.',
       inputSchema: getCustomerOrdersInput,
       outputSchema: getCustomerOrdersOutputSchema,
-      async execute(parsedInput: any, context: ToolContext) {
+      async execute(parsedInput: any) {
         const parsed = parsedInput;
         const result = await query<CustomerOrderRow>(
           `
@@ -290,10 +288,10 @@ export function createPostgresTools(): McpTool[] {
     {
       name: 'get_order_detail',
       title: 'Get Order Detail',
-      description: 'Get order, customer, items and payments by order code.',
+      description: 'Get order details including items and payments.',
       inputSchema: getOrderDetailInput,
       outputSchema: getOrderDetailOutputSchema,
-      async execute(parsedInput: any, context: ToolContext) {
+      async execute(parsedInput: any) {
         const { orderCode } = parsedInput;
         const orderResult = await query<OrderDetailRow>(
           `
@@ -315,7 +313,7 @@ export function createPostgresTools(): McpTool[] {
 
         const order = orderResult.rows[0];
         if (!order) {
-          throw new AppError('CONNECTOR_ERROR', `Không tìm thấy đơn hàng ${orderCode}.`, 404);
+          throw new Error(`Không tìm thấy đơn hàng ${orderCode}.`);
         }
 
         const [itemsResult, paymentsResult] = await Promise.all([
@@ -373,10 +371,10 @@ export function createPostgresTools(): McpTool[] {
     {
       name: 'get_revenue_summary',
       title: 'Get Revenue Summary',
-      description: 'Summarize paid revenue by day, month or payment method.',
+      description: 'Get revenue summary grouped by day, month, or payment_method.',
       inputSchema: getRevenueSummaryInput,
       outputSchema: getRevenueSummaryOutputSchema,
-      async execute(parsedInput: any, context: ToolContext) {
+      async execute(parsedInput: any) {
         const parsed = parsedInput;
         assertDateRange(parsed.fromDate, parsed.toDate);
 
@@ -424,8 +422,7 @@ export function createPostgresTools(): McpTool[] {
       title: 'Get Top Customers',
       description: 'Rank customers by paid revenue.',
       inputSchema: getTopCustomersInput,
-      outputSchema: getTopCustomersOutputSchema,
-      async execute(parsedInput: any, context: ToolContext) {
+      async execute(parsedInput: any) {
         const parsed = parsedInput;
         assertDateRange(parsed.fromDate, parsed.toDate);
 
@@ -468,8 +465,7 @@ export function createPostgresTools(): McpTool[] {
       title: 'Get Product Sales Summary',
       description: 'Rank products by paid order sales.',
       inputSchema: getProductSalesSummaryInput,
-      outputSchema: getProductSalesSummaryOutputSchema,
-      async execute(parsedInput: any, context: ToolContext) {
+      async execute(parsedInput: any) {
         const parsed = parsedInput;
         assertDateRange(parsed.fromDate, parsed.toDate);
 

@@ -7,6 +7,8 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import express from "express";
 
+import { postgresTools } from "./tools.js";
+
 const server = new Server(
   {
     name: "mcp-server-postgres",
@@ -19,7 +21,40 @@ const server = new Server(
   }
 );
 
-// We will implement tool logic here
+server.setRequestHandler(ListToolsRequestSchema, async () => {
+  return {
+    tools: postgresTools.map((t) => ({
+      name: t.name,
+      description: t.description,
+      inputSchema: {
+        type: "object",
+        properties: (t.inputSchema as any).shape || {}, // Zod to basic schema fallback
+      },
+    })),
+  };
+});
+
+server.setRequestHandler(CallToolRequestSchema, async (request) => {
+  const toolName = request.params.name;
+  const tool = postgresTools.find((t) => t.name === toolName);
+
+  if (!tool) {
+    throw new Error(`Tool not found: ${toolName}`);
+  }
+
+  try {
+    const args = tool.inputSchema.parse(request.params.arguments);
+    const result = await tool.execute(args);
+    return {
+      content: [{ type: "text", text: JSON.stringify(result) }],
+    };
+  } catch (error: any) {
+    return {
+      content: [{ type: "text", text: error.message || String(error) }],
+      isError: true,
+    };
+  }
+});
 
 async function main() {
   const mode = process.env.MCP_TRANSPORT_MODE || "stdio";
@@ -34,12 +69,12 @@ async function main() {
     
     let sseTransport: SSEServerTransport;
     
-    app.get("/sse", async (req, res) => {
+    app.get("/sse", async (req: express.Request, res: express.Response) => {
       sseTransport = new SSEServerTransport("/message", res);
       await server.connect(sseTransport);
     });
 
-    app.post("/message", async (req, res) => {
+    app.post("/message", async (req: express.Request, res: express.Response) => {
       if (sseTransport) {
         await sseTransport.handlePostMessage(req, res);
       } else {

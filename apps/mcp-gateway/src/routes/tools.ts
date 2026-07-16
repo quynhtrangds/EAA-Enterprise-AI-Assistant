@@ -6,8 +6,8 @@ import { createToolContext, getCurrentUser } from '../auth/current-user.js';
 import { query } from '../db/pool.js';
 import { AppError } from '../errors/app-error.js';
 import { canExecuteTool } from '../policies/tool-permissions.js';
-import { runtime } from '../runtime/runtime-instance.js';
 import { getToolConfig } from '../config/tools-config.js';
+import { postgresMcpClient } from '../connectors/postgres-mcp-client.js';
 
 export const toolsRouter = Router();
 
@@ -148,7 +148,8 @@ toolsRouter.get('/me', async (req, res, next) => {
 toolsRouter.get('/tools', async (req, res, next) => {
   try {
     const user = await getCurrentUser(req);
-    const allTools = runtime.listTools();
+    const mcpToolsResult = await postgresMcpClient.listTools();
+    const allTools = mcpToolsResult.tools;
     const visibleTools = [];
 
     for (const tool of allTools) {
@@ -161,7 +162,7 @@ toolsRouter.get('/tools', async (req, res, next) => {
         riskLevel: config.riskLevel,
         readOnly: config.readOnly,
         requiresConfirmation: config.requiresConfirmation,
-        inputSchema: zodToJsonSchema(tool.inputSchema),
+        inputSchema: tool.inputSchema,
         permitted: isPermitted
       });
     }
@@ -208,8 +209,8 @@ toolsRouter.post('/tools/call', async (req, res, next) => {
       durationMs: 0
     });
 
-    const context = createToolContext(req, user, parsed.sessionId);
-    const data = await runtime.callTool(parsed.toolName, parsed.arguments, context);
+    const data = await postgresMcpClient.callTool(parsed.toolName, parsed.arguments);
+
     const durationMs = Date.now() - startedAt;
 
     await writeAuditLog({

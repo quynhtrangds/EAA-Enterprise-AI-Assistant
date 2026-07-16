@@ -7,7 +7,12 @@ import { runtime } from '../runtime/runtime-instance.js';
 import { canExecuteTool } from '../policies/tool-permissions.js';
 import { ListToolsRequestSchema, CallToolRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 
+import { postgresMcpClient } from '../connectors/postgres-mcp-client.js';
+
 export const mcpRouter = Router();
+
+// Ensure the client connects when the module loads
+postgresMcpClient.connect().catch(console.error);
 
 // To support multiple clients connecting to the SSE endpoint, we map sessionId -> Transport
 const transports = new Map<string, SSEServerTransport>();
@@ -24,17 +29,9 @@ const mcpServer = new Server({
 
 // Implement the tools handler
 mcpServer.setRequestHandler(ListToolsRequestSchema, async (request, extra) => {
-  // We need user context. Since the SDK doesn't pass req/res directly to handlers easily,
-  // we could pass sessionId in meta or use a global context, but standard MCP tools/list doesn't have args.
-  // Wait, if we just list all tools, the client will filter them, or we can filter in the router.
-  // For now, return all tools from runtime.
-  const tools = runtime.listTools();
+  const result = await postgresMcpClient.listTools();
   return {
-    tools: tools.map(t => ({
-      name: t.name,
-      description: t.description,
-      inputSchema: t.inputSchema as any
-    }))
+    tools: result.tools
   };
 });
 
@@ -42,15 +39,9 @@ mcpServer.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
   const toolName = request.params.name;
   const args = request.params.arguments || {};
   
-  // Call runtime directly. In a real scenario, we'd extract the user from context/token.
-  // For this MVP transition, we execute via runtime.
   try {
-    const data = await runtime.callTool(toolName, args, {} as any);
-    return {
-      content: [
-        { type: "text", text: JSON.stringify(data) }
-      ]
-    };
+    const data = await postgresMcpClient.callTool(toolName, args);
+    return data;
   } catch (error: any) {
     return {
       content: [
