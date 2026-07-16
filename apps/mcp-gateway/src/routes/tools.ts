@@ -7,7 +7,7 @@ import { query } from '../db/pool.js';
 import { AppError } from '../errors/app-error.js';
 import { canExecuteTool } from '../policies/tool-permissions.js';
 import { getToolConfig } from '../config/tools-config.js';
-import { postgresMcpClient } from '../connectors/postgres-mcp-client.js';
+import { mcpClientManager } from '../connectors/mcp-client-manager.js';
 
 export const toolsRouter = Router();
 
@@ -148,7 +148,7 @@ toolsRouter.get('/me', async (req, res, next) => {
 toolsRouter.get('/tools', async (req, res, next) => {
   try {
     const user = await getCurrentUser(req);
-    const mcpToolsResult = await postgresMcpClient.listTools();
+    const mcpToolsResult = await mcpClientManager.listTools();
     const allTools = mcpToolsResult.tools;
     const visibleTools = [];
 
@@ -209,7 +209,7 @@ toolsRouter.post('/tools/call', async (req, res, next) => {
       durationMs: 0
     });
 
-    const data = await postgresMcpClient.callTool(parsed.toolName, parsed.arguments);
+    const data = await mcpClientManager.callTool(parsed.toolName, parsed.arguments);
 
     const durationMs = Date.now() - startedAt;
 

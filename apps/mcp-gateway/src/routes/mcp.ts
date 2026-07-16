@@ -3,16 +3,15 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import { AppError } from '../errors/app-error.js';
 import { getCurrentUser } from '../auth/current-user.js';
-import { runtime } from '../runtime/runtime-instance.js';
-import { canExecuteTool } from '../policies/tool-permissions.js';
-import { ListToolsRequestSchema, CallToolRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 
-import { postgresMcpClient } from '../connectors/postgres-mcp-client.js';
+import { canExecuteTool } from '../policies/tool-permissions.js';
+import { mcpClientManager } from '../connectors/mcp-client-manager.js';
+import { ListToolsRequestSchema, CallToolRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 
 export const mcpRouter = Router();
 
 // Ensure the client connects when the module loads
-postgresMcpClient.connect().catch(console.error);
+mcpClientManager.initialize().catch(console.error);
 
 // To support multiple clients connecting to the SSE endpoint, we map sessionId -> Transport
 const transports = new Map<string, SSEServerTransport>();
@@ -29,7 +28,7 @@ const mcpServer = new Server({
 
 // Implement the tools handler
 mcpServer.setRequestHandler(ListToolsRequestSchema, async (request, extra) => {
-  const result = await postgresMcpClient.listTools();
+  const result = await mcpClientManager.listTools();
   return {
     tools: result.tools
   };
@@ -40,7 +39,7 @@ mcpServer.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
   const args = request.params.arguments || {};
   
   try {
-    const data = await postgresMcpClient.callTool(toolName, args);
+    const data = await mcpClientManager.callTool(toolName, args);
     return data;
   } catch (error: any) {
     return {

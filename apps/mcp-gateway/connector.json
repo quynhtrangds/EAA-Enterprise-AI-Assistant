@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "postgres": {
+      "command": "node",
+      "args": ["../../packages/mcp-server-postgres/dist/index.js"],
+      "env": {}
+    },
+    "crm": {
+      "command": "node",
+      "args": ["../../packages/mcp-server-crm/dist/index.js"],
+      "env": {}
+    }
+  }
+}
