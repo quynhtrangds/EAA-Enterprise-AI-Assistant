@@ -49,7 +49,7 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage, isLoading, isCente
   };
 
   return (
-    <div className={`p-4 ${isCentered ? 'bg-transparent w-full' : 'bg-[#18191c]/80 backdrop-blur-md border-t border-[#26272b]/80 sticky bottom-0 z-10'}`}>
+    <div className={`p-4 ${isCentered ? 'w-full' : 'w-full sticky bottom-0 z-10'} bg-transparent`}>
 
       {/* Vùng render Quick Prompts bằng map() */}
       <div className="max-w-4xl mx-auto mb-3 px-2">
