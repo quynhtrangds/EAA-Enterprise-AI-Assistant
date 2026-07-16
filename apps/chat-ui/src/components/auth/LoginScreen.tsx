@@ -40,41 +40,46 @@ const LoginScreen: React.FC = () => {
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-indigo-100 via-purple-50 to-teal-100 font-sans">
-      <div className="w-full max-w-md p-8 bg-white/80 backdrop-blur-xl rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.1)] border border-white/50">
-        <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-indigo-100 text-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-sm">
-            <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+    <div className="flex items-center justify-center min-h-screen bg-[#0b0e1a] font-sans">
+      {/* Decorative background gradient */}
+      <div className="absolute inset-0 bg-gradient-to-br from-indigo-950/40 via-[#0b0e1a] to-purple-950/30 pointer-events-none" />
+
+      <div className="relative w-full max-w-md p-10 bg-[#111827]/90 backdrop-blur-xl rounded-3xl shadow-2xl shadow-indigo-950/30 border border-slate-800/60">
+        <div className="text-center mb-10">
+          {/* Logo - matching sidebar style */}
+          <div className="w-14 h-14 rounded-xl bg-gradient-to-tr from-indigo-500 to-purple-600 shadow-lg shadow-indigo-500/25 flex items-center justify-center mx-auto mb-5">
+            <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
             </svg>
           </div>
-          <h2 className="text-2xl font-bold text-slate-800">Đăng nhập</h2>
-          <p className="text-sm text-slate-500 mt-2">Enterprise AI Assistant</p>
+          <h2 className="text-2xl font-bold text-white tracking-wide">Enterprise UI</h2>
+          <p className="text-sm text-indigo-400 font-bold uppercase tracking-wider mt-1">MCP GATEWAY</p>
+          <p className="text-[15px] text-slate-400 mt-4">Đăng nhập để tiếp tục</p>
         </div>
 
         {error && (
-          <div className="mb-4 p-3 bg-red-50 text-red-600 text-sm rounded-lg border border-red-100">
+          <div className="mb-5 p-3.5 bg-red-500/10 text-red-400 text-[15px] rounded-xl border border-red-500/20 font-medium">
             {error}
           </div>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-5">
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
+            <label className="block text-[15px] font-semibold text-slate-300 mb-2">
               Tên đăng nhập
             </label>
             <input
               type="text"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
+              className="w-full px-4 py-3 bg-[#1e2433] border border-slate-700/60 rounded-xl focus:ring-2 focus:ring-indigo-500/60 focus:border-indigo-500 outline-none transition-all text-white text-[15px] placeholder-slate-500"
               placeholder="Nhập tên đăng nhập"
               disabled={isLoading}
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
+            <label className="block text-[15px] font-semibold text-slate-300 mb-2">
               Mật khẩu
             </label>
             <div className="relative">
@@ -82,14 +87,14 @@ const LoginScreen: React.FC = () => {
                 type={showPassword ? 'text' : 'password'}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all pr-10"
+                className="w-full px-4 py-3 bg-[#1e2433] border border-slate-700/60 rounded-xl focus:ring-2 focus:ring-indigo-500/60 focus:border-indigo-500 outline-none transition-all text-white text-[15px] placeholder-slate-500 pr-12"
                 placeholder="Nhập mật khẩu"
                 disabled={isLoading}
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 focus:outline-none transition-colors cursor-pointer"
               >
                 {showPassword ? (
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -108,7 +113,7 @@ const LoginScreen: React.FC = () => {
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg shadow-sm transition-all flex items-center justify-center disabled:opacity-70"
+            className="w-full py-3 px-4 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-xl shadow-lg shadow-indigo-500/20 transition-all flex items-center justify-center disabled:opacity-70 text-[16px] mt-2 cursor-pointer"
           >
             {isLoading ? (
               <svg className="animate-spin h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">

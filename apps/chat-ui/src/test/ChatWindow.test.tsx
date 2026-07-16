@@ -190,7 +190,7 @@ describe('Kiểm thử Component ChatWindow', () => {
     render(<ChatWindow {...props} />);
 
     // Kiểm tra hiển thị tiêu đề tool
-    const toolHeader = screen.getByText(/Tool called: query_database/i);
+    const toolHeader = screen.getByText('query_database');
     expect(toolHeader).toBeInTheDocument();
 
     // Ban đầu nội dung JSON bị ẩn (chưa mở rộng)
@@ -294,7 +294,7 @@ describe('Kiểm thử Component ChatWindow', () => {
     const props = (useChat as any)();
     render(<ChatWindow {...props} />);
 
-    const toolHeader = screen.getByText(/Tool called: read_file/i);
+    const toolHeader = screen.getByText('read_file');
     fireEvent.click(toolHeader.closest('button')!);
 
     expect(screen.getByText('failed')).toBeInTheDocument();

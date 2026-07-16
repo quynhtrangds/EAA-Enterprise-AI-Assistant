@@ -14,36 +14,44 @@ const ToolTrace: React.FC<{ tool: ToolCall }> = ({ tool }) => {
   const statusText = tool.success ? 'success' : 'failed';
 
   return (
-    <div className="mt-2 text-sm border border-gray-200 rounded-md overflow-hidden bg-white">
-      {/* Vùng Header: Bấm vào để mở rộng */}
+    <div className="select-none">
+      {/* Compact inline chip */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full text-left px-3 py-2 hover:bg-gray-50 flex justify-between items-center transition-colors"
+        className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#1e2028] border border-[#2c2d35]/80 hover:border-slate-600 hover:bg-[#252730] transition-all cursor-pointer group text-left"
       >
-        <span className="font-medium text-indigo-600 flex items-center gap-2 text-xs">
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
-          </svg>
-          Tool called: {tool.toolName}
+        {/* Status dot */}
+        <span className={`w-2 h-2 rounded-full shrink-0 ${tool.success ? 'bg-emerald-400' : 'bg-rose-400'}`} />
+        
+        {/* Tool name */}
+        <span className="text-[13px] font-medium text-slate-300 group-hover:text-white transition-colors">
+          {tool.toolName}
         </span>
-        <span className={`text-[10px] px-2 py-0.5 rounded font-mono ${
-          tool.success ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+
+        {/* Duration badge */}
+        <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${
+          tool.success ? 'bg-emerald-500/15 text-emerald-400' : 'bg-rose-500/15 text-rose-400'
         }`}>
           {tool.durationMs}ms
         </span>
+
+        {/* Expand chevron */}
+        <svg className={`w-3 h-3 text-slate-500 group-hover:text-slate-300 transition-transform duration-200 ${isOpen ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+        </svg>
       </button>
-      
-      {/* Vùng chi tiết: Chỉ hiển thị khi isOpen = true */}
+
+      {/* Expandable detail panel */}
       {isOpen && (
-        <div className="p-3 border-t border-gray-200 text-xs">
-          <p className="text-gray-700 mb-1 font-medium">Input:</p>
-          <pre className="bg-slate-800 text-green-400 p-2 rounded overflow-x-auto font-mono mb-2">
+        <div className="mt-2 ml-1 p-3 border border-[#2c2d35]/60 rounded-xl text-xs bg-[#121319] max-w-xl">
+          <p className="text-slate-400 mb-1.5 font-semibold">Input:</p>
+          <pre className="bg-slate-950 text-emerald-400 p-3 rounded-xl overflow-x-auto font-mono mb-3 border border-slate-900">
             {JSON.stringify(tool.arguments, null, 2)}
           </pre>
-          <div className="flex flex-col gap-1 text-gray-700">
+          <div className="flex items-center gap-4 text-slate-400">
             <p>
               <span className="font-medium">Status:</span>{' '}
-              <span className={tool.success ? 'text-green-600' : 'text-red-600'}>
+              <span className={tool.success ? 'text-green-400 font-bold' : 'text-red-400 font-bold'}>
                 {statusText}
               </span>
             </p>

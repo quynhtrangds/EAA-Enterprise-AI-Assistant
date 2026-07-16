@@ -51,116 +51,102 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, showTimestamp = 
     <div className="flex flex-col w-full mb-8">
       {/* Phân cách timestamp giữa các ngày */}
       {showTimestamp && (
-        <div className="text-center w-full mb-4">
-          <span className="text-xs font-semibold text-gray-400">{message.timestamp}</span>
+        <div className="text-center w-full mb-6">
+          <span className="text-[12px] font-bold text-slate-500 uppercase tracking-widest">{message.timestamp}</span>
         </div>
       )}
 
       <div className={`flex w-full ${isAI ? 'justify-start' : 'justify-end'}`}>
-        <div className={`flex max-w-[85%] gap-4 ${isAI ? 'flex-row' : 'flex-row-reverse'}`}>
-
-          {/* Avatar */}
-          <div className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center shadow-sm ${isAI ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-800 text-white'
-            }`}>
-            {isAI ? (
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-              </svg>
-            ) : (
-              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
-              </svg>
-            )}
-          </div>
-
+        <div className={`flex w-full gap-4 ${isAI ? 'flex-row' : 'flex-row-reverse'}`}>
           {/* Nội dung tin nhắn */}
-          <div className="relative group flex flex-col gap-1 min-w-[200px]">
-            <span className={`text-xs font-medium px-1 ${isAI ? 'text-gray-500' : 'text-gray-500 text-right'}`}>
-              {isAI ? 'Enterprise AI' : 'You'}
-            </span>
-            <div className={`rounded-2xl p-4 shadow-sm border ${isAI
-              ? 'bg-white border-gray-100 text-slate-700 rounded-tl-none'
-              : 'bg-indigo-600 border-indigo-600 text-white rounded-tr-none'
-              }`}>
-              {isEditing ? (
-                <div className="flex flex-col gap-3 min-w-[300px]">
-                  <textarea
-                    ref={textareaRef}
-                    value={editContent}
-                    onChange={(e) => {
-                      setEditContent(e.target.value);
-                      e.target.style.height = 'auto';
-                      e.target.style.height = e.target.scrollHeight + 'px';
-                    }}
-                    className="w-full bg-slate-800 text-white rounded-lg p-3 outline-none resize-none overflow-hidden"
-                    rows={1}
-                  />
-                  <div className="flex justify-end gap-2">
-                    <button
-                      onClick={() => { setIsEditing(false); setEditContent(message.content); }}
-                      className="px-4 py-1.5 rounded-full bg-slate-600 hover:bg-slate-500 text-white text-sm font-medium transition-colors"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={handleEditSubmit}
-                      disabled={!editContent.trim()}
-                      className="px-4 py-1.5 rounded-full bg-white text-slate-800 hover:bg-gray-100 text-sm font-medium transition-colors disabled:opacity-50"
-                    >
-                      Send
-                    </button>
+          <div className={`relative group flex flex-col gap-1.5 w-full ${isAI ? '' : 'items-end'}`}>
+            <span className="sr-only">{isAI ? 'Enterprise AI' : 'You'}</span>
+            {isEditing ? (
+              <div className="flex flex-col gap-3 w-full max-w-2xl bg-[#2b2c35] border border-slate-800/80 rounded-2xl p-4">
+                <textarea
+                  ref={textareaRef}
+                  value={editContent}
+                  onChange={(e) => {
+                    setEditContent(e.target.value);
+                    e.target.style.height = 'auto';
+                    e.target.style.height = e.target.scrollHeight + 'px';
+                  }}
+                  className="w-full bg-slate-900/50 text-white rounded-xl p-3 outline-none resize-none overflow-hidden border border-slate-800 text-[15.5px]"
+                  rows={1}
+                />
+                <div className="flex justify-end gap-2">
+                  <button
+                    onClick={() => { setIsEditing(false); setEditContent(message.content); }}
+                    className="px-4 py-1.5 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-semibold transition-colors cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleEditSubmit}
+                    disabled={!editContent.trim()}
+                    className="px-4 py-1.5 rounded-full bg-[#a855f7] hover:bg-[#c084fc] text-white text-xs font-semibold transition-colors disabled:opacity-50 cursor-pointer"
+                  >
+                    Send
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className={`transition-all ${isAI
+                ? 'w-full text-slate-200'
+                : 'bg-[#2b2c35]/90 border border-slate-800/50 text-white rounded-3xl rounded-tr-sm px-5 py-3 shadow-lg shadow-black/10 max-w-[80%] text-[15.5px] leading-relaxed'
+                }`}>
+                {isAI ? (
+                  <div className="prose prose-invert max-w-none text-[15.5px] leading-relaxed text-slate-200">
+                    {message.content ? (
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                        {message.content}
+                      </ReactMarkdown>
+                    ) : (
+                      <span className="text-red-400 font-medium italic">⚠️ Lỗi: Dữ liệu message.content bị rỗng (undefined)</span>
+                    )}
                   </div>
-                </div>
-              ) : (
-                <div className="prose prose-sm prose-slate max-w-none">
-                  {message.content ? (
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                      {message.content}
-                    </ReactMarkdown>
-                  ) : (
-                    <span className="text-red-500 font-medium italic">⚠️ Lỗi: Dữ liệu message.content bị rỗng (undefined)</span>
-                  )}
-                </div>
-              )}
+                ) : (
+                  <p className="whitespace-pre-wrap">{message.content}</p>
+                )}
 
-              {!isEditing && isAI && message.toolCalls && message.toolCalls.length > 0 && (
-                <div className="mt-3 flex flex-col gap-2">
-                  {message.toolCalls.map((tool, index) => (
-                    <ToolTrace key={index} tool={tool} />
-                  ))}
-                </div>
-              )}
-            </div>
+                {!isEditing && isAI && message.toolCalls && message.toolCalls.length > 0 && (
+                  <div className="mt-4 flex flex-wrap gap-2 items-start">
+                    {message.toolCalls.map((tool, index) => (
+                      <ToolTrace key={index} tool={tool} />
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Hover Actions (Copy & Edit) */}
             {!isEditing && (
-              <div className="absolute -bottom-8 right-0 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
-                <span className="text-[11px] text-slate-400 mr-1 font-medium select-none">
+              <div className={`absolute -bottom-8 ${isAI ? 'left-0' : 'right-0'} flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10`}>
+                <span className="text-[11px] text-slate-500 font-medium select-none">
                   {message.timestamp.includes(' at ') ? message.timestamp.split(' at ')[1] : message.timestamp}
                 </span>
                 <button
                   onClick={() => navigator.clipboard.writeText(message.content)}
-                  className="p-1.5 rounded-md bg-white/90 backdrop-blur shadow-sm border border-slate-200 text-slate-500 hover:text-indigo-600 hover:bg-white transition-all"
+                  className="p-1.5 rounded-lg bg-[#202123]/90 border border-slate-800/80 text-slate-400 hover:text-white hover:bg-slate-850 transition-all cursor-pointer shadow"
                   title="Sao chép"
                 >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
                   </svg>
                 </button>
                 {!isAI && (
                   <button
                     onClick={() => setIsEditing(true)}
-                    className="p-1.5 rounded-md bg-white/90 backdrop-blur shadow-sm border border-slate-200 text-slate-500 hover:text-indigo-600 hover:bg-white transition-all"
+                    className="p-1.5 rounded-lg bg-[#202123]/90 border border-slate-800/80 text-slate-400 hover:text-white hover:bg-slate-850 transition-all cursor-pointer shadow"
                     title="Chỉnh sửa"
                   >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
                     </svg>
                   </button>
                 )}
               </div>
             )}
-
           </div>
         </div>
       </div>

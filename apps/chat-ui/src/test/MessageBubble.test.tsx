@@ -100,7 +100,7 @@ describe('Kiểm thử Component MessageBubble', () => {
     render(<MessageBubble message={mockMsg} />);
 
     // Đảm bảo ToolTrace được render thông qua prop truyền xuống
-    expect(screen.getByText(/Tool called: search/i)).toBeInTheDocument();
+    expect(screen.getByText('search')).toBeInTheDocument();
   });
 
   it('TC08: Ngăn chặn gửi lại tin nhắn nếu nội dung sửa rỗng', () => {

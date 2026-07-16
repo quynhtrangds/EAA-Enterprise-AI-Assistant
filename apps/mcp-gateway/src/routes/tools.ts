@@ -180,6 +180,19 @@ toolsRouter.post('/tools/call', async (req, res, next) => {
     const user = await getCurrentUser(req);
     parsed = callToolSchema.parse(req.body);
 
+    if (parsed.toolName === 'get_customer_orders') {
+      const args = (parsed.arguments || {}) as any;
+      if (!args.toDate) {
+        args.toDate = new Date().toISOString();
+      }
+      if (!args.fromDate) {
+        const d = new Date();
+        d.setDate(d.getDate() - 90);
+        args.fromDate = d.toISOString();
+      }
+      parsed.arguments = args;
+    }
+
     if (!(await canExecuteTool(user.roles, parsed.toolName))) {
       throw new AppError('PERMISSION_DENIED', 'Ban khong co quyen goi tool nay.', 403);
     }

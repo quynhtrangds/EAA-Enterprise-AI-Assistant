@@ -41,6 +41,10 @@ const Sidebar: React.FC<SidebarProps> = ({
 
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState('');
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const profileMenuRef = useRef<HTMLDivElement>(null);
 
   const handleLogoClick = () => {
     if (!isOpen) {
@@ -51,10 +55,6 @@ const Sidebar: React.FC<SidebarProps> = ({
       onCreateSession();
     }
   };
-  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
-  const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
-  const profileMenuRef = useRef<HTMLDivElement>(null);
 
   // Click outside menu
   useEffect(() => {
@@ -103,18 +103,18 @@ const Sidebar: React.FC<SidebarProps> = ({
               onChange={(e) => setEditTitle(e.target.value)}
               onKeyDown={(e) => handleKeyDown(e, session.id)}
               onBlur={() => saveEdit(session.id)}
-              className="w-full bg-transparent text-sm text-white font-medium outline-none"
+              className="w-full bg-transparent text-[15px] text-white font-medium outline-none"
             />
           </div>
         ) : (
           <button
             onClick={() => onSelectSession?.(session.id)}
-            className={`w-full text-left p-3 pr-10 rounded-xl transition-all duration-200 flex flex-col gap-1 cursor-pointer mb-1 ${isActive
+            className={`w-full text-left px-3 py-2.5 rounded-xl transition-all duration-200 cursor-pointer mb-0.5 relative pr-10 text-[15px] ${isActive
               ? 'bg-slate-800 text-white border-l-4 border-indigo-500 pl-2'
               : 'text-slate-300 hover:bg-slate-800/60 hover:text-white'
               }`}
           >
-            <p className={`text-sm font-medium truncate ${isActive ? 'text-indigo-400' : 'group-hover:text-indigo-400'}`}>
+            <p className={`text-[15px] font-medium truncate ${isActive ? 'text-indigo-400' : 'group-hover:text-indigo-400'}`}>
               {session.title}
             </p>
           </button>
@@ -159,22 +159,22 @@ const Sidebar: React.FC<SidebarProps> = ({
   };
 
   return (
-    <div className={`bg-[#0f172a] relative z-50 text-slate-300 flex flex-col h-screen shadow-xl select-none transition-all duration-300 ease-in-out shrink-0 ${isOpen ? 'w-75' : 'w-[72px]'} border-r border-slate-800`}>
+    <div className={`bg-[#0f172a] relative z-50 text-slate-300 flex flex-col h-screen shadow-xl select-none transition-all duration-200 ease-in-out shrink-0 ${isOpen ? 'w-75' : 'w-[72px]'} border-r border-slate-800`}>
       {/* Header */}
       <div className={`pt-4 pb-2 px-4 flex items-center justify-between overflow-hidden shrink-0`}>
         <div
-          className="flex items-center gap-2 cursor-pointer group shrink-0 transition-transform duration-200 active:scale-95"
+          className={`flex items-center gap-2 cursor-pointer group shrink-0 transition-transform duration-200 active:scale-95`}
           onClick={handleLogoClick}
-          title={activeSessionId !== 'new-chat-session' ? "Bắt đầu cuộc trò chuyện mới" : undefined}
+          title={isOpen && activeSessionId !== 'new-chat-session' ? "Bắt đầu cuộc trò chuyện mới" : !isOpen ? "Mở rộng Sidebar" : undefined}
         >
           <div className="w-10 h-10 flex items-center justify-center shrink-0">
             <div className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${!isOpen ? 'bg-indigo-500 group-hover:bg-slate-800 shadow-lg shadow-indigo-500/30 group-hover:shadow-none' : 'bg-indigo-500 shadow-lg shadow-indigo-500/30'}`}>
               {!isOpen ? (
                 <>
-                  <svg className="w-5 h-5 text-white group-hover:hidden transition-all duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-5 h-5 text-white group-hover:hidden transition-all duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
                   </svg>
-                  <svg className="w-5 h-5 text-slate-300 hidden group-hover:block transition-all duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-5 h-5 text-slate-300 hidden group-hover:block transition-all duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 5l7 7-7 7M5 5l7 7-7 7" />
                   </svg>
                 </>
@@ -185,14 +185,14 @@ const Sidebar: React.FC<SidebarProps> = ({
               )}
             </div>
           </div>
-          <div className={`flex flex-col whitespace-nowrap overflow-hidden transition-all duration-300 ${isOpen ? 'w-[120px] opacity-100' : 'w-0 opacity-0'}`}>
-            <h1 className="text-[15px] font-bold text-white tracking-wide">Enterprise UI</h1>
-            <span className="text-[10px] text-indigo-400 font-bold uppercase tracking-wider">MCP GATEWAY</span>
+          <div className={`flex flex-col whitespace-nowrap overflow-hidden transition-all duration-200 ${isOpen ? 'w-[120px] opacity-100' : 'w-0 opacity-0'}`}>
+            <h1 className="text-[16px] font-bold text-white tracking-wide">Enterprise UI</h1>
+            <span className="text-[11px] text-indigo-400 font-bold uppercase tracking-wider">MCP GATEWAY</span>
           </div>
         </div>
         <button
           onClick={() => onToggleSidebar?.()}
-          className={`h-10 rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 transition-all duration-300 focus:outline-none overflow-hidden shrink-0 ${isOpen ? 'w-10 opacity-100' : 'w-0 opacity-0'}`}
+          className={`h-10 rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 transition-all duration-200 focus:outline-none overflow-hidden shrink-0 ${isOpen ? 'w-10 opacity-100' : 'w-0 opacity-0'}`}
           title="Thu gọn Sidebar"
         >
           <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -205,32 +205,32 @@ const Sidebar: React.FC<SidebarProps> = ({
       <div className={`px-4 flex flex-col gap-2 mb-4 mt-2 shrink-0`}>
         <button
           onClick={() => onCreateSession?.()}
-          className={`flex items-center gap-3 px-2 h-10 w-full text-slate-400 hover:text-white hover:bg-slate-800/50 rounded-xl transition-all duration-300 font-medium text-[13px] border border-transparent hover:border-slate-700 shrink-0 overflow-hidden`}
+          className={`flex items-center gap-3 px-2 h-10 w-full text-slate-400 hover:text-white hover:bg-slate-800/50 rounded-xl transition-all duration-200 font-medium text-[14.5px] border border-transparent hover:border-slate-700 shrink-0 overflow-hidden`}
           title={!isOpen ? "Cuộc trò chuyện mới" : undefined}
         >
           <div className="w-6 h-6 flex items-center justify-center shrink-0">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
           </div>
-          <span className={`truncate transition-all duration-300 text-left ${isOpen ? 'opacity-100' : 'opacity-0'}`}>Cuộc trò chuyện mới</span>
+          <span className={`truncate transition-all duration-200 text-left ${isOpen ? 'opacity-100' : 'opacity-0'}`}>Cuộc trò chuyện mới</span>
         </button>
 
         <button
           onClick={() => onOpenSearch?.()}
-          className={`flex items-center gap-3 px-2 h-10 w-full text-slate-400 hover:text-white hover:bg-slate-800/50 rounded-xl transition-all duration-300 font-medium text-[13px] border border-transparent hover:border-slate-700 shrink-0 overflow-hidden`}
+          className={`flex items-center gap-3 px-2 h-10 w-full text-slate-400 hover:text-white hover:bg-slate-800/50 rounded-xl transition-all duration-200 font-medium text-[13px] border border-transparent hover:border-slate-700 shrink-0 overflow-hidden`}
           title={!isOpen ? "Tìm kiếm trong các cuộc trò chuyện" : undefined}
         >
           <div className="w-6 h-6 flex items-center justify-center shrink-0">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
           </div>
-          <span className={`truncate transition-all duration-300 text-left ${isOpen ? 'opacity-100' : 'opacity-0'}`}>Tìm kiếm trong các cuộc trò chuyện</span>
+          <span className={`truncate transition-all duration-200 text-left ${isOpen ? 'opacity-100' : 'opacity-0'}`}>Tìm kiếm trong các cuộc trò chuyện</span>
         </button>
       </div>
 
       {/* Session List */}
-      <div className={`flex-1 overflow-y-auto pb-3 dark-scrollbar transition-all duration-300 ${isOpen ? 'px-3 opacity-100' : 'px-0 opacity-0 pointer-events-none invisible'}`}>
+      <div className={`flex-1 overflow-y-auto pb-3 dark-scrollbar transition-all duration-200 ${isOpen ? 'px-3 opacity-100' : 'px-0 opacity-0 pointer-events-none invisible'}`}>
         {starredSessions.length > 0 && (
           <div className="mb-4">
-            <div className="px-3 py-2 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+            <div className="px-3 py-2 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
               Đã ghim
             </div>
             {starredSessions.map(renderSessionItem)}
@@ -267,15 +267,15 @@ const Sidebar: React.FC<SidebarProps> = ({
 
         <button
           onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
-          className={`flex items-center gap-3 w-full rounded-xl transition-all duration-300 group overflow-hidden p-2 cursor-pointer`}
+          className={`flex items-center gap-3 w-full rounded-xl transition-all duration-200 group overflow-hidden p-2 cursor-pointer`}
           title="Tài khoản"
         >
           <div className="w-10 h-10 shrink-0 rounded-full bg-slate-700 flex items-center justify-center text-sm font-bold text-slate-200 shadow-inner group-hover:bg-slate-600 transition-colors relative">
             <span>{activeRole.name[0]}</span>
           </div>
-          <div className={`flex flex-col text-left overflow-hidden transition-all duration-300 ${isOpen ? 'w-32 opacity-100' : 'w-0 opacity-0'}`}>
-            <p className="text-sm font-semibold text-white truncate whitespace-nowrap">{activeRole.name}</p>
-            <p className="text-[11px] text-slate-400 truncate whitespace-nowrap">{activeRole.label}</p>
+          <div className={`flex flex-col text-left overflow-hidden transition-all duration-200 ${isOpen ? 'w-32 opacity-100' : 'w-0 opacity-0'}`}>
+            <p className="text-[15px] font-semibold text-white truncate whitespace-nowrap">{activeRole.name}</p>
+            <p className="text-[12px] text-slate-400 truncate whitespace-nowrap">{activeRole.label}</p>
           </div>
         </button>
       </div>

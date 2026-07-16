@@ -22,7 +22,7 @@ describe('Kiểm thử Component LoginScreen', () => {
   it('TC01: Render giao diện đăng nhập ban đầu đúng chuẩn', () => {
     render(<LoginScreen />);
 
-    expect(screen.getByRole('heading', { name: 'Đăng nhập' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Enterprise UI' })).toBeInTheDocument();
     expect(screen.getByPlaceholderText('Nhập tên đăng nhập')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('Nhập mật khẩu')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Đăng nhập' })).toBeInTheDocument();

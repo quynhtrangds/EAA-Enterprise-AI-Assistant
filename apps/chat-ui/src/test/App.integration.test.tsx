@@ -82,7 +82,7 @@ describe('App Integration Tests', () => {
     render(<App />);
 
     // 1. Initial State: Should show Login Screen
-    expect(screen.getByText('Enterprise AI Assistant')).toBeInTheDocument();
+    expect(screen.getByText('Enterprise UI')).toBeInTheDocument();
 
     // 2. Perform Login
     fireEvent.change(screen.getByPlaceholderText('Nhập tên đăng nhập'), { target: { value: 'admin' } });
@@ -120,7 +120,7 @@ describe('App Integration Tests', () => {
     });
     fireEvent.click(screen.getByText('Đăng xuất'));
     await waitFor(() => {
-      expect(screen.getByText('Enterprise AI Assistant')).toBeInTheDocument();
+      expect(screen.getByText('Enterprise UI')).toBeInTheDocument();
     });
   });
 
@@ -270,11 +270,11 @@ describe('App Integration Tests', () => {
     fireEvent.click(screen.getByText('Test Session'));
 
     await waitFor(() => {
-      expect(screen.getByText(/Tool called: search_db/i)).toBeInTheDocument();
+      expect(screen.getByText('search_db')).toBeInTheDocument();
     });
 
     // Click the tool trace header button to expand
-    const traceBtn = screen.getByText(/Tool called: search_db/i).closest('button') as HTMLButtonElement;
+    const traceBtn = screen.getByText('search_db').closest('button') as HTMLButtonElement;
     fireEvent.click(traceBtn);
 
     // Verify input arguments are displayed

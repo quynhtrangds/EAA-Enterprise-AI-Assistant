@@ -83,18 +83,21 @@ test.describe('MCP Gateway Flow Sequence E2E', () => {
       await page.click('button[type="submit"]');
 
       // The backend should return permission denied in the chat UI or at least it's logged as failed
-      await page.waitForTimeout(3000);
-
-      // Verify db log for failure
-      const res = await dbClient.query(`
-        SELECT * FROM audit_logs 
-        WHERE tool_name = 'get_customer_orders'
-        ORDER BY created_at DESC 
-        LIMIT 1
-      `);
-      if (res.rows.length > 0) {
-        expect(res.rows[0].status).toBe('failed');
+      let status = '';
+      for (let i = 0; i < 15; i++) {
+        const res = await dbClient.query(`
+          SELECT status FROM audit_logs 
+          WHERE tool_name = 'get_customer_orders'
+          ORDER BY created_at DESC 
+          LIMIT 1
+        `);
+        if (res.rows.length > 0 && res.rows[0].status === 'failed') {
+          status = 'failed';
+          break;
+        }
+        await page.waitForTimeout(1000);
       }
+      expect(status).toBe('failed');
 
     } finally {
       // Restore permission

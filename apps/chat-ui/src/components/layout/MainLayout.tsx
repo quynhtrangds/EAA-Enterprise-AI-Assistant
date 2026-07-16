@@ -29,7 +29,7 @@ const MainLayout: React.FC = () => {
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
 
   return (
-    <div className="flex h-screen bg-slate-50 font-sans overflow-hidden">
+    <div className="flex h-screen bg-gradient-to-br from-[#1c1d2e] via-[#0e101f] to-[#080914] font-sans overflow-hidden text-slate-100">
       {/* Container của Sidebar với animation trượt mượt mà */}
       <Sidebar
         isOpen={isSidebarOpen}
