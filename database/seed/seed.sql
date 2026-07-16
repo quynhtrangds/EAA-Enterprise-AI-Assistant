@@ -255,7 +255,7 @@ SELECT
   p.price AS unit_price,
   (((gs % 4) + 1) * p.price)::numeric(18, 2) AS total_price
 FROM generate_series(29, 700) AS gs
-JOIN products p ON p.product_code = 'PRD-' || lpad((((gs * 7 - 1) % 30) + 1)::text, 3, '0')
+JOIN products p ON p.product_code = 'PRD-' || lpad(((((gs * 7) + (gs / 300) * 11) % 30) + 1)::text, 3, '0')
 ON CONFLICT (id) DO UPDATE
 SET
   order_id = EXCLUDED.order_id,

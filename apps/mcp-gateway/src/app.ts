@@ -23,7 +23,12 @@ export function createApp(): express.Express {
 
   app.use(helmet());
   app.use(cors());
-  app.use(express.json({ limit: '1mb' }));
+  app.use((req, res, next) => {
+    if (req.path === '/api/mcp/message') {
+      return next();
+    }
+    express.json({ limit: '1mb' })(req, res, next);
+  });
 
   app.get('/health', (_req, res) => {
     res.json({ status: 'ok', service: 'mcp-gateway' });

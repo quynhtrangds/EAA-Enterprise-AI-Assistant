@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@plugin "@tailwindcss/typography";
 
 /* Custom Scrollbar - Mặc định cho khung sáng */
 ::-webkit-scrollbar {

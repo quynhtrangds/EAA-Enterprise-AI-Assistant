@@ -11,12 +11,12 @@ services:
       - "${POSTGRES_PORT:-55432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./database/schema.sql:/docker-entrypoint-initdb.d/00a_schema.sql:ro
-      - ./database/seed/seed.sql:/docker-entrypoint-initdb.d/00b_seed.sql:ro
-      - ./database/migrations/001_utf8_seed_data.sql:/docker-entrypoint-initdb.d/001_utf8_seed_data.sql:ro
-      - ./database/migrations/002_expand_seed_data.sql:/docker-entrypoint-initdb.d/002_expand_seed_data.sql:ro
-      - ./database/migrations/003_auth_sessions.sql:/docker-entrypoint-initdb.d/003_auth_sessions.sql:ro
-      - ./database/migrations/004_chat_history.sql:/docker-entrypoint-initdb.d/004_chat_history.sql:ro
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/00_schema.sql:ro
+      - ./database/seed/seed.sql:/docker-entrypoint-initdb.d/01_seed.sql:ro
+      - ./database/migrations/001_utf8_seed_data.sql:/docker-entrypoint-initdb.d/02_utf8_seed_data.sql:ro
+      - ./database/migrations/002_expand_seed_data.sql:/docker-entrypoint-initdb.d/03_expand_seed_data.sql:ro
+      - ./database/migrations/003_auth_sessions.sql:/docker-entrypoint-initdb.d/04_auth_sessions.sql:ro
+      - ./database/migrations/004_chat_history.sql:/docker-entrypoint-initdb.d/05_chat_history.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-enterprise_ai_demo}"]
       interval: 5s
@@ -41,6 +41,7 @@ services:
       - "${MCP_GATEWAY_PORT:-8081}:8081"
     volumes:
       - ./apps/mcp-gateway:/app
+      - ./packages:/packages
     depends_on:
       postgres:
         condition: service_healthy
@@ -66,6 +67,7 @@ services:
       - "${AI_ORCHESTRATOR_PORT:-8082}:8082"
     volumes:
       - ./apps/ai-orchestrator:/app
+      - ./packages:/packages
     depends_on:
       - mcp-gateway
 

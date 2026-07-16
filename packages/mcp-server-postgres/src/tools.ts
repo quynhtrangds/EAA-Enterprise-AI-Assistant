@@ -221,7 +221,7 @@ export function createPostgresTools() {
     {
       name: 'search_customer',
       title: 'Search Customer',
-      description: 'Search customers by keyword (name, phone, email, etc.)',
+      description: 'Tìm kiếm khách hàng bằng keyword (tên, sđt, email, mã KH). TRẢ VỀ THÔNG TIN CHI TIẾT cá nhân (địa chỉ, số điện thoại, email, trạng thái). Hãy DÙNG TOOL NÀY khi bạn cần lấy chi tiết thông tin của một hoặc nhiều khách hàng bằng mã ID/Code.',
       inputSchema: searchCustomerInput,
       outputSchema: searchCustomerOutputSchema,
       async execute(parsedInput: any) {
@@ -256,7 +256,7 @@ export function createPostgresTools() {
     {
       name: 'get_customer_orders',
       title: 'Get Customer Orders',
-      description: 'Get recent orders for a specific customer. Requires a valid customer UUID.',
+      description: 'Lấy danh sách các đơn hàng gần đây của khách hàng (Cần customer UUID). TRẢ VỀ thông tin CƠ BẢN (Mã đơn, Ngày, Trạng thái, Tổng tiền) NHƯNG KHÔNG BAO GỒM chi tiết mặt hàng và thanh toán. Nếu cần biết chi tiết mặt hàng/thanh toán, hãy lấy orderCode từ đây và gọi tiếp get_order_detail.',
       inputSchema: getCustomerOrdersInput,
       outputSchema: getCustomerOrdersOutputSchema,
       async execute(parsedInput: any) {
@@ -288,7 +288,7 @@ export function createPostgresTools() {
     {
       name: 'get_order_detail',
       title: 'Get Order Detail',
-      description: 'Get order details including items and payments.',
+      description: 'Lấy THÔNG TIN CHI TIẾT của MỘT đơn hàng bằng orderCode. TRẢ VỀ danh sách các mặt hàng (sản phẩm, số lượng, giá) và lịch sử thanh toán. Hãy DÙNG TOOL NÀY khi bạn cần tra cứu chi tiết một hoặc nhiều đơn hàng cụ thể.',
       inputSchema: getOrderDetailInput,
       outputSchema: getOrderDetailOutputSchema,
       async execute(parsedInput: any) {
@@ -420,7 +420,7 @@ export function createPostgresTools() {
     {
       name: 'get_top_customers',
       title: 'Get Top Customers',
-      description: 'Rank customers by paid revenue.',
+      description: 'Xếp hạng khách hàng theo doanh thu đã thanh toán. TRẢ VỀ thông tin thống kê CƠ BẢN (Mã KH, Tên, Số đơn hàng, Tổng chi tiêu) NHƯNG KHÔNG BAO GỒM (SĐT, Email, Địa chỉ). Nếu cần SĐT/Email/Địa chỉ, hãy lấy kết quả mã KH từ đây rồi gọi tiếp search_customer.',
       inputSchema: getTopCustomersInput,
       async execute(parsedInput: any) {
         const parsed = parsedInput;

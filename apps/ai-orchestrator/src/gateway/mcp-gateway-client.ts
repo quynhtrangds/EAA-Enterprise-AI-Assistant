@@ -43,7 +43,7 @@ export class McpGatewayClient {
     if (this.isConnected) return;
     
     this.transport = new SSEClientTransport(new URL(`${env.MCP_GATEWAY_URL}/api/mcp/sse`), {
-      eventSourceInit: {
+      requestInit: {
         headers: { authorization: `Bearer ${authToken}` }
       }
     } as any);
