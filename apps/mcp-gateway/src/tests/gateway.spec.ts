@@ -145,7 +145,7 @@ describe('mcp-gateway integration', () => {
     });
   });
 
-  it('GET /api/tools filters tools based on role', async () => {
+  it('GET /api/tools returns all tools regardless of role', async () => {
     const viewerToken = await login('viewer', 'viewer123');
     const viewerResponse = await request(app)
       .get('/api/tools')
@@ -155,7 +155,7 @@ describe('mcp-gateway integration', () => {
     const viewerTools = viewerResponse.body.tools.map((t: any) => t.name);
     expect(viewerTools).toContain('get_revenue_summary');
     expect(viewerTools).toContain('get_product_sales_summary');
-    expect(viewerTools).not.toContain('search_customer');
+    expect(viewerTools).toContain('search_customer');
 
     const staffToken = await login('staff', 'staff123');
     const staffResponse = await request(app)
@@ -167,7 +167,7 @@ describe('mcp-gateway integration', () => {
     expect(staffTools).toContain('search_customer');
     expect(staffTools).toContain('get_customer_orders');
     expect(staffTools).toContain('get_order_detail');
-    expect(staffTools).not.toContain('get_revenue_summary');
+    expect(staffTools).toContain('get_revenue_summary');
   });
 
   it('GET /api/audit-logs allows admin but denies manager access', async () => {

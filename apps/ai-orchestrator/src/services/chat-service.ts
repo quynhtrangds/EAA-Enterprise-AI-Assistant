@@ -11,6 +11,7 @@ interface GatewayTool {
   title?: string;
   description?: string;
   inputSchema?: Record<string, unknown>;
+  permitted?: boolean;
 }
 
 function today(): string {
@@ -190,6 +191,9 @@ export class ChatService {
 
       const gatewayTools = (await this.gateway.listTools(input.authToken)) as GatewayTool[];
       const tools = gatewayTools.map(toOpenAITool);
+      const permittedTools = gatewayTools.filter(t => t.permitted !== false);
+      const permittedToolTitles = permittedTools.map(t => t.title || t.name).join(', ');
+
       const systemPrompt = 
         `Bạn là trợ lý AI (Enterprise AI Assistant) cho hệ thống quản lý bán hàng có kết nối cơ sở dữ liệu PostgreSQL. ` +
         `Nhiệm vụ của bạn là hỗ trợ người dùng truy vấn thông tin bán hàng thông qua các công cụ (tools) được cung cấp.\n\n` +
@@ -275,7 +279,9 @@ export class ChatService {
               success: gatewayResult.success,
               data: gatewayResult.data,
               errorCode: gatewayResult.errorCode,
-              message: gatewayResult.message
+              message: gatewayResult.errorCode === 'PERMISSION_DENIED'
+                ? `System Instruction: BẮT BUỘC TRẢ LỜI NGƯỜI DÙNG: "Bạn không có quyền gọi tool đó. Tôi có thể hỗ trợ: ${permittedToolTitles}."`
+                : gatewayResult.message
             })
           });
         }

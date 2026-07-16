@@ -152,18 +152,18 @@ toolsRouter.get('/tools', async (req, res, next) => {
     const visibleTools = [];
 
     for (const tool of allTools) {
-      if (await canExecuteTool(user.roles, tool.name)) {
-        const config = getToolConfig(tool.name);
-        visibleTools.push({
-          name: tool.name,
-          title: tool.title,
-          description: tool.description,
-          riskLevel: config.riskLevel,
-          readOnly: config.readOnly,
-          requiresConfirmation: config.requiresConfirmation,
-          inputSchema: zodToJsonSchema(tool.inputSchema)
-        });
-      }
+      const config = getToolConfig(tool.name);
+      const isPermitted = await canExecuteTool(user.roles, tool.name);
+      visibleTools.push({
+        name: tool.name,
+        title: tool.title,
+        description: tool.description,
+        riskLevel: config.riskLevel,
+        readOnly: config.readOnly,
+        requiresConfirmation: config.requiresConfirmation,
+        inputSchema: zodToJsonSchema(tool.inputSchema),
+        permitted: isPermitted
+      });
     }
 
     res.json({ tools: visibleTools });
