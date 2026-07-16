@@ -280,7 +280,7 @@ export class ChatService {
               data: gatewayResult.data,
               errorCode: gatewayResult.errorCode,
               message: gatewayResult.errorCode === 'PERMISSION_DENIED'
-                ? `System Instruction: BẮT BUỘC TRẢ LỜI NGƯỜI DÙNG: "Bạn không có quyền gọi tool đó. Tôi có thể hỗ trợ: ${permittedToolTitles}."`
+                ? `System Instruction: Tool bị từ chối do PERMISSION_DENIED. BẮT BUỘC trả lời người dùng lịch sự, tự nhiên bằng tiếng Việt. TUYỆT ĐỐI KHÔNG xưng tên tool tiếng Anh. Ví dụ: "Xin lỗi, tài khoản của bạn chưa được cấp quyền xem thông tin này. Hiện tại tôi có thể hỗ trợ bạn các nghiệp vụ như: tìm kiếm khách hàng, xem thống kê..." (Gợi ý dựa trên danh sách quyền của user: ${permittedToolTitles} - hãy dịch các từ này sang tiếng Việt tự nhiên).`
                 : gatewayResult.message
             })
           });
