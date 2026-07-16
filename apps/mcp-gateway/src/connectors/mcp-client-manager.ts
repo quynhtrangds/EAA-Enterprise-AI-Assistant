@@ -4,6 +4,7 @@ import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
 import fs from "fs/promises";
 import { ListToolsResult } from "@modelcontextprotocol/sdk/types.js";
+import { MaskingService } from "../masking/masking-service.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -94,7 +95,24 @@ export class McpClientManager {
       throw new Error(`Client not connected for tool: ${name}`);
     }
 
-    return await client.callTool({ name, arguments: args });
+    const data = await client.callTool({ name, arguments: args });
+
+    // Apply Data Masking
+    if (data.content && Array.isArray(data.content)) {
+      for (const item of data.content as any[]) {
+        if (item.type === "text" && item.text) {
+          try {
+            const parsedText = JSON.parse(item.text);
+            const maskedText = MaskingService.maskObject(parsedText);
+            item.text = JSON.stringify(maskedText);
+          } catch (e) {
+            // Not JSON or parsing failed, skip masking
+          }
+        }
+      }
+    }
+
+    return data;
   }
 }
 

@@ -3,7 +3,6 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import { AppError } from '../errors/app-error.js';
 import { getCurrentUser } from '../auth/current-user.js';
-
 import { canExecuteTool } from '../policies/tool-permissions.js';
 import { mcpClientManager } from '../connectors/mcp-client-manager.js';
 import { ListToolsRequestSchema, CallToolRequestSchema } from '@modelcontextprotocol/sdk/types.js';
