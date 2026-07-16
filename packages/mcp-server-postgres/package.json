@@ -1,0 +1,23 @@
+{
+  "name": "@eaa/mcp-server-postgres",
+  "version": "1.0.0",
+  "description": "PostgreSQL MCP Server",
+  "main": "dist/index.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "dev": "tsc --watch"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.6.1",
+    "pg": "^8.13.3",
+    "zod": "^3.23.8",
+    "dotenv": "^16.4.7"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.5",
+    "@types/pg": "^8.11.11",
+    "typescript": "^5.7.3"
+  }
+}

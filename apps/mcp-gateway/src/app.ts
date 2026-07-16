@@ -4,6 +4,7 @@ import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import { errorHandler } from './middleware/error-handler.js';
 import { toolsRouter } from './routes/tools.js';
+import { mcpRouter } from './routes/mcp.js';
 
 const apiRateLimiter = rateLimit({
   windowMs: 60 * 1000,
@@ -29,6 +30,7 @@ export function createApp(): express.Express {
   });
 
   app.use('/api', apiRateLimiter);
+  app.use('/api', mcpRouter);
   app.use('/api', toolsRouter);
   app.use(errorHandler);
 

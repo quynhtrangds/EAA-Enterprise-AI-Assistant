@@ -1,5 +1,7 @@
 import { env } from '../config/env.js';
 import { AppError } from '../errors/app-error.js';
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
 
 interface GatewayToolCallResponse {
   success: boolean;
@@ -20,6 +22,10 @@ interface GatewayCurrentUserResponse {
 }
 
 export class McpGatewayClient {
+  private client: Client | null = null;
+  private transport: SSEClientTransport | null = null;
+  private isConnected = false;
+
   async getCurrentUser(authToken: string): Promise<GatewayCurrentUserResponse['user']> {
     const response = await fetch(`${env.MCP_GATEWAY_URL}/api/me`, {
       headers: { authorization: `Bearer ${authToken}` }
@@ -33,43 +39,69 @@ export class McpGatewayClient {
     return payload.user;
   }
 
-  async listTools(authToken: string): Promise<unknown[]> {
-    const response = await fetch(`${env.MCP_GATEWAY_URL}/api/tools`, {
-      headers: { authorization: `Bearer ${authToken}` }
-    });
+  async connect(authToken: string) {
+    if (this.isConnected) return;
+    
+    this.transport = new SSEClientTransport(new URL(`${env.MCP_GATEWAY_URL}/api/mcp/sse`), {
+      eventSourceInit: {
+        headers: { authorization: `Bearer ${authToken}` }
+      }
+    } as any);
+    
+    this.client = new Client({ name: "ai-orchestrator", version: "1.0.0" }, { capabilities: {} });
+    await this.client.connect(this.transport);
+    this.isConnected = true;
+  }
 
-    if (!response.ok) {
-      throw new AppError('GATEWAY_ERROR', `Gateway list tools failed: ${response.status}`, 502);
+  async disconnect() {
+    if (this.client && this.isConnected) {
+      await this.client.close();
+      this.isConnected = false;
     }
+  }
 
-    const payload = (await response.json()) as { tools?: unknown[] };
-    return payload.tools ?? [];
+  async listTools(authToken: string): Promise<any[]> {
+    await this.connect(authToken);
+    const result = await this.client!.listTools();
+    // Map MCP SDK tool format to our expected GatewayTool format
+    // In our mcp gateway's tools/list handler, we passed inputSchema
+    return result.tools.map((t: any) => ({
+      name: t.name,
+      title: t.name,
+      description: t.description,
+      inputSchema: t.inputSchema,
+      permitted: true // Currently hardcoded to true for MCP response
+    }));
   }
 
   async callTool(authToken: string, sessionId: string, toolName: string, args: Record<string, unknown>): Promise<GatewayToolCallResponse> {
-    const response = await fetch(`${env.MCP_GATEWAY_URL}/api/tools/call`, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        authorization: `Bearer ${authToken}`
-      },
-      body: JSON.stringify({
-        toolName,
-        arguments: args,
-        sessionId
-      })
-    });
+    await this.connect(authToken);
+    const start = Date.now();
+    try {
+      const result = await this.client!.callTool({ name: toolName, arguments: args });
+      
+      if (result.isError) {
+        return {
+          success: false,
+          toolName,
+          errorCode: 'TOOL_EXECUTION_ERROR',
+          message: (result.content as any)[0]?.text
+        };
+      }
 
-    const payload = (await response.json()) as GatewayToolCallResponse;
-    if (!response.ok) {
+      return {
+        success: true,
+        toolName,
+        data: JSON.parse((result.content as any)[0]?.text || '{}'),
+        durationMs: Date.now() - start
+      };
+    } catch (error: any) {
       return {
         success: false,
         toolName,
-        errorCode: payload.errorCode ?? 'GATEWAY_ERROR',
-        message: payload.message ?? `Gateway call failed: ${response.status}`
+        errorCode: 'GATEWAY_ERROR',
+        message: error.message
       };
     }
-
-    return payload;
   }
 }

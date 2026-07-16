@@ -87,19 +87,22 @@ function buildCustomerOrdersAnswer(customer: any, orders: any[]): string {
 }
 
 export class ChatService {
-  private readonly gateway = new McpGatewayClient();
   private readonly llm = new MockLLMProvider();
 
   async chat(input: ChatInput): Promise<ChatOutput> {
-    if (env.LLM_PROVIDER === 'openai' || env.LLM_PROVIDER === 'local') {
-      return this.chatWithLLM(input);
+    const gateway = new McpGatewayClient();
+    try {
+      if (env.LLM_PROVIDER === 'openai' || env.LLM_PROVIDER === 'local') {
+        return await this.chatWithLLM(input, gateway);
+      }
+      return await this.chatWithMock(input, gateway);
+    } finally {
+      await gateway.disconnect();
     }
-
-    return this.chatWithMock(input);
   }
 
-  private async chatWithMock(input: ChatInput): Promise<ChatOutput> {
-    await this.gateway.listTools(input.authToken);
+  private async chatWithMock(input: ChatInput, gateway: McpGatewayClient): Promise<ChatOutput> {
+    await gateway.listTools(input.authToken);
     const plannedToolCall = this.llm.planToolCall(input.message);
 
     if (!plannedToolCall) {
@@ -110,7 +113,7 @@ export class ChatService {
       };
     }
 
-    const gatewayResult = await this.gateway.callTool(
+    const gatewayResult = await gateway.callTool(
       input.authToken,
       input.sessionId,
       plannedToolCall.toolName,
@@ -149,7 +152,7 @@ export class ChatService {
         }
       };
 
-      const ordersResult = await this.gateway.callTool(input.authToken, input.sessionId, ordersCall.toolName, ordersCall.arguments);
+      const ordersResult = await gateway.callTool(input.authToken, input.sessionId, ordersCall.toolName, ordersCall.arguments);
       const ordersTrace = toTrace(ordersCall, ordersResult);
 
       if (!ordersResult.success) {
@@ -175,7 +178,7 @@ export class ChatService {
     };
   }
 
-  private async chatWithLLM(input: ChatInput): Promise<ChatOutput> {
+  private async chatWithLLM(input: ChatInput, gateway: McpGatewayClient): Promise<ChatOutput> {
     try {
       const isLocal = env.LLM_PROVIDER === 'local';
       const apiKey = isLocal ? (env.OPENAI_API_KEY || 'local-key') : env.OPENAI_API_KEY;
@@ -189,7 +192,7 @@ export class ChatService {
         ...(isLocal && env.LOCAL_LLM_BASE_URL ? { baseURL: env.LOCAL_LLM_BASE_URL } : {})
       });
 
-      const gatewayTools = (await this.gateway.listTools(input.authToken)) as GatewayTool[];
+      const gatewayTools = (await gateway.listTools(input.authToken)) as GatewayTool[];
       const tools = gatewayTools.map(toOpenAITool);
       const permittedTools = gatewayTools.filter(t => t.permitted !== false);
       const permittedToolTitles = permittedTools.map(t => t.title || t.name).join(', ');
@@ -264,7 +267,7 @@ export class ChatService {
             arguments: parseToolArguments(toolCall.function.arguments)
           };
 
-          const gatewayResult = await this.gateway.callTool(
+          const gatewayResult = await gateway.callTool(
             input.authToken,
             input.sessionId,
             plannedToolCall.toolName,
