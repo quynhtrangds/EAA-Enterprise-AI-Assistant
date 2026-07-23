@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import type { Session } from '../../hooks/useChat';
+import { IntegrationSettings } from '../admin/IntegrationSettings';
 
 const roles = [
   { code: 'admin', name: 'Admin', label: 'Quản trị viên' },
@@ -12,7 +13,7 @@ interface SidebarProps {
   isOpen?: boolean;
   sessions?: Session[];
   activeSessionId?: string;
-  currentUser?: string;
+  currentUser?: any;
   onSelectSession?: (id: string) => void;
   onCreateSession?: () => void;
   onDeleteSession?: (id: string) => void;
@@ -27,7 +28,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   isOpen = true,
   sessions = [],
   activeSessionId,
-  currentUser = 'admin',
+  currentUser,
   onSelectSession,
   onCreateSession,
   onDeleteSession,
@@ -37,12 +38,18 @@ const Sidebar: React.FC<SidebarProps> = ({
   onToggleStarSession,
   onOpenSearch
 }) => {
-  const activeRole = roles.find(r => r.code === currentUser) || roles[0];
+  const roleCode = currentUser?.roles?.[0] || (typeof currentUser === 'string' ? currentUser : 'admin');
+  const activeRole = roles.find(r => r.code === roleCode) || roles[0];
+  const isGuest = currentUser?.username === 'guest' || currentUser?.role === 'viewer' || roleCode === 'viewer';
+  const displayName = currentUser?.displayName || currentUser?.username || activeRole.name;
+  const displayLabel = currentUser?.email || activeRole.label;
+  const initial = displayName[0]?.toUpperCase() || activeRole.name[0];
 
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState('');
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
+  const [isIntegrationModalOpen, setIsIntegrationModalOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const profileMenuRef = useRef<HTMLDivElement>(null);
 
@@ -205,7 +212,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       <div className={`px-4 flex flex-col gap-2 mb-4 mt-2 shrink-0`}>
         <button
           onClick={() => onCreateSession?.()}
-          className={`flex items-center gap-3 px-2 h-10 w-full text-slate-400 hover:text-white hover:bg-slate-800/50 rounded-xl transition-all duration-200 font-medium text-[14.5px] border border-transparent hover:border-slate-700 shrink-0 overflow-hidden`}
+          className={`flex items-center gap-3 px-2 h-10 w-full text-slate-400 hover:text-white hover:bg-slate-800/50 rounded-xl transition-all duration-200 font-medium text-[14.5px] border border-transparent hover:border-slate-700 shrink-0 overflow-hidden cursor-pointer`}
           title={!isOpen ? "Cuộc trò chuyện mới" : undefined}
         >
           <div className="w-6 h-6 flex items-center justify-center shrink-0">
@@ -215,70 +222,146 @@ const Sidebar: React.FC<SidebarProps> = ({
         </button>
 
         <button
-          onClick={() => onOpenSearch?.()}
-          className={`flex items-center gap-3 px-2 h-10 w-full text-slate-400 hover:text-white hover:bg-slate-800/50 rounded-xl transition-all duration-200 font-medium text-[13px] border border-transparent hover:border-slate-700 shrink-0 overflow-hidden`}
-          title={!isOpen ? "Tìm kiếm trong các cuộc trò chuyện" : undefined}
+          onClick={() => { if (!isGuest) onOpenSearch?.(); }}
+          disabled={isGuest}
+          className={`flex items-center gap-3 px-2 h-10 w-full transition-all duration-200 font-medium text-[13px] border border-transparent shrink-0 overflow-hidden ${
+            isGuest
+              ? 'text-slate-600 opacity-40 cursor-not-allowed'
+              : 'text-slate-400 hover:text-white hover:bg-slate-800/50 hover:border-slate-700 cursor-pointer'
+          }`}
+          title={!isOpen ? (isGuest ? "Cần đăng nhập để tìm kiếm" : "Tìm kiếm trong các cuộc trò chuyện") : undefined}
         >
           <div className="w-6 h-6 flex items-center justify-center shrink-0">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
           </div>
-          <span className={`truncate transition-all duration-200 text-left ${isOpen ? 'opacity-100' : 'opacity-0'}`}>Tìm kiếm trong các cuộc trò chuyện</span>
+          <span className={`truncate transition-all duration-200 text-left ${isOpen ? 'opacity-100' : 'opacity-0'}`}>
+            {isGuest ? 'Tìm kiếm (Cần đăng nhập)' : 'Tìm kiếm trong các cuộc trò chuyện'}
+          </span>
         </button>
       </div>
 
       {/* Session List */}
       <div className={`flex-1 overflow-y-auto pb-3 dark-scrollbar transition-all duration-200 ${isOpen ? 'px-3 opacity-100' : 'px-0 opacity-0 pointer-events-none invisible'}`}>
-        {starredSessions.length > 0 && (
-          <div className="mb-4">
-            <div className="px-3 py-2 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-              Đã ghim
+        {isGuest ? (
+          <div className="p-4 text-center flex flex-col items-center justify-center h-48 gap-3 my-auto">
+            <div className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center text-slate-400 border border-slate-700/50">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+              </svg>
             </div>
-            {starredSessions.map(renderSessionItem)}
-          </div>
-        )}
-
-        {recentSessions.length > 0 && (
-          <div>
-            <div className="px-3 py-2 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-              LỊCH SỬ HỘI THOẠI
-            </div>
-            {recentSessions.map(renderSessionItem)}
-          </div>
-        )}
-      </div>
-
-      {/* Footer Profile / Role Selector */}
-      <div className={`p-2 border-t border-slate-800/50 bg-[#0f172a] shrink-0 relative`} ref={profileMenuRef}>
-        {/* Profile Menu Popup */}
-        {isProfileMenuOpen && (
-          <div className={`absolute bottom-[calc(100%+8px)] bg-slate-800 rounded-xl shadow-2xl border border-slate-700/50 z-50 p-1.5 origin-bottom animate-in slide-in-from-bottom-2 fade-in duration-200 ${isOpen ? 'left-2 right-2' : 'left-2 w-48'}`}>
+            <p className="text-xs text-slate-400 font-medium leading-relaxed">
+              Đang ở chế độ Khách.<br />Lịch sử hội thoại sẽ không được lưu.
+            </p>
             <button
-              onClick={() => {
-                setIsProfileMenuOpen(false);
-                onLogout?.();
-              }}
-              className="w-full flex items-center gap-3 px-3 py-2 text-sm text-slate-300 hover:text-white hover:bg-slate-700/50 rounded-lg transition-colors"
+              onClick={() => onLogout?.()}
+              className="text-xs text-indigo-400 hover:text-indigo-300 underline font-semibold cursor-pointer"
             >
-              <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
-              <span className="font-medium truncate">Đăng xuất</span>
+              Đăng nhập ngay
             </button>
           </div>
-        )}
+        ) : (
+          <>
+            {starredSessions.length > 0 && (
+              <div className="mb-4">
+                <div className="px-3 py-2 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                  Đã ghim
+                </div>
+                {starredSessions.map(renderSessionItem)}
+              </div>
+            )}
 
-        <button
-          onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
-          className={`flex items-center gap-3 w-full rounded-xl transition-all duration-200 group overflow-hidden p-2 cursor-pointer`}
-          title="Tài khoản"
-        >
-          <div className="w-10 h-10 shrink-0 rounded-full bg-slate-700 flex items-center justify-center text-sm font-bold text-slate-200 shadow-inner group-hover:bg-slate-600 transition-colors relative">
-            <span>{activeRole.name[0]}</span>
-          </div>
-          <div className={`flex flex-col text-left overflow-hidden transition-all duration-200 ${isOpen ? 'w-32 opacity-100' : 'w-0 opacity-0'}`}>
-            <p className="text-[15px] font-semibold text-white truncate whitespace-nowrap">{activeRole.name}</p>
-            <p className="text-[12px] text-slate-400 truncate whitespace-nowrap">{activeRole.label}</p>
-          </div>
-        </button>
+            {recentSessions.length > 0 && (
+              <div>
+                <div className="px-3 py-2 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                  LỊCH SỬ HỘI THOẠI
+                </div>
+                {recentSessions.map(renderSessionItem)}
+              </div>
+            )}
+          </>
+        )}
       </div>
+
+      {/* Footer Profile / Guest Login Button */}
+      <div className={`p-2 border-t border-slate-800/50 bg-[#0f172a] shrink-0 relative`} ref={profileMenuRef}>
+        {isGuest ? (
+          isOpen ? (
+            <button
+              onClick={() => onLogout?.()}
+              className="flex items-center justify-center gap-2.5 w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-xl shadow-lg shadow-indigo-500/20 transition-all cursor-pointer text-sm"
+            >
+              <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+              </svg>
+              <span>Đăng nhập</span>
+            </button>
+          ) : (
+            <button
+              onClick={() => onLogout?.()}
+              title="Đăng nhập"
+              className="w-10 h-10 mx-auto rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white flex items-center justify-center shadow-lg shadow-indigo-500/20 transition-all cursor-pointer"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+              </svg>
+            </button>
+          )
+        ) : (
+          <>
+            {/* Profile Menu Popup */}
+            {isProfileMenuOpen && (
+              <div className={`absolute bottom-[calc(100%+8px)] bg-slate-800 rounded-xl shadow-2xl border border-slate-700/50 z-50 p-1.5 origin-bottom animate-in slide-in-from-bottom-2 fade-in duration-200 ${isOpen ? 'left-2 right-2' : 'left-2 w-48'}`}>
+                
+                {roleCode === 'admin' && (
+                  <button
+                    onClick={() => {
+                      setIsProfileMenuOpen(false);
+                      setIsIntegrationModalOpen(true);
+                    }}
+                    className="w-full flex items-center gap-3 px-3 py-2 text-sm text-slate-300 hover:text-white hover:bg-slate-700/50 rounded-lg transition-colors mb-1"
+                  >
+                    <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                    <span className="font-medium truncate">Cấu hình Tích hợp</span>
+                  </button>
+                )}
+
+                <button
+                  onClick={() => {
+                    setIsProfileMenuOpen(false);
+                    onLogout?.();
+                  }}
+                  className="w-full flex items-center gap-3 px-3 py-2 text-sm text-slate-300 hover:text-white hover:bg-slate-700/50 rounded-lg transition-colors"
+                >
+                  <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+                  <span className="font-medium truncate">Đăng xuất</span>
+                </button>
+              </div>
+            )}
+
+            <button
+              onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
+              className={`flex items-center gap-3 w-full rounded-xl transition-all duration-200 group overflow-hidden p-2 cursor-pointer`}
+              title="Tài khoản"
+            >
+              <div className="w-10 h-10 shrink-0 rounded-full bg-slate-700 flex items-center justify-center text-sm font-bold text-slate-200 shadow-inner group-hover:bg-slate-600 transition-colors relative overflow-hidden">
+                {currentUser?.picture ? (
+                  <img src={currentUser.picture} alt={displayName} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                ) : (
+                  <span>{initial}</span>
+                )}
+              </div>
+              <div className={`flex flex-col text-left overflow-hidden transition-all duration-200 ${isOpen ? 'w-32 opacity-100' : 'w-0 opacity-0'}`}>
+                <p className="text-[15px] font-semibold text-white truncate whitespace-nowrap">{displayName}</p>
+                <p className="text-[12px] text-slate-400 truncate whitespace-nowrap">{displayLabel}</p>
+              </div>
+            </button>
+          </>
+        )}
+      </div>
+
+      {isIntegrationModalOpen && (
+        <IntegrationSettings onClose={() => setIsIntegrationModalOpen(false)} />
+      )}
     </div>
   );
 };

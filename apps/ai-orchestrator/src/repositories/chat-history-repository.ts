@@ -68,6 +68,7 @@ export async function ensureChatHistoryTables(): Promise<void> {
     CREATE TABLE IF NOT EXISTS chat_sessions (
       session_id VARCHAR(100) PRIMARY KEY,
       user_id UUID NOT NULL REFERENCES users(id) ON UPDATE CASCADE ON DELETE CASCADE,
+      tenant_id UUID NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000',
       title VARCHAR(255),
       created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -93,14 +94,14 @@ export async function ensureChatHistoryTables(): Promise<void> {
   return ensureChatHistoryTablesPromise;
 }
 
-async function ensureSessionOwnedByUser(sessionId: string, userId: string, title: string): Promise<void> {
+async function ensureSessionOwnedByUser(sessionId: string, userId: string, title: string, tenantId: string): Promise<void> {
   await query(
     `
-    INSERT INTO chat_sessions (session_id, user_id, title, created_at, updated_at)
-    VALUES ($1, $2, $3, now(), now())
+    INSERT INTO chat_sessions (session_id, user_id, title, tenant_id, created_at, updated_at)
+    VALUES ($1, $2, $3, $4, now(), now())
     ON CONFLICT (session_id) DO NOTHING
     `,
-    [sessionId, userId, title]
+    [sessionId, userId, title, tenantId]
   );
 
   const ownerResult = await query<ChatSessionOwnerRow>(
@@ -133,12 +134,13 @@ async function ensureSessionOwnedByUser(sessionId: string, userId: string, title
 export async function appendChatTurn(input: {
   sessionId: string;
   userId: string;
+  tenantId: string;
   userMessage: string;
   assistantMessage: string;
   toolCalls: ToolCallTrace[];
 }): Promise<void> {
   await ensureChatHistoryTables();
-  await ensureSessionOwnedByUser(input.sessionId, input.userId, deriveTitle(input.userMessage));
+  await ensureSessionOwnedByUser(input.sessionId, input.userId, deriveTitle(input.userMessage), input.tenantId);
 
   await query(
     `
@@ -154,6 +156,7 @@ export async function appendChatTurn(input: {
 export async function editChatTurn(input: {
   sessionId: string;
   userId: string;
+  tenantId: string;
   messageId: string;
   userMessage: string;
   assistantMessage: string;
@@ -180,6 +183,7 @@ export async function editChatTurn(input: {
   await appendChatTurn({
     sessionId: input.sessionId,
     userId: input.userId,
+    tenantId: input.tenantId,
     userMessage: input.userMessage,
     assistantMessage: input.assistantMessage,
     toolCalls: input.toolCalls

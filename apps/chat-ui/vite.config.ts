@@ -13,8 +13,13 @@ export default defineConfig({
     strictPort: true,
     host: '0.0.0.0',
     proxy: {
+      '/api/admin': {
+        target: process.env.MCP_GATEWAY_URL || 'http://mcp-gateway:8081',
+        changeOrigin: true,
+        secure: false
+      },
       '/api': {
-        target: process.env.AI_ORCHESTRATOR_URL || 'http://127.0.0.1:8082',
+        target: process.env.AI_ORCHESTRATOR_URL || 'http://ai-orchestrator:8082',
         changeOrigin: true,
         secure: false
       }

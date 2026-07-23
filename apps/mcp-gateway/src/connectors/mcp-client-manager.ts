@@ -21,7 +21,7 @@ interface ConnectorManifest {
 
 export class McpClientManager {
   private clients: Map<string, Client> = new Map();
-  private toolToServerMap: Map<string, string> = new Map();
+  public toolToServerMap: Map<string, string> = new Map();
 
   constructor() {}
 

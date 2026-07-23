@@ -9,6 +9,10 @@ export async function canExecuteTool(roles: string[], toolName: string): Promise
     return false;
   }
 
+  if (roles.includes('admin')) {
+    return true;
+  }
+
   const result = await query<PermissionRow>(
     `
     SELECT bool_or(can_execute) AS can_execute

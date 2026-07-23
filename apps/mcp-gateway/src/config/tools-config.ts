@@ -20,7 +20,10 @@ export function loadToolsConfig(): ToolsConfigMap {
     return configCache;
   }
 
-  const configPath = path.join(__dirname, 'tools-config.json');
+  let configPath = path.join(__dirname, 'tools-config.json');
+  if (!fs.existsSync(configPath)) {
+    configPath = path.join(__dirname, '../../src/config/tools-config.json');
+  }
   try {
     const fileContent = fs.readFileSync(configPath, 'utf-8');
     configCache = JSON.parse(fileContent) as ToolsConfigMap;

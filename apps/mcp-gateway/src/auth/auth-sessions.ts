@@ -10,6 +10,7 @@ export interface AuthenticatedSessionUser {
   username: string;
   displayName: string;
   roles: string[];
+  tenantId: string;
 }
 
 interface AuthSessionUserRow {
@@ -17,6 +18,7 @@ interface AuthSessionUserRow {
   username: string;
   display_name: string;
   roles: string[];
+  tenant_id: string;
 }
 
 export async function ensureAuthSessionsTable(): Promise<void> {
@@ -63,6 +65,16 @@ export async function createAuthSession(userId: string, roles: string[]): Promis
 }
 
 export async function getUserByToken(token: string): Promise<AuthenticatedSessionUser | null> {
+  if (token.startsWith('guest-')) {
+    return {
+      id: '10000000-0000-0000-0000-000000000004',
+      username: 'guest',
+      displayName: 'Khách dùng thử',
+      roles: ['viewer'],
+      tenantId: '00000000-0000-0000-0000-000000000000'
+    };
+  }
+
   await ensureAuthSessionsTable();
 
   const result = await query<AuthSessionUserRow>(
@@ -71,7 +83,8 @@ export async function getUserByToken(token: string): Promise<AuthenticatedSessio
       s.user_id,
       u.username,
       u.display_name,
-      s.roles
+      s.roles,
+      u.tenant_id
     FROM auth_sessions s
     JOIN users u ON u.id = s.user_id
     WHERE s.token = $1
@@ -92,6 +105,7 @@ export async function getUserByToken(token: string): Promise<AuthenticatedSessio
     id: user.user_id,
     username: user.username,
     displayName: user.display_name,
-    roles: user.roles
+    roles: user.roles,
+    tenantId: user.tenant_id
   };
 }

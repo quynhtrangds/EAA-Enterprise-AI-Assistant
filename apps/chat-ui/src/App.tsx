@@ -12,11 +12,15 @@ function AppContent() {
   return <MainLayout />;
 }
 
+import { GoogleOAuthProvider } from '@react-oauth/google';
+
 function App() {
   return (
-    <AuthProvider>
-      <AppContent />
-    </AuthProvider>
+    <GoogleOAuthProvider clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID || 'dummy'}>
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
+    </GoogleOAuthProvider>
   );
 }
 

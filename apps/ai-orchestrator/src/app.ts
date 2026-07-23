@@ -11,6 +11,10 @@ export function createApp(): express.Express {
   app.use(cors());
   app.use(express.json({ limit: '1mb' }));
 
+  app.get('/', (_req, res) => {
+    res.json({ service: 'Enterprise AI Orchestrator', status: 'running', healthCheck: '/health', version: '1.0.0' });
+  });
+
   app.get('/health', (_req, res) => {
     res.json({ status: 'ok', service: 'ai-orchestrator' });
   });

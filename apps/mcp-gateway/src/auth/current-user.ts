@@ -9,6 +9,7 @@ export interface CurrentUser {
   username: string;
   displayName: string;
   roles: string[];
+  tenantId: string;
 }
 
 export async function getCurrentUser(req: Request): Promise<CurrentUser> {

@@ -1,0 +1,8 @@
+{
+  "name": "enterprise-ai-platform",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "test": "npm test --prefix apps/mcp-gateway && npm test --prefix apps/ai-orchestrator && npm test --prefix apps/chat-ui"
+  }
+}

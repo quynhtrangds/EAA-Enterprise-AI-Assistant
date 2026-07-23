@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
+import { useGoogleLogin } from '@react-oauth/google';
 
 const LoginScreen: React.FC = () => {
   const { login } = useAuth();
@@ -28,15 +29,57 @@ const LoginScreen: React.FC = () => {
 
       if (response.ok) {
         const data = await response.json();
-        login(username, data.token);
+        login(data.user, data.token);
       } else {
-        setError('Sai tên đăng nhập hoặc mật khẩu.');
+        const errData = await response.json().catch(() => ({}));
+        setError(errData.message || 'Sai tên đăng nhập hoặc mật khẩu.');
       }
     } catch (err) {
       setError('Không thể kết nối đến máy chủ.');
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const googleCustomLogin = useGoogleLogin({
+    onSuccess: async (tokenResponse) => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const response = await fetch('/api/auth/google', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ accessToken: tokenResponse.access_token })
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          login(data.user, data.token);
+        } else {
+          setError('Đăng nhập Google thất bại.');
+        }
+      } catch (err) {
+        setError('Không thể kết nối đến máy chủ.');
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    onError: () => {
+      setError('Đăng nhập Google thất bại hoặc bị hủy.');
+    }
+  });
+
+  const handleGuestLogin = () => {
+    login(
+      {
+        id: '10000000-0000-0000-0000-000000000004',
+        username: 'guest',
+        displayName: 'Khách',
+        role: 'viewer',
+        roles: ['viewer']
+      },
+      'guest-demo-jwt-token'
+    );
   };
 
   return (
@@ -124,6 +167,42 @@ const LoginScreen: React.FC = () => {
               'Đăng nhập'
             )}
           </button>
+
+          <div className="relative flex items-center justify-center my-6">
+            <div className="w-full border-t border-slate-700/60"></div>
+            <span className="absolute px-3 bg-[#111827] text-slate-400 text-xs font-bold uppercase tracking-widest">
+              HOẶC
+            </span>
+          </div>
+
+          <div className="flex items-center justify-center gap-5 mt-4">
+            {/* Google Login Circle Button */}
+            <button
+              type="button"
+              onClick={() => googleCustomLogin()}
+              title="Đăng nhập bằng Google"
+              className="w-10 h-10 rounded-full bg-slate-800 hover:bg-slate-700 text-white border border-slate-600 shadow-lg flex items-center justify-center hover:scale-105 active:scale-95 transition-all cursor-pointer"
+            >
+              <svg className="w-5 h-5" viewBox="0 0 24 24">
+                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                <path fill="#FBBC05" d="M5.84 14.1c-.22-.66-.35-1.36-.35-2.1s.13-1.44.35-2.1V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.62z" />
+                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
+              </svg>
+            </button>
+
+            {/* Guest Login Circle Button */}
+            <button
+              type="button"
+              onClick={handleGuestLogin}
+              title="Đăng nhập với tư cách Khách (Guest Mode)"
+              className="w-10 h-10 rounded-full bg-slate-800 hover:bg-slate-700 text-white border border-slate-600 shadow-lg flex items-center justify-center hover:scale-105 active:scale-95 transition-all cursor-pointer"
+            >
+              <svg className="w-5 h-5 text-indigo-400" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
+              </svg>
+            </button>
+          </div>
         </form>
       </div>
     </div>

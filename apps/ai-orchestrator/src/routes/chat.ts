@@ -76,6 +76,21 @@ chatRouter.post('/login', async (req, res, next) => {
   }
 });
 
+chatRouter.post('/auth/google', async (req, res, next) => {
+  try {
+    const response = await fetch(`${env.MCP_GATEWAY_URL}/api/auth/google`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(req.body)
+    });
+    const payload = await response.json();
+
+    res.status(response.status).json(payload);
+  } catch (error) {
+    next(error);
+  }
+});
+
 chatRouter.post('/chat', async (req, res, next) => {
   try {
     const body = chatSchema.parse(req.body);
@@ -85,6 +100,7 @@ chatRouter.post('/chat', async (req, res, next) => {
     await appendChatTurn({
       sessionId: output.sessionId,
       userId: user.id,
+      tenantId: user.tenantId,
       userMessage: body.message,
       assistantMessage: output.answer,
       toolCalls: output.toolCalls
@@ -104,8 +120,9 @@ chatRouter.post('/chat/edit', async (req, res, next) => {
     const output = await chatService.chat({ sessionId: body.sessionId, message: body.message, authToken });
     
     await editChatTurn({
-      sessionId: output.sessionId,
+      sessionId: body.sessionId,
       userId: user.id,
+      tenantId: user.tenantId,
       messageId: body.messageId,
       userMessage: body.message,
       assistantMessage: output.answer,

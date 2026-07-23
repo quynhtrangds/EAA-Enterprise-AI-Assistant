@@ -40,7 +40,7 @@ export class MaskingService {
       case 'phone':
         return this.maskPhone(value);
       case 'address':
-        return '*** (Masked)';
+        return '***';
       case 'full_name':
       case 'customer_name':
         return this.maskName(value);
@@ -63,8 +63,8 @@ export class MaskingService {
   }
 
   private static maskPhone(phone: string): string {
-    if (phone.length <= 4) return '***';
-    return '*'.repeat(phone.length - 3) + phone.slice(-3);
+    if (phone.length <= 6) return '***';
+    return phone.slice(0, 3) + '***' + phone.slice(-3);
   }
 
   private static maskName(name: string): string {

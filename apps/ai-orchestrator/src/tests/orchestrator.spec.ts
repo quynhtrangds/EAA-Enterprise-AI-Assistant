@@ -2,6 +2,7 @@ import { vi, describe, it, expect, beforeEach, afterEach, afterAll } from 'vites
 import request from 'supertest';
 import { createApp } from '../app.js';
 import { pool } from '../db/pool.js';
+import { McpGatewayClient } from '../gateway/mcp-gateway-client.js';
 
 const app = createApp();
 
@@ -26,7 +27,8 @@ describe('ai-orchestrator integration', () => {
       id: '10000000-0000-0000-0000-000000000002',
       username: 'manager',
       displayName: 'Manager User',
-      roles: ['manager']
+      roles: ['manager'],
+      tenantId: '00000000-0000-0000-0000-000000000000'
     };
 
     const mockTools = [
@@ -51,32 +53,14 @@ describe('ai-orchestrator integration', () => {
       durationMs: 45
     };
 
-    global.fetch = vi.fn().mockImplementation((url: string, init?: RequestInit) => {
+    vi.spyOn(McpGatewayClient.prototype, 'getCurrentUser').mockResolvedValue(mockUser);
+    vi.spyOn(McpGatewayClient.prototype, 'listTools').mockResolvedValue(mockTools);
+    vi.spyOn(McpGatewayClient.prototype, 'callTool').mockResolvedValue(mockToolCallResponse);
+
+    global.fetch = vi.fn().mockImplementation((urlInput: any, init?: RequestInit) => {
+      const url = typeof urlInput === 'string' ? urlInput : (urlInput?.url || String(urlInput));
       const mockHeaders = new Headers({ 'Content-Type': 'application/json' });
-      if (url.endsWith('/api/me')) {
-        return Promise.resolve({
-          ok: true,
-          status: 200,
-          headers: mockHeaders,
-          json: () => Promise.resolve({ user: mockUser })
-        } as unknown as Response);
-      }
-      if (url.endsWith('/api/tools')) {
-        return Promise.resolve({
-          ok: true,
-          status: 200,
-          headers: mockHeaders,
-          json: () => Promise.resolve({ tools: mockTools })
-        } as unknown as Response);
-      }
-      if (url.endsWith('/api/tools/call')) {
-        return Promise.resolve({
-          ok: true,
-          status: 200,
-          headers: mockHeaders,
-          json: () => Promise.resolve(mockToolCallResponse)
-        } as unknown as Response);
-      }
+
       if (url.endsWith('/chat/completions')) {
         const body = init?.body ? JSON.parse(init.body as string) : { messages: [] };
         const messages = body.messages || [];
@@ -120,7 +104,13 @@ describe('ai-orchestrator integration', () => {
           } as unknown as Response);
         }
       }
-      return Promise.reject(new Error(`Unhandled mock fetch for ${url}`));
+
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        headers: mockHeaders,
+        json: () => Promise.resolve({})
+      } as unknown as Response);
     });
 
     const response = await request(app)

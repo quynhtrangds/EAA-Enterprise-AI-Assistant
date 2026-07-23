@@ -5,6 +5,7 @@ import rateLimit from 'express-rate-limit';
 import { errorHandler } from './middleware/error-handler.js';
 import { toolsRouter } from './routes/tools.js';
 import { mcpRouter } from './routes/mcp.js';
+import { adminRouter } from './routes/admin.js';
 
 const apiRateLimiter = rateLimit({
   windowMs: 60 * 1000,
@@ -24,10 +25,11 @@ export function createApp(): express.Express {
   app.use(helmet());
   app.use(cors());
   app.use((req, res, next) => {
-    if (req.path === '/api/mcp/message') {
-      return next();
-    }
     express.json({ limit: '1mb' })(req, res, next);
+  });
+
+  app.get('/', (_req, res) => {
+    res.json({ service: 'Enterprise AI MCP Gateway', status: 'running', healthCheck: '/health', version: '1.0.0' });
   });
 
   app.get('/health', (_req, res) => {
@@ -37,6 +39,7 @@ export function createApp(): express.Express {
   app.use('/api', apiRateLimiter);
   app.use('/api', mcpRouter);
   app.use('/api', toolsRouter);
+  app.use('/api/admin', adminRouter);
   app.use(errorHandler);
 
   return app;

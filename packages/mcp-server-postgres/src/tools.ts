@@ -73,7 +73,7 @@ interface ProductSalesRow {
 const DateString = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must use yyyy-mm-dd format');
 
 const searchCustomerInput = z.object({
-  keyword: z.string().trim().min(1).describe('Từ khoá tìm kiếm cốt lõi (tên riêng như "Nguyễn", "Trần Văn A", số điện thoại, email, hoặc mã khách hàng). Không truyền cả câu hỏi của người dùng.'),
+  keyword: z.string().trim().default('').describe('Từ khoá tìm kiếm cốt lõi. Để trống nếu muốn lấy danh sách chung.'),
   limit: z.number().int().min(1).max(20).default(5).describe('Giới hạn số lượng kết quả trả về')
 });
 
@@ -234,7 +234,7 @@ export function createPostgresTools() {
              OR phone ILIKE $1
              OR unaccent(email) ILIKE unaccent($1)
              OR customer_code ILIKE $1
-          ORDER BY full_name ASC
+          ORDER BY created_at DESC
           LIMIT $2
           `,
           [`%${keyword}%`, limit]
@@ -321,12 +321,13 @@ export function createPostgresTools() {
             `
             SELECT
               p.name AS product_name,
-              oi.quantity,
-              oi.unit_price,
-              oi.total_price
+              SUM(oi.quantity)::int AS quantity,
+              MAX(oi.unit_price) AS unit_price,
+              SUM(oi.total_price) AS total_price
             FROM order_items oi
             JOIN products p ON p.id = oi.product_id
             WHERE oi.order_id = $1
+            GROUP BY p.name
             ORDER BY p.name ASC
             `,
             [order.id]

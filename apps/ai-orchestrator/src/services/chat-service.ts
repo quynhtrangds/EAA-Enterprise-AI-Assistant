@@ -214,7 +214,8 @@ export class ChatService {
         `11. TUYỆT ĐỐI KHÔNG gọi song song (parallel tool calls) các công cụ có tính phụ thuộc dữ liệu nối tiếp trong cùng một lượt. Ví dụ: Nếu người dùng hỏi đơn hàng của khách hàng tên "A", bạn không được gọi đồng thời cả search_customer và get_customer_orders. Bạn phải gọi search_customer trước, nhận kết quả trả về chứa UUID (customerId), rồi ở lượt kế tiếp mới gọi get_customer_orders với UUID đó. KHÔNG được điền placeholder hoặc giá trị giả lập như "ID khách hàng sau khi tìm kiếm".\n` +
         `12. BẮT BUỘC định dạng câu trả lời bằng Markdown để hiển thị trực quan và dễ đọc. Dùng bảng (tables) cho dữ liệu dạng danh sách (vd: thông tin nhiều khách hàng, chi tiết các mặt hàng trong đơn, v.v.). In đậm (bold) các trường thông tin quan trọng như Mã, Tên, Số tiền, Trạng thái. Sử dụng bullet points cho các thông tin rời rạc.\n` +
         `13. TƯ DUY NỐI CÔNG CỤ (GENERALIZED TOOL CHAINING): Nếu dữ liệu trả về từ tool hiện tại chưa đủ để trả lời trọn vẹn yêu cầu của người dùng (ví dụ thiếu SĐT, địa chỉ, hoặc thông tin cụ thể), bạn BẮT BUỘC phải tiếp tục rà soát danh sách các tool khác. Nếu có tool nào có thể cung cấp dữ liệu còn thiếu, hãy lấy các thông tin đã có (như ID, Mã KH, Mã Đơn) làm tham số để tự động gọi tiếp tool đó ở lượt kế tiếp. KHÔNG ĐƯỢC dừng lại cho đến khi thu thập đủ dữ liệu.\n` +
-        `14. TUYỆT ĐỐI KHÔNG giải thích, phân tích hay sinh ra bất kỳ văn bản nào TRƯỚC KHI gọi tool. Nếu bạn quyết định gọi tool, HÃY GỌI NGAY LẬP TỨC (thông qua chuẩn tool_calls của API). TUYỆT ĐỐI KHÔNG in ra các đoạn mã giả lập như "<function=...>" vào câu trả lời.\n\n` +
+        `14. TUYỆT ĐỐI KHÔNG giải thích, phân tích hay sinh ra bất kỳ văn bản nào TRƯỚC KHI gọi tool. Nếu bạn quyết định gọi tool, HÃY GỌI NGAY LẬP TỨC thông qua chuẩn tool_calls của API.\n` +
+        `15. QUAN TRỌNG: Cú pháp gọi tool phải cực kỳ chuẩn xác theo định dạng JSON. KHÔNG ĐƯỢC để dấu ngoặc nhọn JSON dính vào tên tool. Ví dụ sai: <function=tool_name{...}. Ví dụ đúng: <function=tool_name>{"param": "value"}</function>.\n\n` +
         `THÔNG TIN HỆ THỐNG:\n` +
         `- Ngày giờ hiện tại: ${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}\n` +
         `- Hôm nay là ngày: ${today()}\n` +
@@ -238,13 +239,54 @@ export class ChatService {
 
       while (round < MAX_ROUNDS) {
         round++;
-        const completion = await client.chat.completions.create({
-          model: env.OPENAI_MODEL || 'local-model',
-          messages,
-          ...(tools.length > 0 ? { tools, tool_choice: 'auto' as const } : {})
-        });
+        let completion: any;
+        let retryCount = 0;
+        const maxRetries = 3;
 
-        const assistantMessage = completion.choices[0]?.message;
+        while (retryCount <= maxRetries) {
+          try {
+            completion = await client.chat.completions.create({
+              model: env.OPENAI_MODEL || 'local-model',
+              messages,
+              ...(tools.length > 0 ? { tools, tool_choice: 'auto' as const, parallel_tool_calls: false } : {})
+            });
+            break;
+          } catch (error: any) {
+            if (error.status === 429 && retryCount < maxRetries) {
+              retryCount++;
+              const waitTime = retryCount * 10000; // 10s, 20s, 30s
+              console.warn(`Rate limit hit (429). Retrying ${retryCount}/${maxRetries} in ${waitTime/1000}s...`);
+              await new Promise(resolve => setTimeout(resolve, waitTime));
+              continue;
+            }
+            const groqError = error.error || {};
+            if (groqError.failed_generation) {
+            const match = groqError.failed_generation.match(/<function=([a-zA-Z0-9_]+)[\s>]*({.*})[\s]*<\/function>/s);
+            if (match) {
+              console.log('Recovered tool call from failed_generation:', match[1], match[2]);
+              completion = {
+                choices: [{
+                  message: {
+                    role: 'assistant',
+                    content: null,
+                    tool_calls: [{
+                      id: 'call_' + Date.now(),
+                      type: 'function',
+                      function: { name: match[1], arguments: match[2] }
+                    }]
+                  }
+                }]
+              };
+            } else {
+              throw error;
+            }
+            } else {
+              throw error;
+            }
+          }
+        }
+
+        const assistantMessage = completion?.choices?.[0]?.message;
         if (!assistantMessage) {
           throw new AppError('LLM_ERROR', 'LLM did not return a chat message.', 502);
         }

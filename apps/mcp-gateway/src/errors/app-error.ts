@@ -6,7 +6,8 @@ export type AppErrorCode =
   | 'TOOL_TIMEOUT'
   | 'UNAUTHORIZED'
   | 'UNAUTHENTICATED'
-  | 'INTERNAL_ERROR';
+  | 'INTERNAL_ERROR'
+  | 'RATE_LIMIT_EXCEEDED';
 
 export class AppError extends Error {
   constructor(

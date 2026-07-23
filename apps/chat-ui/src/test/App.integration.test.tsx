@@ -10,6 +10,12 @@ global.fetch = mockFetch;
 Element.prototype.scrollIntoView = vi.fn();
 process.env.DEBUG_PRINT_LIMIT = '1000000';
 
+vi.mock('@react-oauth/google', () => ({
+  GoogleOAuthProvider: ({ children }: any) => <div>{children}</div>,
+  GoogleLogin: () => <button>Sign in with Google</button>,
+  useGoogleLogin: vi.fn(() => vi.fn())
+}));
+
 // Xoá tất cả module mock (đặc biệt là AuthContext và useChat) để test tích hợp
 vi.unmock('../contexts/AuthContext');
 vi.unmock('../hooks/useChat');
@@ -18,6 +24,8 @@ describe('App Integration Tests', () => {
   let messageCount = 2;
 
   beforeEach(() => {
+    localStorage.clear();
+    sessionStorage.clear();
     mockFetch.mockClear();
     messageCount = 2;
     
@@ -27,7 +35,7 @@ describe('App Integration Tests', () => {
       console.log('mockFetch called with:', urlStr);
       
       if (urlStr.includes('/login')) {
-        return { ok: true, json: async () => ({ token: 'integration-jwt-token' }) };
+        return { ok: true, json: async () => ({ token: 'integration-jwt-token', user: { username: 'admin', role: 'admin' } }) };
       }
       
       if (urlStr.endsWith('/sessions')) {
@@ -291,12 +299,13 @@ describe('App Integration Tests', () => {
         return {
           ok: false,
           status: 401,
-          json: async () => ({ success: false, errorCode: 'UNAUTHENTICATED', message: 'Tên đăng nhập hoặc mật khẩu không chính xác' })
+          json: async () => ({ success: false, errorCode: 'UNAUTHENTICATED', message: 'Sai tên đăng nhập hoặc mật khẩu.' })
         };
       }
       return { ok: true, json: async () => ({}) };
     });
 
+    localStorage.clear();
     render(<App />);
 
     fireEvent.change(screen.getByPlaceholderText('Nhập tên đăng nhập'), { target: { value: 'wrong-admin' } });

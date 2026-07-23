@@ -9,6 +9,26 @@
       "command": "node",
       "args": ["../../packages/mcp-server-crm/dist/index.js"],
       "env": {}
+    },
+    "rag": {
+      "command": "node",
+      "args": ["../../packages/mcp-server-rag/dist/index.js"],
+      "env": {}
+    },
+    "erpnext": {
+      "command": "node",
+      "args": ["../../packages/mcp-server-erpnext/dist/index.js"],
+      "env": {}
+    },
+    "zammad": {
+      "command": "node",
+      "args": ["../../packages/mcp-server-zammad/dist/index.js"],
+      "env": {}
+    },
+    "gitea": {
+      "command": "node",
+      "args": ["../../packages/mcp-server-gitea/dist/index.js"],
+      "env": {}
     }
   }
 }

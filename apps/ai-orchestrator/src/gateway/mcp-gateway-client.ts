@@ -18,6 +18,7 @@ interface GatewayCurrentUserResponse {
     username: string;
     displayName: string;
     roles: string[];
+    tenantId: string;
   };
 }
 

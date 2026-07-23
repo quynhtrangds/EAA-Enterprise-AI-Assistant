@@ -131,7 +131,8 @@ export const useChat = () => {
 
   // Sync session list on current user change
   useEffect(() => {
-    if (authToken && currentUser) {
+    const isGuest = currentUser?.username === 'guest' || currentUser?.role === 'viewer';
+    if (authToken && currentUser && !isGuest) {
       fetchSessions(authToken);
       setActiveSessionId('new-chat-session');
       setMessages([]);
@@ -144,10 +145,11 @@ export const useChat = () => {
 
   // Sync messages on active session / token change
   useEffect(() => {
-    if (authToken) {
+    const isGuest = currentUser?.username === 'guest' || currentUser?.role === 'viewer';
+    if (authToken && !isGuest) {
       fetchSessionDetails(authToken, activeSessionId);
     }
-  }, [activeSessionId, authToken]);
+  }, [activeSessionId, authToken, currentUser]);
 
   const selectSession = (id: string) => {
     setActiveSessionId(id);
@@ -271,14 +273,26 @@ export const useChat = () => {
       }
 
       const data = await response.json();
+      const isGuest = currentUser?.username === 'guest' || currentUser?.role === 'viewer';
 
-      // If we were on 'new-chat-session', switch our active session to the new generated session id
-      const targetSessionId = activeSessionId === 'new-chat-session' ? data.sessionId : activeSessionId;
+      if (isGuest) {
+        const newAiMsg: Message = {
+          id: (Date.now() + 1).toString(),
+          sender: 'ai',
+          content: data.reply || data.answer || data.content || '',
+          timestamp: formatTimestamp(),
+          toolCalls: data.toolCalls
+        };
+        setMessages(prev => [...prev, newAiMsg]);
+      } else {
+        // If we were on 'new-chat-session', switch our active session to the new generated session id
+        const targetSessionId = activeSessionId === 'new-chat-session' ? data.sessionId : activeSessionId;
 
-      // Reload sessions and select the correct session
-      await fetchSessions(authToken!);
-      setActiveSessionId(targetSessionId);
-      await fetchSessionDetails(authToken!, targetSessionId);
+        // Reload sessions and select the correct session
+        await fetchSessions(authToken!);
+        setActiveSessionId(targetSessionId);
+        await fetchSessionDetails(authToken!, targetSessionId);
+      }
     } catch (error: any) {
       console.error('Lỗi API:', error);
       const errorMsg: Message = {

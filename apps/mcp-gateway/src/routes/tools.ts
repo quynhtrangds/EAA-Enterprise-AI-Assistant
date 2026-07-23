@@ -3,11 +3,15 @@ import { z } from 'zod';
 import { writeAuditLog } from '../audit/audit-log.js';
 import { createAuthSession } from '../auth/auth-sessions.js';
 import { createToolContext, getCurrentUser } from '../auth/current-user.js';
+import { OAuth2Client } from 'google-auth-library';
 import { query } from '../db/pool.js';
+import { env } from '../config/env.js';
+import { VaultService } from '../services/vault.js';
 import { AppError } from '../errors/app-error.js';
 import { canExecuteTool } from '../policies/tool-permissions.js';
 import { getToolConfig } from '../config/tools-config.js';
 import { mcpClientManager } from '../connectors/mcp-client-manager.js';
+import { checkToolRateLimit } from '../policies/rate-limiter.js';
 
 export const toolsRouter = Router();
 
@@ -21,6 +25,12 @@ const loginSchema = z.object({
   username: z.string().trim().min(1),
   password: z.string().min(1)
 });
+
+const googleLoginSchema = z.object({
+  idToken: z.string().min(1)
+});
+
+const googleClient = new OAuth2Client(env.GOOGLE_CLIENT_ID || 'dummy');
 
 const auditLogQuerySchema = z.object({
   fromDate: z.string().optional(),
@@ -37,6 +47,9 @@ interface LoginUserRow {
   display_name: string;
   email: string | null;
   roles: string[];
+  tenant_id: string;
+  sso_provider?: string;
+  sso_id?: string;
 }
 
 function unwrapSchema(schema: any): { schema: any; required: boolean } {
@@ -99,13 +112,14 @@ toolsRouter.post('/login', async (req, res, next) => {
         u.password_hash,
         u.display_name,
         u.email,
+        u.tenant_id,
         COALESCE(array_agg(r.role_code ORDER BY r.role_code) FILTER (WHERE r.role_code IS NOT NULL), '{}') AS roles
       FROM users u
       LEFT JOIN user_roles ur ON ur.user_id = u.id
       LEFT JOIN roles r ON r.id = ur.role_id
       WHERE u.status = 'active'
         AND u.username = $1
-      GROUP BY u.id, u.username, u.password_hash, u.display_name, u.email
+      GROUP BY u.id, u.username, u.password_hash, u.display_name, u.email, u.tenant_id
       LIMIT 1
       `,
       [credentials.username]
@@ -128,7 +142,93 @@ toolsRouter.post('/login', async (req, res, next) => {
         username: user.username,
         displayName: user.display_name,
         email: user.email,
-        roles: user.roles
+        roles: user.roles,
+        tenantId: user.tenant_id
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+toolsRouter.post('/auth/google', async (req, res, next) => {
+  try {
+    const { idToken } = googleLoginSchema.parse(req.body);
+    const ticket = await googleClient.verifyIdToken({
+      idToken,
+      audience: env.GOOGLE_CLIENT_ID || 'dummy',
+    });
+    const payload = ticket.getPayload();
+    if (!payload || !payload.email) {
+      throw new AppError('UNAUTHENTICATED', 'Invalid Google token', 401);
+    }
+    
+    // Find user by email
+    const result = await query<LoginUserRow>(
+      `
+      SELECT
+        u.id,
+        u.username,
+        u.password_hash,
+        u.display_name,
+        u.email,
+        u.tenant_id,
+        COALESCE(array_agg(r.role_code ORDER BY r.role_code) FILTER (WHERE r.role_code IS NOT NULL), '{}') AS roles
+      FROM users u
+      LEFT JOIN user_roles ur ON ur.user_id = u.id
+      LEFT JOIN roles r ON r.id = ur.role_id
+      WHERE u.status = 'active'
+        AND u.email = $1
+      GROUP BY u.id, u.username, u.password_hash, u.display_name, u.email, u.tenant_id
+      LIMIT 1
+      `,
+      [payload.email]
+    );
+
+    let user = result.rows[0];
+    if (!user) {
+      const defaultTenantId = '00000000-0000-0000-0000-000000000000';
+      const insertResult = await query<{id: string}>(
+        `INSERT INTO users (username, display_name, email, sso_provider, sso_id, tenant_id)
+         VALUES ($1, $2, $3, 'google', $4, $5) RETURNING id`,
+        [payload.email, payload.name || payload.email, payload.email, payload.sub, defaultTenantId]
+      );
+      
+      const newUserId = insertResult.rows[0]?.id as string;
+      const roleResult = await query<{id: string}>(`SELECT id FROM roles WHERE role_code = 'user' LIMIT 1`);
+      if (roleResult.rows.length > 0 && roleResult.rows[0]) {
+        await query(`INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2)`, [newUserId, roleResult.rows[0].id]);
+      }
+      
+      user = {
+        id: newUserId,
+        username: payload.email,
+        password_hash: '',
+        display_name: payload.name || payload.email,
+        email: payload.email,
+        roles: ['user'],
+        tenant_id: defaultTenantId
+      };
+    } else if (!user.sso_provider) {
+      // update sso fields if null
+      await query(`UPDATE users SET sso_provider = 'google', sso_id = $1 WHERE id = $2`, [payload.sub, user.id]);
+    }
+
+    const session = await createAuthSession(user.id, user.roles);
+
+    res.json({
+      success: true,
+      token: session.token,
+      tokenType: 'Bearer',
+      expiresAt: session.expiresAt,
+      user: {
+        id: user.id,
+        username: user.username,
+        displayName: user.display_name,
+        email: user.email,
+        roles: user.roles,
+        tenantId: user.tenant_id,
+        picture: payload.picture
       }
     });
   } catch (error) {
@@ -154,7 +254,19 @@ toolsRouter.get('/tools', async (req, res, next) => {
 
     for (const tool of allTools) {
       const config = getToolConfig(tool.name);
-      const isPermitted = await canExecuteTool(user.roles, tool.name);
+      let isPermitted = await canExecuteTool(user.roles, tool.name);
+
+      const serverName = mcpClientManager.toolToServerMap.get(tool.name);
+      if (serverName && user.tenantId) {
+        const activeRes = await query<{ is_active: boolean }>(
+          `SELECT is_active FROM tenant_integrations WHERE tenant_id = $1 AND integration_code = $2`,
+          [user.tenantId, serverName]
+        );
+        if (activeRes.rows.length > 0 && activeRes.rows[0]?.is_active === false) {
+          isPermitted = false;
+        }
+      }
+
       visibleTools.push({
         name: tool.name,
         title: tool.title,
@@ -180,6 +292,17 @@ toolsRouter.post('/tools/call', async (req, res, next) => {
   try {
     const user = await getCurrentUser(req);
     parsed = callToolSchema.parse(req.body);
+
+    const targetServerName = mcpClientManager.toolToServerMap.get(parsed.toolName);
+    if (targetServerName && user.tenantId) {
+      const activeRes = await query<{ is_active: boolean }>(
+        `SELECT is_active FROM tenant_integrations WHERE tenant_id = $1 AND integration_code = $2`,
+        [user.tenantId, targetServerName]
+      );
+      if (activeRes.rows.length > 0 && activeRes.rows[0]?.is_active === false) {
+        throw new AppError('PERMISSION_DENIED', `Hệ thống tích hợp ${targetServerName.toUpperCase()} hiện đang bị TẮT trong Cấu hình Tích hợp. Vui lòng BẬT lại để sử dụng.`, 400);
+      }
+    }
 
     if (parsed.toolName === 'get_customer_orders') {
       const args = (parsed.arguments || {}) as any;
@@ -209,7 +332,21 @@ toolsRouter.post('/tools/call', async (req, res, next) => {
       durationMs: 0
     });
 
-    const data = await mcpClientManager.callTool(parsed.toolName, parsed.arguments);
+    const serverName = targetServerName; // Use targetServerName
+    console.log(`[Tool Execution] toolName: ${parsed.toolName}, serverName: ${serverName}, tenantId: ${user?.tenantId}`);
+    let mergedArgs = { ...((parsed.arguments as object) || {}) };
+
+    if (serverName && user.tenantId) {
+      const vaultPath = `integrations/${user.tenantId}/${serverName}`;
+      const secrets = await VaultService.readSecret(vaultPath);
+      console.log(`[Vault Fetch] path: ${vaultPath}, secrets:`, secrets);
+      if (secrets && (secrets.apiKey || secrets.apiUrl)) {
+        mergedArgs = { ...mergedArgs, _integrationCredentials: secrets };
+      }
+    }
+    console.log(`[Tool Execution] final mergedArgs:`, JSON.stringify(mergedArgs));
+
+    const data = await mcpClientManager.callTool(parsed.toolName, mergedArgs);
 
     const durationMs = Date.now() - startedAt;
 
