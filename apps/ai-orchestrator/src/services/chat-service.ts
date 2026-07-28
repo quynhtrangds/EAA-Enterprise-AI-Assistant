@@ -86,6 +86,33 @@ function buildCustomerOrdersAnswer(customer: any, orders: any[]): string {
   return `Kh\u00e1ch h\u00e0ng ${customer.fullName} c\u00f3 ${orders.length} \u0111\u01a1n h\u00e0ng trong 90 ng\u00e0y g\u1ea7n nh\u1ea5t: ${orderSummary}.`;
 }
 
+function formatToolErrorMessage(message?: string): string {
+  if (!message) {
+    return 'Hệ thống tạm thời chưa thể truy vấn được thông tin này. Bạn vui lòng thử lại hoặc bổ sung thêm chi tiết câu hỏi.';
+  }
+
+  if (message.startsWith('[') || message.startsWith('{')) {
+    try {
+      const parsed = JSON.parse(message);
+      if (Array.isArray(parsed)) {
+        const missingFields = parsed.map(err => err.path?.join('.')).filter(Boolean);
+        if (missingFields.length > 0) {
+          return `Yêu cầu tra cứu cần bổ sung thêm thông tin khoảng thời gian hoặc tham số: ${missingFields.join(', ')}.`;
+        }
+      }
+    } catch {
+      // Ignore JSON parse error
+    }
+    return 'Thông số tra cứu chưa hợp lệ hoặc thiếu dữ liệu tham số đầu vào.';
+  }
+
+  return message;
+}
+
+const VIEWER_PERMISSION_DENIED_MESSAGE =
+  `⚠️ **Bạn không có quyền thực hiện thao tác này.**\n\n` +
+  `Tài khoản hiện tại chưa được cấp quyền truy vấn dữ liệu này. Vui lòng liên hệ Quản trị viên để biết thêm chi tiết.`;
+
 export class ChatService {
   private readonly llm = new MockLLMProvider();
 
@@ -189,38 +216,31 @@ export class ChatService {
 
       const client = new OpenAI({
         apiKey,
+        timeout: 60000,
         ...(isLocal && env.LOCAL_LLM_BASE_URL ? { baseURL: env.LOCAL_LLM_BASE_URL } : {})
       });
 
       const gatewayTools = (await gateway.listTools(input.authToken)) as GatewayTool[];
-      const tools = gatewayTools.map(toOpenAITool);
       const permittedTools = gatewayTools.filter(t => t.permitted !== false);
+      console.log('[chatWithLLM] permittedTools:', permittedTools.map(t => t.name));
+      const tools = permittedTools.map(toOpenAITool);
       const permittedToolTitles = permittedTools.map(t => t.title || t.name).join(', ');
 
       const systemPrompt =
-        `Bạn là trợ lý AI (Enterprise AI Assistant) cho hệ thống quản lý bán hàng có kết nối cơ sở dữ liệu PostgreSQL. ` +
-        `Nhiệm vụ của bạn là hỗ trợ người dùng truy vấn thông tin bán hàng thông qua các công cụ (tools) được cung cấp.\n\n` +
-        `Quy tắc bắt buộc:\n` +
-        `1. CHỈ trả lời các câu hỏi về thông tin doanh nghiệp (khách hàng, đơn hàng, doanh thu, thanh toán, sản phẩm) dựa trên dữ liệu thực tế lấy được từ các công cụ (tools) được cung cấp.\n` +
-        `2. KHÔNG tự bịa, giả lập hoặc phỏng đoán bất kỳ thông tin nào nếu tool không trả về hoặc không tìm thấy dữ liệu. Nếu không tìm thấy, hãy thông báo rõ ràng bằng tiếng Việt rằng không tìm thấy thông tin trên hệ thống.\n` +
-        `3. TUYỆT ĐỐI KHÔNG sinh câu lệnh SQL thô, không yêu cầu người dùng nhập SQL và không hiển thị câu lệnh SQL thô cho người dùng.\n` +
-        `4. KHÔNG tiết lộ bất kỳ thông tin nhạy cảm nào ngoài phạm vi dữ liệu được trả về bởi các công cụ.\n` +
-        `5. Luôn phản hồi bằng tiếng Việt ngắn gọn, rõ ràng, tập trung trực tiếp vào câu hỏi của người dùng. TUYỆT ĐỐI không sử dụng tiếng Trung (như "吗", "的", v.v.), tiếng Anh hay bất kỳ ngôn ngữ nào khác.\n` +
-        `6. KHI CẦN NHIỀU DỮ LIỆU: Nếu câu hỏi yêu cầu thông tin từ nhiều đối tượng (ví dụ: so sánh 2 đơn hàng, xem thông tin nhiều khách hàng), hãy GỌI TOOL NHIỀU LẦN LIÊN TIẾP — mỗi lần gọi cho một đối tượng — cho đến khi thu thập đủ dữ liệu, RỒI MỚI tổng hợp câu trả lời. KHÔNG được từ chối hoặc giải thích "không hỗ trợ" khi tool đã có sẵn.\n` +
-        `7. Mỗi tool có thể được gọi nhiều lần với các tham số khác nhau trong cùng một yêu cầu.\n` +
-        `8. Ngay cả khi người dùng chào bằng ngôn ngữ khác (VD: Hello, Hi), BẮT BUỘC phải chào lại và trả lời bằng Tiếng Việt.\n` +
-        `9. Nếu câu hỏi nằm ngoài phạm vi các tool hiện có, hãy trả lời: "Xin lỗi, tôi chưa có công cụ để trả lời câu hỏi này. Tôi có thể hỗ trợ tìm kiếm khách hàng, xem đơn hàng, doanh thu, sản phẩm bán chạy."\n` +
-        `10. Khi gọi công cụ search_customer, bạn BẮT BUỘC phải chỉ trích xuất từ khoá tìm kiếm cốt lõi nhất (ví dụ: tên riêng "Nguyễn", "Trần Văn A", số điện thoại, email, hoặc mã khách hàng) làm tham số keyword. TUYỆT ĐỐI không đưa nguyên cả câu hỏi/câu lệnh yêu cầu của người dùng vào keyword.\n` +
-        `11. TUYỆT ĐỐI KHÔNG gọi song song (parallel tool calls) các công cụ có tính phụ thuộc dữ liệu nối tiếp trong cùng một lượt. Ví dụ: Nếu người dùng hỏi đơn hàng của khách hàng tên "A", bạn không được gọi đồng thời cả search_customer và get_customer_orders. Bạn phải gọi search_customer trước, nhận kết quả trả về chứa UUID (customerId), rồi ở lượt kế tiếp mới gọi get_customer_orders với UUID đó. KHÔNG được điền placeholder hoặc giá trị giả lập như "ID khách hàng sau khi tìm kiếm".\n` +
-        `12. BẮT BUỘC định dạng câu trả lời bằng Markdown để hiển thị trực quan và dễ đọc. Dùng bảng (tables) cho dữ liệu dạng danh sách (vd: thông tin nhiều khách hàng, chi tiết các mặt hàng trong đơn, v.v.). In đậm (bold) các trường thông tin quan trọng như Mã, Tên, Số tiền, Trạng thái. Sử dụng bullet points cho các thông tin rời rạc.\n` +
-        `13. TƯ DUY NỐI CÔNG CỤ (GENERALIZED TOOL CHAINING): Nếu dữ liệu trả về từ tool hiện tại chưa đủ để trả lời trọn vẹn yêu cầu của người dùng (ví dụ thiếu SĐT, địa chỉ, hoặc thông tin cụ thể), bạn BẮT BUỘC phải tiếp tục rà soát danh sách các tool khác. Nếu có tool nào có thể cung cấp dữ liệu còn thiếu, hãy lấy các thông tin đã có (như ID, Mã KH, Mã Đơn) làm tham số để tự động gọi tiếp tool đó ở lượt kế tiếp. KHÔNG ĐƯỢC dừng lại cho đến khi thu thập đủ dữ liệu.\n` +
-        `14. TUYỆT ĐỐI KHÔNG giải thích, phân tích hay sinh ra bất kỳ văn bản nào TRƯỚC KHI gọi tool. Nếu bạn quyết định gọi tool, HÃY GỌI NGAY LẬP TỨC thông qua chuẩn tool_calls của API.\n` +
-        `15. QUAN TRỌNG: Cú pháp gọi tool phải cực kỳ chuẩn xác theo định dạng JSON. KHÔNG ĐƯỢC để dấu ngoặc nhọn JSON dính vào tên tool. Ví dụ sai: <function=tool_name{...}. Ví dụ đúng: <function=tool_name>{"param": "value"}</function>.\n\n` +
+        `Bạn là trợ lý trí tuệ nhân tạo (Enterprise AI Assistant) cho hệ thống quản trị doanh nghiệp.\n` +
+        `Danh sách công cụ (MCP Tools) ĐƯỢC PHÉP TRUY VẤN tương ứng với vai trò của tài khoản này: [${permittedToolTitles}].\n\n` +
+        `Hướng dẫn vận hành:\n` +
+        `1. Hãy tự do đọc hiểu ngữ nghĩa tự nhiên câu hỏi của người dùng và sử dụng các công cụ được phép ở trên để tra cứu dữ liệu khi cần.\n` +
+        `2. Nếu thông tin đã có trong ngữ cảnh cuộc trò chuyện hoặc dữ liệu vừa tra cứu (như tên sản phẩm, mã, giá cả, số lượng tồn kho), hãy tự suy luận và trả lời tự nhiên, chi tiết bằng tiếng Việt.\n` +
+        `3. Tuyệt đối KHÔNG gán cứng câu văn báo lỗi nào. Hãy phản hồi hoàn toàn tự nhiên dựa theo dữ liệu thực tế và danh sách công cụ được phép.\n` +
+        `4. Định dạng phản hồi trực quan, đẹp mắt bằng Markdown (bảng, danh sách, in đậm).\n` +
+        `5. QUY TẮC NGÔN NGỮ & THUẬT NGỮ (BẮT BUỘC):\n` +
+        `   - Dùng 100% tiếng Việt thuần túy, tự nhiên và chuẩn nghiệp vụ doanh nghiệp.\n` +
+        `   - KHÔNG in ra hoặc trích dẫn các từ khóa kỹ thuật, tên biến code, tên trường dữ liệu tiếng Anh như \`postingDate\`, \`Sales Invoice\`, \`Purchase Invoice\`, \`dueDate\`, \`grandTotal\`, \`status\` trong văn bản trả lời.\n` +
+        `   - Luôn tự động dịch sang thuật ngữ tiếng Việt chuẩn: "ngày ghi sổ" (thay cho postingDate), "hóa đơn bán hàng" (thay cho Sales Invoice), "hóa đơn mua hàng" (thay cho Purchase Invoice), "hạn thanh toán" (thay cho dueDate), "tổng tiền" (thay cho grandTotal).\n\n` +
         `THÔNG TIN HỆ THỐNG:\n` +
         `- Ngày giờ hiện tại: ${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}\n` +
-        `- Hôm nay là ngày: ${today()}\n` +
-        `- Hôm qua là ngày: ${daysAgo(1)}\n` +
-        `Khi người dùng hỏi "hôm nay", "hôm qua", "tháng này", "năm nay", hãy sử dụng mốc thời gian trên để điền fromDate và toDate với định dạng YYYY-MM-DD.`;
+        `- Hôm nay: ${today()}`;
 
       const messages: ChatCompletionMessageParam[] = [
         {
@@ -261,25 +281,41 @@ export class ChatService {
             }
             const groqError = error.error || {};
             if (groqError.failed_generation) {
-            const match = groqError.failed_generation.match(/<function=([a-zA-Z0-9_]+)[\s>]*({.*})[\s]*<\/function>/s);
-            if (match) {
-              console.log('Recovered tool call from failed_generation:', match[1], match[2]);
-              completion = {
-                choices: [{
-                  message: {
-                    role: 'assistant',
-                    content: null,
-                    tool_calls: [{
-                      id: 'call_' + Date.now(),
-                      type: 'function',
-                      function: { name: match[1], arguments: match[2] }
-                    }]
-                  }
-                }]
-              };
-            } else {
-              throw error;
-            }
+              const match = groqError.failed_generation.match(/<function=([a-zA-Z0-9_]+)[\s>]*([\s\S]*?)<\/function>/s);
+              if (match) {
+                const requestedTool = match[1];
+                let rawArgsStr = match[2]?.trim() || '{}';
+                if (!rawArgsStr.startsWith('{')) {
+                  rawArgsStr = '{}';
+                }
+                const isPermitted = permittedTools.some(pt => pt.name === requestedTool);
+                if (!isPermitted) {
+                  return {
+                    sessionId: input.sessionId,
+                    answer: `⚠️ **Tính năng hoặc công cụ \`${requestedTool}\` hiện không thuộc phạm vi quyền hạn được cấp cho tài khoản của bạn.**`,
+                    toolCalls: traces
+                  };
+                }
+                completion = {
+                  choices: [{
+                    message: {
+                      role: 'assistant',
+                      content: null,
+                      tool_calls: [{
+                        id: 'call_' + Date.now(),
+                        type: 'function',
+                        function: { name: requestedTool, arguments: rawArgsStr }
+                      }]
+                    }
+                  }]
+                };
+              } else {
+                return {
+                  sessionId: input.sessionId,
+                  answer: 'Xin lỗi, tôi chưa thể hoàn thành yêu cầu này do công cụ tương ứng hiện không khả dụng với tài khoản của bạn.',
+                  toolCalls: traces
+                };
+              }
             } else {
               throw error;
             }
@@ -312,6 +348,15 @@ export class ChatService {
             arguments: parseToolArguments(toolCall.function.arguments)
           };
 
+          const isToolPermitted = permittedTools.some(pt => pt.name === plannedToolCall.toolName);
+          if (!isToolPermitted) {
+            return {
+              sessionId: input.sessionId,
+              answer: VIEWER_PERMISSION_DENIED_MESSAGE,
+              toolCalls: traces
+            };
+          }
+
           const gatewayResult = await gateway.callTool(
             input.authToken,
             input.sessionId,
@@ -320,20 +365,34 @@ export class ChatService {
           );
           traces.push(toTrace(plannedToolCall, gatewayResult));
 
+          if (!gatewayResult.success) {
+            const cleanErr = formatToolErrorMessage(gatewayResult.message);
+            messages.push({
+              role: 'tool',
+              tool_call_id: toolCall.id,
+              content: JSON.stringify({
+                error: cleanErr,
+                instruction: 'Hãy phản hồi lại cho người dùng bằng tiếng Việt tự nhiên, lịch sự, giải thích rõ nguyên nhân không thực hiện được dựa theo thông tin trên mà TUYỆT ĐỐI KHÔNG xuất mã JSON hay đoạn code thô.'
+              })
+            });
+            continue;
+          }
+
+          let toolText = '';
+          if (gatewayResult.data && Array.isArray((gatewayResult.data as any).content)) {
+            toolText = (gatewayResult.data as any).content.map((item: any) => item.text || '').join('\n');
+          } else if (typeof gatewayResult.data === 'string') {
+            toolText = gatewayResult.data;
+          } else {
+            toolText = JSON.stringify(gatewayResult.data || {});
+          }
+
           messages.push({
             role: 'tool',
             tool_call_id: toolCall.id,
-            content: JSON.stringify({
-              success: gatewayResult.success,
-              data: gatewayResult.data,
-              errorCode: gatewayResult.errorCode,
-              message: gatewayResult.errorCode === 'PERMISSION_DENIED'
-                ? `System Instruction: Tool bị từ chối do PERMISSION_DENIED. BẮT BUỘC trả lời người dùng lịch sự, tự nhiên bằng tiếng Việt. TUYỆT ĐỐI KHÔNG xưng tên tool tiếng Anh. Ví dụ: "Xin lỗi, tài khoản của bạn chưa được cấp quyền xem thông tin này. Hiện tại tôi có thể hỗ trợ bạn các nghiệp vụ như: tìm kiếm khách hàng, xem thống kê..." (Gợi ý dựa trên danh sách quyền của user: ${permittedToolTitles} - hãy dịch các từ này sang tiếng Việt tự nhiên).`
-                : gatewayResult.message
-            })
+            content: toolText
           });
         }
-        // Loop continues — LLM will decide next step
       }
 
       // Fallback if max rounds reached

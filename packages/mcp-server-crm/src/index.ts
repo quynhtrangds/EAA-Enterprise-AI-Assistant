@@ -96,14 +96,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         leadUrl += `&filters=${encodeURIComponent(filters)}`;
       }
 
-      const [custResp, leadResp] = await Promise.all([
-        fetch(custUrl, { headers }),
-        fetch(leadUrl, { headers })
-      ]);
+      const custResp = await fetch(custUrl, { headers }).catch(() => null);
+      const leadResp = await fetch(leadUrl, { headers }).catch(() => null);
 
-      if (custResp.ok || leadResp.ok) {
-        const custData = custResp.ok ? await custResp.json() : { data: [] };
-        const leadData = leadResp.ok ? await leadResp.json() : { data: [] };
+      if ((custResp && custResp.ok) || (leadResp && leadResp.ok)) {
+        const custData = (custResp && custResp.ok) ? await custResp.json() : { data: [] };
+        const leadData = (leadResp && leadResp.ok) ? await leadResp.json() : { data: [] };
 
         const customers = (custData.data || []).map((c: any) => ({
           type: "Customer",
@@ -123,27 +121,44 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           company: l.company_name
         }));
 
-        const combined = [...customers, ...leads];
+        let combined = [...customers, ...leads];
+
+        if (combined.length === 0 && keyword) {
+          // Retry without keyword filter if keyword was generic
+          const allCustResp = await fetch(`${baseUrl}/api/resource/Customer?fields=${encodeURIComponent(custFields)}`, { headers }).catch(() => null);
+          const allLeadResp = await fetch(`${baseUrl}/api/resource/Lead?fields=${encodeURIComponent(leadFields)}`, { headers }).catch(() => null);
+          const allCustData = (allCustResp && allCustResp.ok) ? await allCustResp.json() : { data: [] };
+          const allLeadData = (allLeadResp && allLeadResp.ok) ? await allLeadResp.json() : { data: [] };
+
+          const allCustomers = (allCustData.data || []).map((c: any) => ({
+            type: "Customer",
+            id: c.name,
+            name: c.customer_name || c.name,
+            customer_group: c.customer_group,
+            territory: c.territory
+          }));
+          const allLeads = (allLeadData.data || []).map((l: any) => ({
+            type: "Lead",
+            id: l.name,
+            name: l.lead_name || l.name,
+            email: l.email_id,
+            phone: l.mobile_no,
+            status: l.status,
+            company: l.company_name
+          }));
+          combined = [...allCustomers, ...allLeads];
+        }
+
         return {
           content: [{ type: "text", text: JSON.stringify({ total: combined.length, contacts: combined }, null, 2) }]
         };
       }
     } catch (err: any) {
-      console.error("Frappe CRM fetch failed, trying fallback:", err.message);
+      console.error("Frappe CRM fetch failed:", err.message);
     }
 
-    // Fallback to standard contact API
-    const targetUrl = keyword
-      ? `${baseUrl}/crm/v3/objects/contacts/${encodeURIComponent(keyword)}`
-      : `${baseUrl}/crm/v3/objects/contacts`;
-    const resp = await fetch(targetUrl, { headers });
-    if (!resp.ok) {
-      const errText = await resp.text();
-      throw new Error(`CRM API Error [${resp.status}]: ${errText || resp.statusText}`);
-    }
-    const data = await resp.json();
     return {
-      content: [{ type: "text", text: JSON.stringify(data) }]
+      content: [{ type: "text", text: JSON.stringify({ total: 0, contacts: [] }) }]
     };
   }
 

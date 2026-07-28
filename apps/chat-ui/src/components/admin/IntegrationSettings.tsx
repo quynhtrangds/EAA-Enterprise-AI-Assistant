@@ -22,20 +22,18 @@ interface IntegrationSettingsProps {
 
 const defaultUsers: User[] = [
   { id: '10000000-0000-0000-0000-000000000001', username: 'admin', display_name: 'Quản trị viên', email: 'admin@company.com', role: 'admin', created_at: new Date().toISOString() },
-  { id: '10000000-0000-0000-0000-000000000002', username: 'manager', display_name: 'Quản lý Doanh thu', email: 'manager@company.com', role: 'manager', created_at: new Date().toISOString() },
-  { id: '10000000-0000-0000-0000-000000000003', username: 'staff', display_name: 'Nhân viên Hỗ trợ', email: 'staff@company.com', role: 'staff', created_at: new Date().toISOString() },
-  { id: '10000000-0000-0000-0000-000000000004', username: 'viewer', display_name: 'Người xem', email: 'viewer@company.com', role: 'viewer', created_at: new Date().toISOString() }
+  { id: '10000000-0000-0000-0000-000000000002', username: 'manager', display_name: 'Quản lý', email: 'manager@company.com', role: 'manager', created_at: new Date().toISOString() },
+  { id: '10000000-0000-0000-0000-000000000003', username: 'staff', display_name: 'Nhân viên', email: 'staff@company.com', role: 'staff', created_at: new Date().toISOString() },
 ];
 
 const roleOptions = [
-  { code: 'admin', label: '👑 Admin (Quản trị viên)' },
-  { code: 'manager', label: '📈 Manager (Quản lý)' },
-  { code: 'staff', label: '🛠️ Staff (Nhân viên)' },
-  { code: 'viewer', label: '👁️ Viewer (Người xem)' },
+  { code: 'admin', label: 'Admin' },
+  { code: 'manager', label: 'Quản lý' },
+  { code: 'staff', label: 'Nhân viên' },
 ];
 
 export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
-  const { authToken } = useAuth();
+  const { authToken, currentUser } = useAuth();
   const [activeTab, setActiveTab] = useState<'integrations' | 'users'>('integrations');
 
   // Integrations State
@@ -52,6 +50,21 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [updatingUserId, setUpdatingUserId] = useState<string | null>(null);
 
+  // Users Search & Filter State
+  const [userSearchQuery, setUserSearchQuery] = useState('');
+  const [userRoleFilter, setUserRoleFilter] = useState('all');
+  const [showToolMatrixInfo, setShowToolMatrixInfo] = useState(false);
+
+  const filteredUsers = (users || []).filter(u => {
+    const queryStr = userSearchQuery.trim().toLowerCase();
+    const matchesSearch = !queryStr || 
+      (u.username || '').toLowerCase().includes(queryStr) ||
+      (u.display_name || '').toLowerCase().includes(queryStr) ||
+      (u.email || '').toLowerCase().includes(queryStr);
+    const matchesRole = userRoleFilter === 'all' || u.role === userRoleFilter;
+    return matchesSearch && matchesRole;
+  });
+
   // Add User Form State
   const [showAddUserModal, setShowAddUserModal] = useState(false);
   const [newUsername, setNewUsername] = useState('');
@@ -67,7 +80,7 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
     { code: 'crm', name: 'CRM (Salesforce / HubSpot)' },
     { code: 'erpnext', name: 'ERPNext' },
     { code: 'zammad', name: 'Zammad Helpdesk' },
-    { code: 'gitea', name: 'Gitea' }
+    { code: 'gitea', name: 'Gitea Code Server' }
   ];
 
   useEffect(() => {
@@ -84,7 +97,7 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
       if (!res.ok) throw new Error('Không thể tải cấu hình kết nối');
       const data = await res.json();
       setIntegrations(data.integrations || []);
-      
+
       const current = data.integrations?.find((i: any) => i.integration_code === selectedIntegration);
       if (current) {
         setIsActive(current.is_active);
@@ -104,12 +117,10 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
       const res = await fetch('/api/admin/users', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.users && data.users.length > 0) {
-          setUsers(data.users);
-          return;
-        }
+      if (!res.ok) throw new Error('Không thể tải danh sách người dùng');
+      const data = await res.json();
+      if (data.users && Array.isArray(data.users)) {
+        setUsers(data.users);
       }
     } catch (err: any) {
       console.warn('Load users warning:', err.message);
@@ -120,44 +131,57 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
 
   const handleSelectIntegration = (code: string) => {
     setSelectedIntegration(code);
-    setApiKey('');
-    setSuccessMsg('');
     setError(null);
-    const current = integrations.find(i => i.integration_code === code);
-    setIsActive(current ? current.is_active : true);
-    setApiUrl(current?.apiUrl || '');
+    setSuccessMsg('');
+    setApiKey('');
+
+    const existing = integrations.find(i => i.integration_code === code);
+    if (existing) {
+      setIsActive(existing.is_active);
+      setApiUrl(existing.apiUrl || '');
+    } else {
+      setIsActive(true);
+      setApiUrl('');
+    }
   };
 
   const handleSaveIntegration = async (e: React.FormEvent) => {
     e.preventDefault();
     setSavingIntegration(true);
-    setSuccessMsg('');
     setError(null);
+    setSuccessMsg('');
 
     try {
       const token = authToken || localStorage.getItem('auth_token');
       const res = await fetch('/api/admin/integrations', {
         method: 'POST',
-        headers: { 
+        headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
           integrationCode: selectedIntegration,
-          apiKey: apiKey || undefined,
-          apiUrl: apiUrl || undefined,
+          apiKey,
+          apiUrl,
           isActive
         })
       });
 
-      if (!res.ok) throw new Error('Cập nhật tích hợp thất bại');
+      if (!res.ok) throw new Error('Cập nhật cấu hình thất bại');
       const data = await res.json();
-      setSuccessMsg(data.message || 'Thành công');
+
+      setIntegrations(prev => {
+        const exists = prev.some(i => i.integration_code === selectedIntegration);
+        if (exists) {
+          return prev.map(i => i.integration_code === selectedIntegration ? { ...i, is_active: isActive, apiUrl } : i);
+        }
+        return [...prev, { integration_code: selectedIntegration, is_active: isActive, apiUrl }];
+      });
+
+      setSuccessMsg(data.message || 'Đã lưu cấu hình thành công!');
       setApiKey('');
-      setApiUrl('');
-      fetchIntegrations();
     } catch (err: any) {
-      setError(err.message);
+      setError(err.message || 'Đã xảy ra lỗi khi lưu cấu hình');
     } finally {
       setSavingIntegration(false);
     }
@@ -165,14 +189,14 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
 
   const handleUpdateRole = async (userId: string, newRole: string) => {
     setUpdatingUserId(userId);
-    setSuccessMsg('');
     setError(null);
+    setSuccessMsg('');
 
     try {
       const token = authToken || localStorage.getItem('auth_token');
       const res = await fetch(`/api/admin/users/${userId}/role`, {
         method: 'PATCH',
-        headers: { 
+        headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
@@ -183,7 +207,6 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
       setSuccessMsg(`Đã đổi quyền thành công cho người dùng!`);
       setUsers(prev => prev.map(u => u.id === userId ? { ...u, role: newRole } : u));
     } catch (err: any) {
-      // Local optimistic update fallback
       setUsers(prev => prev.map(u => u.id === userId ? { ...u, role: newRole } : u));
       setSuccessMsg(`Đã cập nhật quyền thành: ${newRole.toUpperCase()}`);
     } finally {
@@ -227,22 +250,49 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
         const data = await res.json();
         setSuccessMsg(`Đã thêm thành công người dùng ${newUsername}!`);
         if (data.user) {
-          setUsers(prev => [...prev.filter(u => u.username !== data.user.username), data.user]);
+          setUsers(prev => [...prev.filter(u => u.username !== data.user.username && u.id !== data.user.id), data.user]);
         } else {
           setUsers(prev => [...prev.filter(u => u.username !== newUsername), newUserObj]);
         }
       } else {
-        setUsers(prev => [...prev.filter(u => u.username !== newUsername), newUserObj]);
-        setSuccessMsg(`Đã thêm người dùng ${newUsername}!`);
+        const errData = await res.json().catch(() => ({}));
+        setError(errData.message || 'Không thể thêm người dùng. Bạn cần đăng nhập tài khoản Admin.');
       }
     } catch (err: any) {
-      setUsers(prev => [...prev.filter(u => u.username !== newUsername), newUserObj]);
-      setSuccessMsg(`Đã thêm người dùng ${newUsername}!`);
+      setError(err.message || 'Đã xảy ra lỗi khi thêm người dùng.');
     } finally {
       setCreatingUser(false);
       setShowAddUserModal(false);
       setNewUsername('');
       setNewEmail('');
+    }
+  };
+
+  const handleDeleteUser = async (userId: string, username: string) => {
+    if (!window.confirm(`Bạn có chắc chắn muốn xóa người dùng "${username}" khỏi hệ thống?`)) return;
+
+    setError(null);
+    setSuccessMsg('');
+
+    try {
+      const token = authToken || localStorage.getItem('auth_token');
+      const res = await fetch(`/api/admin/users/${userId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (res.ok) {
+        setUsers(prev => prev.filter(u => u.id !== userId && u.username !== username));
+        setSuccessMsg(`Đã xóa người dùng "${username}" thành công!`);
+        await fetchUsers();
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        setError(errData.message || 'Xóa người dùng thất bại. Bạn cần quyền Admin.');
+      }
+    } catch (err: any) {
+      setError(err.message || 'Lỗi khi kết nối đến máy chủ.');
     }
   };
 
@@ -259,252 +309,373 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="relative w-full max-w-3xl bg-[#0f172a] border border-slate-700/60 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
-        
-        {/* Header with Navigation Tabs */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-700/50 bg-[#1e293b]/40">
-          <div className="flex items-center gap-6">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-indigo-500/20 text-indigo-400 flex items-center justify-center">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
-                </svg>
-              </div>
-              <h2 className="text-lg font-bold text-white">Quản trị Hệ thống</h2>
-            </div>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-md animate-in fade-in duration-200 p-4">
+      <div className="relative w-full max-w-4xl h-[620px] bg-[#181920] border border-slate-700/60 rounded-3xl shadow-2xl overflow-hidden flex animate-in zoom-in-95 duration-150">
 
-            {/* Navigation Tabs */}
-            <div className="flex gap-2 bg-[#0f172a] p-1 rounded-xl border border-slate-700/60">
+        {/* Left Navigation Sidebar (Matching Image 2 Layout) */}
+        <div className="w-64 bg-[#121319]/90 border-r border-slate-800/80 p-5 flex flex-col justify-between shrink-0">
+          <div>
+            {/* Top Close Button (x) */}
+            <button
+              onClick={onClose}
+              className="w-8 h-8 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white flex items-center justify-center transition-colors mb-6 cursor-pointer"
+              title="Đóng Cài đặt"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+
+            <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-3 px-1">Cài đặt Hệ thống</p>
+
+            {/* Vertical Tabs Navigation List */}
+            <div className="space-y-1">
               <button
                 onClick={() => { setActiveTab('integrations'); setError(null); setSuccessMsg(''); }}
-                className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all cursor-pointer ${
-                  activeTab === 'integrations'
-                    ? 'bg-indigo-600 text-white shadow-md'
-                    : 'text-slate-400 hover:text-white'
-                }`}
+                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all text-left cursor-pointer ${activeTab === 'integrations'
+                  ? 'bg-slate-800 text-white font-semibold shadow-sm'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
+                  }`}
               >
-                🔌 Kết nối Tích hợp
+                <svg className="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+                </svg>
+                <span>Kết nối Tích hợp</span>
               </button>
+
               <button
                 onClick={() => { setActiveTab('users'); setError(null); setSuccessMsg(''); }}
-                className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all cursor-pointer ${
-                  activeTab === 'users'
-                    ? 'bg-indigo-600 text-white shadow-md'
-                    : 'text-slate-400 hover:text-white'
-                }`}
+                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all text-left cursor-pointer ${activeTab === 'users'
+                  ? 'bg-slate-800 text-white font-semibold shadow-sm'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
+                  }`}
               >
-                👥 Quản lý Người dùng & Phân quyền
+                <svg className="w-4 h-4 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                </svg>
+                <span>Phân quyền</span>
               </button>
             </div>
           </div>
 
-          <button onClick={onClose} className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors cursor-pointer">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
-          </button>
+          <div className="pt-4 border-t border-slate-800/80">
+            <p className="text-[11px] text-slate-500 font-medium">Enterprise Assistant v1.0</p>
+          </div>
         </div>
 
-        {/* Global Messages */}
-        {(error || successMsg) && (
-          <div className="px-6 pt-4">
-            {error && <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-400 rounded-xl text-sm font-medium">{error}</div>}
-            {successMsg && <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-xl text-sm font-medium">{successMsg}</div>}
-          </div>
-        )}
+        {/* Right Content Area */}
+        <div className="flex-1 bg-[#181920] p-8 overflow-y-auto flex flex-col justify-between">
+          <div>
+            <h2 className="text-xl font-bold text-white mb-6">
+              {activeTab === 'integrations' ? 'Kết nối Tích hợp' : 'Phân quyền'}
+            </h2>
 
-        {/* TAB 1: INTEGRATIONS */}
-        {activeTab === 'integrations' && (
-          <div className="flex flex-1 overflow-hidden p-6 gap-6">
-            <div className="w-1/3 border-r border-slate-700/50 pr-4 space-y-2">
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-3 px-2">Hệ thống sẵn có</p>
-              {availableIntegrations.map((item) => {
-                const config = integrations.find(i => i.integration_code === item.code);
-                const isConfigActive = config ? config.is_active : false;
-                const isSelected = selectedIntegration === item.code;
+            {/* Global Error/Success Messages */}
+            {(error || successMsg) && (
+              <div className="mb-6">
+                {error && <div className="p-3.5 bg-red-500/10 border border-red-500/20 text-red-400 rounded-xl text-sm font-medium">{error}</div>}
+                {successMsg && <div className="p-3.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-xl text-sm font-medium">{successMsg}</div>}
+              </div>
+            )}
 
-                return (
-                  <button
-                    key={item.code}
-                    onClick={() => handleSelectIntegration(item.code)}
-                    className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-all text-left cursor-pointer ${
-                      isSelected
-                        ? 'bg-indigo-600/20 text-indigo-300 border border-indigo-500/30'
-                        : 'text-slate-300 hover:bg-slate-800/60 hover:text-white'
-                    }`}
-                  >
-                    <span>{item.name}</span>
-                    <span className={`w-2 h-2 rounded-full ${isConfigActive ? 'bg-emerald-400 shadow-sm shadow-emerald-400/50' : 'bg-slate-600'}`} />
-                  </button>
-                );
-              })}
-            </div>
+            {/* TAB 1: INTEGRATIONS */}
+            {activeTab === 'integrations' && (
+              <div className="flex gap-6">
+                <div className="w-1/3 border-r border-slate-800 pr-4 space-y-2">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3 px-1">Hệ thống Doanh nghiệp</p>
+                  {availableIntegrations.map((item) => {
+                    const config = integrations.find(i => i.integration_code === item.code);
+                    const isConfigActive = config ? config.is_active : false;
+                    const isSelected = selectedIntegration === item.code;
 
-            <div className="w-2/3 flex flex-col">
-              {loadingIntegrations ? (
-                <div className="flex-1 flex items-center justify-center">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500"></div>
+                    return (
+                      <button
+                        key={item.code}
+                        onClick={() => handleSelectIntegration(item.code)}
+                        className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-sm font-medium transition-all text-left cursor-pointer ${isSelected
+                          ? 'bg-indigo-600/20 text-indigo-300 border border-indigo-500/40 shadow-sm'
+                          : 'text-slate-300 hover:bg-slate-800/60 hover:text-white'
+                          }`}
+                      >
+                        <span>{item.name}</span>
+                        <span className={`w-2.5 h-2.5 rounded-full ${isConfigActive ? 'bg-emerald-400 shadow-sm shadow-emerald-400/50' : 'bg-slate-600'}`} />
+                      </button>
+                    );
+                  })}
                 </div>
-              ) : (
-                <form onSubmit={handleSaveIntegration} className="flex flex-col h-full">
-                  <div className="mb-6 flex items-center justify-between">
-                    <h3 className="text-lg font-semibold text-white">
-                      {availableIntegrations.find(i => i.code === selectedIntegration)?.name}
-                    </h3>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input type="checkbox" className="sr-only peer" checked={isActive} onChange={(e) => handleToggleActive(e.target.checked)} />
-                      <div className="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-500"></div>
-                      <span className="ml-3 text-sm font-medium text-slate-300 w-16 inline-block">
-                        {isActive ? 'Đang bật' : 'Đã tắt'}
-                      </span>
-                    </label>
-                  </div>
 
-                  <div className="flex-1 space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-slate-400 mb-2">Endpoint URL (API Base URL)</label>
-                      <input
-                        type="url"
-                        value={apiUrl}
-                        onChange={(e) => setApiUrl(e.target.value)}
-                        placeholder="https://api.example.com..."
-                        className="w-full bg-[#1e293b] border border-slate-600 rounded-xl px-4 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all text-sm mb-3"
-                      />
-                      <label className="block text-sm font-medium text-slate-400 mb-2">API Key / Token (Vault)</label>
-                      <input
-                        type="password"
-                        value={apiKey}
-                        onChange={(e) => setApiKey(e.target.value)}
-                        placeholder="Bỏ trống nếu không muốn thay đổi..."
-                        className="w-full bg-[#1e293b] border border-slate-600 rounded-xl px-4 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all text-sm"
-                      />
-                      <p className="mt-2 text-xs text-slate-500">
-                        Thông tin kết nối sẽ được lưu trữ an toàn trong HashiCorp Vault.
-                      </p>
+                <div className="w-2/3 flex flex-col">
+                  {loadingIntegrations ? (
+                    <div className="py-12 flex justify-center">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500"></div>
                     </div>
-                  </div>
+                  ) : (
+                    <form onSubmit={handleSaveIntegration} className="space-y-5">
+                      <div className="flex items-center justify-between pb-4 border-b border-slate-800">
+                        <h3 className="text-base font-semibold text-white">
+                          {availableIntegrations.find(i => i.code === selectedIntegration)?.name}
+                        </h3>
+                        <label className="relative inline-flex items-center cursor-pointer">
+                          <input type="checkbox" className="sr-only peer" checked={isActive} onChange={(e) => handleToggleActive(e.target.checked)} />
+                          <div className="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                          <span className="ml-3 text-xs font-semibold text-slate-300 w-16 inline-block">
+                            {isActive ? 'Đang bật' : 'Đã tắt'}
+                          </span>
+                        </label>
+                      </div>
 
-                  <div className="flex justify-end pt-6 mt-6 border-t border-slate-700/50">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-400 mb-2">Endpoint URL (API Base URL)</label>
+                        <input
+                          type="url"
+                          value={apiUrl}
+                          onChange={(e) => setApiUrl(e.target.value)}
+                          placeholder="https://api.example.com..."
+                          className="w-full bg-[#121319] border border-slate-700/80 rounded-xl px-4 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all text-sm mb-4"
+                        />
+                        <label className="block text-xs font-semibold text-slate-400 mb-2">API Key / Token (Vault Security)</label>
+                        <input
+                          type="password"
+                          value={apiKey}
+                          onChange={(e) => setApiKey(e.target.value)}
+                          placeholder="Bỏ trống nếu không muốn thay đổi..."
+                          className="w-full bg-[#121319] border border-slate-700/80 rounded-xl px-4 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all text-sm"
+                        />
+                        <p className="mt-2 text-xs text-slate-500">
+                          Thông tin kết nối được bảo mật hai lớp bằng HashiCorp Vault.
+                        </p>
+                        {selectedIntegration === 'erpnext' && (
+                          <p className="mt-2 text-xs text-amber-400 font-medium">
+                            💡 Đối với Frappe Cloud, bạn cần nhập kết hợp cả API Key và API Secret theo định dạng: <span className="bg-slate-800 px-1.5 py-0.5 rounded text-white font-mono">&lt;api_key&gt;:&lt;api_secret&gt;</span> (Ví dụ: <span className="bg-slate-800 px-1.5 py-0.5 rounded text-indigo-300 font-mono">93b68c02976a26e:a1b2c3d4e5f6</span>).
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="pt-4 flex justify-end">
+                        <button
+                          type="submit"
+                          disabled={savingIntegration}
+                          className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-semibold text-sm shadow-lg shadow-indigo-600/20 transition-all active:scale-95 disabled:opacity-50 flex items-center gap-2 cursor-pointer"
+                        >
+                          {savingIntegration && <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>}
+                          Lưu kết nối
+                        </button>
+                      </div>
+                    </form>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* TAB 2: USERS & ROLES */}
+            {activeTab === 'users' && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+                  <div>
+                    <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+                      Danh sách Phân quyền (RBAC)
+                      <button
+                        type="button"
+                        onClick={() => setShowToolMatrixInfo(!showToolMatrixInfo)}
+                        className="text-xs font-normal text-indigo-400 hover:text-indigo-300 bg-indigo-500/10 hover:bg-indigo-500/20 px-2 py-0.5 rounded-md border border-indigo-500/20 transition-all cursor-pointer"
+                        title="Xem ma trận quyền hạn các vai trò"
+                      >
+                        ℹ️ Chi tiết quyền hạn
+                      </button>
+                    </h3>
+                    <p className="text-xs text-slate-400">Phân quyền trực tiếp cho từng người dùng hệ thống</p>
+                  </div>
+                  <div className="flex items-center gap-2">
                     <button
-                      type="submit"
-                      disabled={savingIntegration}
-                      className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-medium shadow-lg shadow-indigo-500/20 transition-all active:scale-95 disabled:opacity-50 flex items-center gap-2 cursor-pointer"
+                      onClick={() => setShowAddUserModal(true)}
+                      className="text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 px-3.5 py-2 rounded-xl shadow-md transition-all flex items-center gap-1.5 cursor-pointer"
                     >
-                      {savingIntegration && <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>}
-                      Lưu cấu hình
+                      ➕ Thêm Người dùng
                     </button>
                   </div>
-                </form>
-              )}
-            </div>
-          </div>
-        )}
+                </div>
 
-        {/* TAB 2: USER MANAGEMENT & ROLE ASSIGNMENT */}
-        {activeTab === 'users' && (
-          <div className="flex-1 overflow-y-auto p-6 space-y-4">
-            <div className="flex items-center justify-between mb-2">
-              <div>
-                <h3 className="text-base font-semibold text-white">Danh sách Người dùng Doanh nghiệp</h3>
-                <p className="text-xs text-slate-400">Xem và phân quyền làm việc (RBAC) cho người dùng đăng nhập bằng Google hoặc Nội bộ</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setShowAddUserModal(true)}
-                  className="text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 px-3 py-1.5 rounded-lg shadow-md transition-all flex items-center gap-1 cursor-pointer"
-                >
-                  ➕ Thêm Người dùng / Email
-                </button>
-                <button
-                  onClick={fetchUsers}
-                  className="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1 bg-indigo-500/10 px-3 py-1.5 rounded-lg border border-indigo-500/20 cursor-pointer"
-                >
-                  🔄 Làm mới
-                </button>
-              </div>
-            </div>
+                {/* Tool Matrix Info Drawer */}
+                {showToolMatrixInfo && (
+                  <div className="p-3.5 bg-slate-800/60 border border-indigo-500/30 rounded-xl space-y-2 text-xs text-slate-300">
+                    <div className="font-semibold text-indigo-400 flex items-center justify-between">
+                      <span>📋 CHI TIẾT VAI TRÒ & PHẦN QUYỀN TRUY VẤN CÔNG CỤ (RBAC MATRIX):</span>
+                      <button onClick={() => setShowToolMatrixInfo(false)} className="text-slate-400 hover:text-white cursor-pointer">✕</button>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-[11.5px]">
+                      <div className="p-2 bg-[#121319] rounded-lg border border-slate-700/50">
+                        <span className="font-bold text-purple-400">👑 Admin (Quản trị viên):</span> Toàn quyền cấu hình hệ thống & truy vấn tất cả công cụ (ERPNext, CRM, Gitea, Zammad, Postgres, RAG).
+                      </div>
+                      <div className="p-2 bg-[#121319] rounded-lg border border-slate-700/50">
+                        <span className="font-bold text-blue-400">👔 Quản lý (Manager):</span> Xem báo cáo doanh thu tổng hợp, hóa đơn bán/mua ERPNext, cơ hội kinh doanh CRM & hỗ trợ Zammad.
+                      </div>
+                      <div className="p-2 bg-[#121319] rounded-lg border border-slate-700/50">
+                        <span className="font-bold text-emerald-400">🧑‍💼 Nhân viên (Staff):</span> Tra cứu tồn kho, thông tin khách hàng, chi tiết đơn hàng & phiếu hỗ trợ kỹ thuật.
+                      </div>
+                    </div>
+                  </div>
+                )}
 
-            {loadingUsers ? (
-              <div className="py-12 flex justify-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500"></div>
-              </div>
-            ) : (
-              <div className="overflow-x-auto border border-slate-700/60 rounded-xl">
-                <table className="w-full text-left text-sm text-slate-300">
-                  <thead className="bg-[#1e293b]/80 text-xs uppercase font-semibold text-slate-400 border-b border-slate-700/60">
-                    <tr>
-                      <th className="px-4 py-3">Tài khoản / Email</th>
-                      <th className="px-4 py-3">Tên hiển thị</th>
-                      <th className="px-4 py-3">Quyền làm việc (Role)</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-800">
-                    {users.map(u => (
-                      <tr key={u.id} className="hover:bg-slate-800/40 transition-colors">
-                        <td className="px-4 py-3 font-medium text-white">
-                          <div>{u.username}</div>
-                          {u.email && <div className="text-xs text-slate-400">{u.email}</div>}
-                        </td>
-                        <td className="px-4 py-3 text-slate-300">{u.display_name || u.username}</td>
-                        <td className="px-4 py-3">
-                          <select
-                            value={u.role}
-                            disabled={updatingUserId === u.id}
-                            onChange={(e) => handleUpdateRole(u.id, e.target.value)}
-                            className="bg-[#1e293b] border border-slate-600 text-white text-xs font-semibold rounded-lg px-3 py-1.5 focus:outline-none focus:border-indigo-500 cursor-pointer disabled:opacity-50"
-                          >
-                            {roleOptions.map(r => (
-                              <option key={r.code} value={r.code}>{r.label}</option>
-                            ))}
-                          </select>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                {/* Search & Filter Toolbar */}
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="relative flex-1 min-w-[200px]">
+                    <input
+                      type="text"
+                      value={userSearchQuery}
+                      onChange={(e) => setUserSearchQuery(e.target.value)}
+                      placeholder="🔎 Tìm kiếm theo tên hoặc email..."
+                      className="w-full bg-[#121319] border border-slate-800 focus:border-indigo-500 text-xs text-white rounded-xl px-3.5 py-2 focus:outline-none transition-colors"
+                    />
+                    {userSearchQuery && (
+                      <button
+                        onClick={() => setUserSearchQuery('')}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-slate-400 hover:text-white"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-slate-400 font-medium">Lọc vai trò:</span>
+                    <select
+                      value={userRoleFilter}
+                      onChange={(e) => setUserRoleFilter(e.target.value)}
+                      className="bg-[#181920] border border-slate-700 text-xs font-medium text-slate-100 rounded-xl px-3 py-2 focus:outline-none focus:border-indigo-500 cursor-pointer"
+                    >
+                      <option value="all" className="bg-[#181920] text-slate-100">Tất cả vai trò</option>
+                      <option value="admin" className="bg-[#181920] text-slate-100">👑 Admin</option>
+                      <option value="manager" className="bg-[#181920] text-slate-100">👔 Quản lý</option>
+                      <option value="staff" className="bg-[#181920] text-slate-100">🧑‍💼 Nhân viên</option>
+                    </select>
+                  </div>
+                </div>
+
+                {loadingUsers ? (
+                  <div className="py-12 flex justify-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500"></div>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto border border-slate-800 rounded-2xl">
+                    <table className="w-full text-left text-sm text-slate-300">
+                      <thead className="bg-[#121319] text-xs uppercase font-semibold text-slate-400 border-b border-slate-800">
+                        <tr>
+                          <th className="px-4 py-3">Tài khoản / Email</th>
+                          <th className="px-4 py-3">Tên hiển thị</th>
+                          <th className="px-4 py-3">Quyền hạn (Role)</th>
+                          <th className="px-4 py-3 text-right">Thao tác</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-800/60 bg-[#181920]">
+                        {filteredUsers.map(u => {
+                          const isSelf = currentUser && (
+                            u.id === currentUser.id || 
+                            u.username === currentUser.username || 
+                            (u.email && currentUser.email && u.email === currentUser.email)
+                          );
+                          const isAdminRole = u.role === 'admin' || u.username === 'admin' || u.id === '10000000-0000-0000-0000-000000000001';
+                          const cannotBeDeleted = isSelf || isAdminRole;
+
+                          return (
+                            <tr key={u.id} className="hover:bg-slate-800/40 transition-colors">
+                              <td className="px-4 py-3 font-medium text-white">
+                                <div>{u.username}</div>
+                                {u.email && <div className="text-xs text-slate-400">{u.email}</div>}
+                              </td>
+                              <td className="px-4 py-3 text-slate-300">{u.display_name || u.username}</td>
+                              <td className="px-4 py-3">
+                                <select
+                                  value={u.role}
+                                  disabled={updatingUserId === u.id || u.role === 'admin'}
+                                  onChange={(e) => {
+                                    const targetRole = e.target.value;
+                                    const roleLabel = roleOptions.find(r => r.code === targetRole)?.label || targetRole;
+                                    const userName = u.display_name || u.username;
+                                    if (window.confirm(`Bạn có chắc chắn muốn đổi quyền của người dùng "${userName}" sang vai trò "${roleLabel}" không?`)) {
+                                      handleUpdateRole(u.id, targetRole);
+                                    }
+                                  }}
+                                  className="bg-[#181920] border border-slate-700 text-white text-xs font-semibold rounded-xl px-3 py-1.5 focus:outline-none focus:border-indigo-500 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+                                  title={u.role === 'admin' ? 'Tài khoản Quản trị viên (Admin) không thể hạ quyền.' : 'Thay đổi quyền hạn'}
+                                >
+                                  {roleOptions.map(r => (
+                                    <option key={r.code} value={r.code} className="bg-[#181920] text-slate-100 py-1 font-normal">
+                                      {r.label}
+                                    </option>
+                                  ))}
+                                </select>
+                              </td>
+                              <td className="px-4 py-3 text-right">
+                                {!cannotBeDeleted ? (
+                                  <button
+                                    onClick={() => handleDeleteUser(u.id, u.username)}
+                                    className="p-1.5 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors cursor-pointer"
+                                    title="Xóa người dùng"
+                                  >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    </svg>
+                                  </button>
+                                ) : isSelf ? (
+                                  <span className="text-[11px] text-slate-500 italic pr-2" title="Không thể xóa tài khoản đang đăng nhập">
+                                    Đang sử dụng
+                                  </span>
+                                ) : (
+                                  <span className="text-[11px] text-purple-400/60 italic pr-2" title="Tài khoản Quản trị viên không thể bị xóa">
+                                    Cố định
+                                  </span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             )}
           </div>
-        )}
+        </div>
 
       </div>
 
       {/* ADD USER MODAL */}
       {showAddUserModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-xs">
-          <div className="w-full max-w-md bg-[#1e293b] border border-slate-700 rounded-2xl p-6 shadow-2xl">
-            <h3 className="text-lg font-bold text-white mb-1">Thêm Người dùng / Email Doanh nghiệp</h3>
-            <p className="text-xs text-slate-400 mb-4">Cấp quyền sẵn cho email nhân viên trước khi họ đăng nhập bằng Google</p>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-xs">
+          <div className="w-full max-w-md bg-[#181920] border border-slate-700 rounded-3xl p-6 shadow-2xl">
+            <h3 className="text-lg font-bold text-white mb-1">Thêm Người dùng Doanh nghiệp</h3>
+            <p className="text-xs text-slate-400 mb-5">Cấp quyền trước cho email nhân viên trước khi đăng nhập</p>
 
             <form onSubmit={handleAddUser} className="space-y-4">
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">Tên tài khoản / Tên nhân viên *</label>
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5">Tên tài khoản *</label>
                 <input
                   type="text"
                   required
                   value={newUsername}
                   onChange={(e) => setNewUsername(e.target.value)}
                   placeholder="Ví dụ: nguyenvana"
-                  className="w-full bg-[#0f172a] border border-slate-600 rounded-xl px-3.5 py-2 text-white text-sm focus:outline-none focus:border-indigo-500"
+                  className="w-full bg-[#121319] border border-slate-700 rounded-xl px-3.5 py-2.5 text-white text-sm focus:outline-none focus:border-indigo-500"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">Email Google / Công ty</label>
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5">Email Công ty / Google</label>
                 <input
                   type="email"
                   value={newEmail}
                   onChange={(e) => setNewEmail(e.target.value)}
                   placeholder="nguyenvana@company.com"
-                  className="w-full bg-[#0f172a] border border-slate-600 rounded-xl px-3.5 py-2 text-white text-sm focus:outline-none focus:border-indigo-500"
+                  className="w-full bg-[#121319] border border-slate-700 rounded-xl px-3.5 py-2.5 text-white text-sm focus:outline-none focus:border-indigo-500"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">Cấp quyền ban đầu (Role)</label>
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5">Vai trò (Role)</label>
                 <select
                   value={newRole}
                   onChange={(e) => setNewRole(e.target.value)}
-                  className="w-full bg-[#0f172a] border border-slate-600 text-white text-sm rounded-xl px-3.5 py-2 focus:outline-none focus:border-indigo-500 cursor-pointer"
+                  className="w-full bg-[#121319] border border-slate-700 text-white text-sm rounded-xl px-3.5 py-2.5 focus:outline-none focus:border-indigo-500 cursor-pointer"
                 >
                   {roleOptions.map(r => (
                     <option key={r.code} value={r.code}>{r.label}</option>
@@ -512,11 +683,11 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
                 </select>
               </div>
 
-              <div className="flex justify-end gap-3 pt-4 border-t border-slate-700/60">
+              <div className="flex justify-end gap-3 pt-5 border-t border-slate-800">
                 <button
                   type="button"
                   onClick={() => setShowAddUserModal(false)}
-                  className="px-4 py-2 text-xs font-medium text-slate-400 hover:text-white rounded-xl hover:bg-slate-800 transition-colors"
+                  className="px-4 py-2 text-xs font-semibold text-slate-400 hover:text-white rounded-xl hover:bg-slate-800 transition-colors"
                 >
                   Hủy
                 </button>

@@ -71,10 +71,10 @@ const MainLayout: React.FC = () => {
         <div className="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-[#1c1d27] border border-slate-700/60 rounded-3xl p-7 max-w-md w-full shadow-2xl animate-in fade-in zoom-in-95 duration-150">
             <h3 className="text-xl font-bold text-white mb-3">
-              Clear current chat & create new one?
+              Xóa cuộc trò chuyện hiện tại & tạo cuộc trò chuyện mới?
             </h3>
             <p className="text-[14.5px] text-slate-300 leading-relaxed mb-8">
-              When you start a new chat, your current one won't be saved.{' '}
+              Khi bạn bắt đầu cuộc trò chuyện mới, cuộc trò chuyện hiện tại sẽ không được lưu.{' '}
               <button
                 onClick={() => {
                   setIsGuestConfirmModalOpen(false);
@@ -82,16 +82,16 @@ const MainLayout: React.FC = () => {
                 }}
                 className="text-white underline font-semibold cursor-pointer hover:text-indigo-300"
               >
-                Sign in
+                Đăng nhập
               </button>{' '}
-              to save your future chats.
+              để lưu lịch sử cho các cuộc trò chuyện sau.
             </p>
             <div className="flex items-center justify-end gap-3">
               <button
                 onClick={() => setIsGuestConfirmModalOpen(false)}
                 className="px-5 py-2.5 text-sm font-semibold text-slate-300 hover:text-white transition-colors cursor-pointer rounded-full"
               >
-                Cancel
+                Hủy
               </button>
               <button
                 onClick={() => {
@@ -100,7 +100,7 @@ const MainLayout: React.FC = () => {
                 }}
                 className="px-6 py-2.5 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-500 rounded-full shadow-lg shadow-blue-600/30 transition-all cursor-pointer"
               >
-                New chat
+                Cuộc trò chuyện mới
               </button>
             </div>
           </div>

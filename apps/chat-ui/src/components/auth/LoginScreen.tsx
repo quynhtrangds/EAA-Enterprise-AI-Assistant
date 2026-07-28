@@ -181,7 +181,7 @@ const LoginScreen: React.FC = () => {
               type="button"
               onClick={() => googleCustomLogin()}
               title="Đăng nhập bằng Google"
-              className="w-10 h-10 rounded-full bg-slate-800 hover:bg-slate-700 text-white border border-slate-600 shadow-lg flex items-center justify-center hover:scale-105 active:scale-95 transition-all cursor-pointer"
+              className="w-10 h-10 rounded-full bg-slate-800 hover:bg-slate-700 hover:border-indigo-500/50 text-white border border-slate-600 shadow-lg flex items-center justify-center transition-colors cursor-pointer"
             >
               <svg className="w-5 h-5" viewBox="0 0 24 24">
                 <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
@@ -196,7 +196,7 @@ const LoginScreen: React.FC = () => {
               type="button"
               onClick={handleGuestLogin}
               title="Đăng nhập với tư cách Khách (Guest Mode)"
-              className="w-10 h-10 rounded-full bg-slate-800 hover:bg-slate-700 text-white border border-slate-600 shadow-lg flex items-center justify-center hover:scale-105 active:scale-95 transition-all cursor-pointer"
+              className="w-10 h-10 rounded-full bg-slate-800 hover:bg-slate-700 hover:border-indigo-500/50 text-white border border-slate-600 shadow-lg flex items-center justify-center transition-colors cursor-pointer"
             >
               <svg className="w-5 h-5 text-indigo-400" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />

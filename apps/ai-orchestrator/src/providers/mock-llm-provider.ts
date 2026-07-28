@@ -60,21 +60,12 @@ export class MockLLMProvider implements LLMProvider {
       };
     }
 
-    if (normalized.includes('san pham') && normalized.includes('ban chay')) {
-      return {
-        toolName: 'get_product_sales_summary',
-        arguments: { fromDate: monthStart(), toDate: today(), limit: 10 }
-      };
+    if (normalized.includes('ton kho') || (normalized.includes('san pham') && !normalized.includes('ban chay'))) {
+      return { toolName: 'get_inventory_status', arguments: {} };
     }
 
-    if (normalized.includes('dia chi')) {
-      const keyword = cleanCustomerKeyword(message.replace(/địa chỉ/gi, '').replace(/dia chi/gi, ''));
-      return { toolName: 'search_customer', arguments: { keyword: keyword.trim() || 'Nguyễn', limit: 5 } };
-    }
-
-    if (normalized.includes('khach hang')) {
-      const keyword = cleanCustomerKeyword(message);
-      return { toolName: 'search_customer', arguments: { keyword: keyword || 'Nguyễn', limit: 5 } };
+    if (normalized.includes('ticket') || normalized.includes('zammad')) {
+      return { toolName: 'get_open_tickets', arguments: {} };
     }
 
     return null;
@@ -114,11 +105,24 @@ export class MockLLMProvider implements LLMProvider {
       return `Top kh\u00e1ch h\u00e0ng: ${customers.map((customer: any) => `${customer.fullName} (${formatMoney(customer.totalRevenue)})`).join('; ')}.`;
     }
 
-    if (toolCall.toolName === 'get_product_sales_summary') {
-      const products = Array.isArray(data.products) ? data.products : [];
-      return `S\u1ea3n ph\u1ea9m b\u00e1n ch\u1ea1y: ${products.map((product: any) => `${product.productName} (${product.quantitySold})`).join('; ')}.`;
+    if (toolCall.toolName === 'get_inventory_status') {
+      const items = Array.isArray(data.items) ? data.items : [];
+      if (items.length === 0) {
+        return 'Không tìm thấy sản phẩm nào trên Frappe / ERPNext.';
+      }
+      const itemDetails = items.slice(0, 10).map((i: any) => `- **${i.item_name || i.name}** (Mã: ${i.name}): Tồn kho ${i.opening_stock ?? 0} ${i.stock_uom || 'cái'}`).join('\n');
+      return `📦 **Báo cáo tồn kho thực tế lấy từ Frappe Cloud:**\n\n${itemDetails}`;
     }
 
-    return '\u0110\u00e3 l\u1ea5y d\u1eef li\u1ec7u t\u1eeb tool th\u00e0nh c\u00f4ng.';
+    if (toolCall.toolName === 'get_open_tickets') {
+      const tickets = Array.isArray(data) ? data : (Array.isArray(data.tickets) ? data.tickets : []);
+      if (tickets.length === 0) {
+        return 'Không có ticket nào đang mở trên Zammad.';
+      }
+      const ticketList = tickets.map((t: any) => `- **Ticket #${t.number || t.id}**: ${t.title || 'No Title'}`).join('\n');
+      return `🎫 **Danh sách Ticket Zammad đang mở thực tế:**\n\n${ticketList}`;
+    }
+
+    return 'Đã lấy dữ liệu từ tool thành công.';
   }
 }

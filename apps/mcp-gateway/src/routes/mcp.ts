@@ -35,8 +35,21 @@ const mcpServer = new Server({
 // Implement the tools handler
 mcpServer.setRequestHandler(ListToolsRequestSchema, async (request, extra) => {
   const result = await mcpClientManager.listTools();
+  const sessionId = extra.sessionId;
+  const user = sessionId ? sessionUsers.get(sessionId) : null;
+  if (!user) {
+    return { tools: result.tools };
+  }
+
+  const permittedTools = [];
+  for (const tool of result.tools) {
+    if (await canExecuteTool(user.roles, tool.name)) {
+      permittedTools.push(tool);
+    }
+  }
+
   return {
-    tools: result.tools
+    tools: permittedTools
   };
 });
 
@@ -95,6 +108,10 @@ mcpRouter.post('/mcp/message', async (req, res, next) => {
       const requests = Array.isArray(req.body) ? req.body : [req.body];
       for (const r of requests) {
         if (r.method === 'tools/call' && r.params?.name) {
+          if (!(await canExecuteTool(user.roles, r.params.name))) {
+            throw new AppError('PERMISSION_DENIED', `Bạn không có quyền thực thi công cụ '${r.params.name}'.`, 403);
+          }
+
           checkToolRateLimit(user.id, r.params.name);
 
           // Fetch Vault secrets for this server/tool and inject into _integrationCredentials

@@ -44,7 +44,7 @@ services:
     image: node:20-alpine
     container_name: enterprise_ai_mcp_gateway
     working_dir: /app
-    command: sh -c "npm install --include=dev && npm run build && npm run start"
+    command: sh -c "for d in /packages/mcp-server-*; do (cd \"$$d\" && npm run build); done && npm install --include=dev && npm run build && npm run start"
     restart: always
     env_file:
       - ./apps/mcp-gateway/.env
@@ -58,6 +58,8 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       VAULT_ADDR: http://vault:8200
       VAULT_TOKEN: ${VAULT_TOKEN:-root}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "${MCP_GATEWAY_PORT:-8081}:8081"
     volumes:
@@ -86,6 +88,10 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-enterprise_ai_demo}
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      LLM_PROVIDER: ${LLM_PROVIDER:-local}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gemini-3.5-flash-lite}
+      LOCAL_LLM_BASE_URL: ${LOCAL_LLM_BASE_URL:-https://generativelanguage.googleapis.com/v1beta/openai/}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-AQ.Ab8RN6Lu27eElcylrJUuLyZCbJ0eh2-EM2ILHYYdIFIW25G6WA}
     ports:
       - "${AI_ORCHESTRATOR_PORT:-8082}:8082"
     volumes:
@@ -110,8 +116,34 @@ services:
     depends_on:
       - ai-orchestrator
 
+  gitea:
+    image: gitea/gitea:1.21-rootless
+    container_name: enterprise_ai_gitea
+    restart: always
+    environment:
+      - USER_UID=1000
+      - USER_GID=1000
+      - GITEA__database__DB_TYPE=postgres
+      - GITEA__database__HOST=postgres:5432
+      - GITEA__database__NAME=gitea_db
+      - GITEA__database__USER=postgres
+      - GITEA__database__PASSWD=postgres
+      - GITEA__server__ROOT_URL=http://localhost:3001/
+      - GITEA__server__DOMAIN=localhost
+      - GITEA__server__HTTP_PORT=3000
+    ports:
+      - "3001:3000"
+      - "2222:2222"
+    volumes:
+      - gitea_data:/var/lib/gitea
+    depends_on:
+      postgres:
+        condition: service_healthy
+
 volumes:
   postgres_data:
     name: enterprise_ai_postgres_data
   vault_data:
     name: enterprise_ai_vault_data
+  gitea_data:
+    name: enterprise_ai_gitea_data
