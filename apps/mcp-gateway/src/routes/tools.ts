@@ -413,7 +413,7 @@ toolsRouter.post('/tools/call', async (req, res, next) => {
     }
     console.log(`[Tool Execution] final mergedArgs:`, JSON.stringify(mergedArgs));
 
-    const data = await mcpClientManager.callTool(parsed.toolName, mergedArgs);
+    const data = await mcpClientManager.callTool(parsed.toolName, mergedArgs, user.roles);
 
     const durationMs = Date.now() - startedAt;
 

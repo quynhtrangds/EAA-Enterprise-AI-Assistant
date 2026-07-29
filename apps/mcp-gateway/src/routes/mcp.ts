@@ -56,9 +56,11 @@ mcpServer.setRequestHandler(ListToolsRequestSchema, async (request, extra) => {
 mcpServer.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
   const toolName = request.params.name;
   const args = request.params.arguments || {};
-  
+  const sessionId = extra.sessionId;
+  const user = sessionId ? sessionUsers.get(sessionId) : null;
+
   try {
-    const data = await mcpClientManager.callTool(toolName, args);
+    const data = await mcpClientManager.callTool(toolName, args, user?.roles || []);
     return data;
   } catch (error: any) {
     return {

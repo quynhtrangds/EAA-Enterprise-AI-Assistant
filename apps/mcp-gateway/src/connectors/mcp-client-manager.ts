@@ -84,7 +84,13 @@ export class McpClientManager {
     return { tools: allTools };
   }
 
-  async callTool(name: string, args: any) {
+  // Các role được xem dữ liệu PII đầy đủ (không bị mask). Staff/viewer luôn
+  // nhận dữ liệu đã mask để hạn chế lộ thông tin cá nhân khách hàng theo
+  // nguyên tắc least-privilege — họ vẫn tra cứu/xử lý đơn hàng bình thường,
+  // chỉ không thấy email/SĐT/địa chỉ đầy đủ.
+  private static readonly PII_BYPASS_ROLES = new Set(['admin', 'manager']);
+
+  async callTool(name: string, args: any, roles: string[] = []) {
     const serverName = this.toolToServerMap.get(name);
     if (!serverName) {
       throw new Error(`Tool not found: ${name}`);
@@ -97,8 +103,10 @@ export class McpClientManager {
 
     const data = await client.callTool({ name, arguments: args });
 
+    const shouldMask = !roles.some(r => McpClientManager.PII_BYPASS_ROLES.has(r));
+
     // Apply Data Masking
-    if (data.content && Array.isArray(data.content)) {
+    if (shouldMask && data.content && Array.isArray(data.content)) {
       for (const item of data.content as any[]) {
         if (item.type === "text" && item.text) {
           try {

@@ -1,0 +1,171 @@
+diff --git a/apps/mcp-gateway/src/connectors/mcp-client-manager.test.ts b/apps/mcp-gateway/src/connectors/mcp-client-manager.test.ts
+new file mode 100644
+index 0000000..4759b17
+--- /dev/null
++++ b/apps/mcp-gateway/src/connectors/mcp-client-manager.test.ts
+@@ -0,0 +1,54 @@
++import { describe, it, expect, beforeEach } from 'vitest';
++import { McpClientManager } from './mcp-client-manager.js';
++
++// Không cần spin lên MCP server thật (stdio) — chỉ cần verify logic
++// bypass-masking-theo-role trong callTool(), nên inject 1 fake client
++// giả lập response trả về từ tool 'get_order_detail'.
++function buildManagerWithFakeClient(rawText: object) {
++  const manager = new McpClientManager();
++  const fakeClient = {
++    callTool: async () => ({
++      content: [{ type: 'text', text: JSON.stringify(rawText) }]
++    })
++  };
++  (manager as any).clients.set('postgres', fakeClient);
++  manager.toolToServerMap.set('get_order_detail', 'postgres');
++  return manager;
++}
++
++describe('McpClientManager.callTool - role-based PII masking', () => {
++  const orderDetail = {
++    customer_name: 'Nguyen Van A',
++    customer_address: '123 Le Loi Street, District 1, HCMC',
++    customer_email: 'a@example.com'
++  };
++
++  it('masks PII for roles without bypass (staff, viewer, or no role)', async () => {
++    const manager = buildManagerWithFakeClient(orderDetail);
++
++    for (const roles of [['staff'], ['viewer'], []]) {
++      const result = await manager.callTool('get_order_detail', {}, roles);
++      const parsed = JSON.parse(((result as any).content[0]).text);
++      expect(parsed.customer_address).toBe('***');
++      expect(parsed.customer_name).not.toBe('Nguyen Van A');
++    }
++  });
++
++  it('does NOT mask PII for admin or manager roles', async () => {
++    const manager = buildManagerWithFakeClient(orderDetail);
++
++    for (const roles of [['admin'], ['manager'], ['staff', 'manager']]) {
++      const result = await manager.callTool('get_order_detail', {}, roles);
++      const parsed = JSON.parse(((result as any).content[0]).text);
++      expect(parsed.customer_address).toBe('123 Le Loi Street, District 1, HCMC');
++      expect(parsed.customer_name).toBe('Nguyen Van A');
++    }
++  });
++
++  it('defaults to masking when no roles are provided (fail-safe)', async () => {
++    const manager = buildManagerWithFakeClient(orderDetail);
++    const result = await manager.callTool('get_order_detail', {});
++    const parsed = JSON.parse(((result as any).content[0]).text);
++    expect(parsed.customer_address).toBe('***');
++  });
++});
+diff --git a/apps/mcp-gateway/src/connectors/mcp-client-manager.ts b/apps/mcp-gateway/src/connectors/mcp-client-manager.ts
+index 9d74c37..de1ae10 100644
+--- a/apps/mcp-gateway/src/connectors/mcp-client-manager.ts
++++ b/apps/mcp-gateway/src/connectors/mcp-client-manager.ts
+@@ -84,7 +84,13 @@ export class McpClientManager {
+     return { tools: allTools };
+   }
+ 
+-  async callTool(name: string, args: any) {
++  // Các role được xem dữ liệu PII đầy đủ (không bị mask). Staff/viewer luôn
++  // nhận dữ liệu đã mask để hạn chế lộ thông tin cá nhân khách hàng theo
++  // nguyên tắc least-privilege — họ vẫn tra cứu/xử lý đơn hàng bình thường,
++  // chỉ không thấy email/SĐT/địa chỉ đầy đủ.
++  private static readonly PII_BYPASS_ROLES = new Set(['admin', 'manager']);
++
++  async callTool(name: string, args: any, roles: string[] = []) {
+     const serverName = this.toolToServerMap.get(name);
+     if (!serverName) {
+       throw new Error(`Tool not found: ${name}`);
+@@ -97,8 +103,10 @@ export class McpClientManager {
+ 
+     const data = await client.callTool({ name, arguments: args });
+ 
++    const shouldMask = !roles.some(r => McpClientManager.PII_BYPASS_ROLES.has(r));
++
+     // Apply Data Masking
+-    if (data.content && Array.isArray(data.content)) {
++    if (shouldMask && data.content && Array.isArray(data.content)) {
+       for (const item of data.content as any[]) {
+         if (item.type === "text" && item.text) {
+           try {
+diff --git a/apps/mcp-gateway/src/routes/admin.ts b/apps/mcp-gateway/src/routes/admin.ts
+index d804a29..0eefee9 100644
+--- a/apps/mcp-gateway/src/routes/admin.ts
++++ b/apps/mcp-gateway/src/routes/admin.ts
+@@ -7,6 +7,16 @@ import { VaultService } from '../services/vault.js';
+ 
+ export const adminRouter = Router();
+ 
++// API key/secret không bao giờ nên trả nguyên văn qua network response (kể cả
++// cho admin) — DevTools, log trung gian, hay 1 lần refactor frontend vô tình
++// prefill input đều có thể làm lộ secret. Chỉ trả về vài ký tự cuối để admin
++// xác nhận "đúng key mình đã lưu", cộng cờ hasApiKey để UI biết đã cấu hình hay chưa.
++function maskSecret(value: string | null | undefined): string {
++  if (!value) return '';
++  if (value.length <= 4) return '****';
++  return `****${value.slice(-4)}`;
++}
++
+ // Middleware bảo mật RBAC - Chỉ Admin mới có quyền truy cập các API Quản trị hệ thống
+ adminRouter.use(async (req, res, next) => {
+   try {
+@@ -45,7 +55,8 @@ adminRouter.get('/integrations', async (req, res, next) => {
+           integration_code: row.integration_code,
+           is_active: row.is_active,
+           apiUrl: secrets?.apiUrl || row.api_url || '',
+-          apiKey: secrets?.apiKey || row.api_key || ''
++          apiKeyMasked: maskSecret(secrets?.apiKey || row.api_key),
++          hasApiKey: Boolean(secrets?.apiKey || row.api_key)
+         };
+       })
+     );
+@@ -108,9 +119,16 @@ adminRouter.post('/integrations', async (req, res, next) => {
+       await VaultService.writeSecret(vaultPath, secretData);
+     }
+ 
++    const savedIntegration = dbResult.rows[0] as any;
+     res.json({ 
+       success: true, 
+-      integration: dbResult.rows[0],
++      integration: savedIntegration ? {
++        integration_code: savedIntegration.integration_code,
++        is_active: savedIntegration.is_active,
++        api_url: savedIntegration.api_url,
++        apiKeyMasked: maskSecret(savedIntegration.api_key),
++        hasApiKey: Boolean(savedIntegration.api_key)
++      } : null,
+       message: (apiKey || apiUrl) ? 'Đã lưu cấu hình và thông tin kết nối vào Vault' : 'Đã cập nhật trạng thái tích hợp'
+     });
+   } catch (error) {
+diff --git a/apps/mcp-gateway/src/routes/mcp.ts b/apps/mcp-gateway/src/routes/mcp.ts
+index 05a63e8..8bfc0bb 100644
+--- a/apps/mcp-gateway/src/routes/mcp.ts
++++ b/apps/mcp-gateway/src/routes/mcp.ts
+@@ -56,9 +56,11 @@ mcpServer.setRequestHandler(ListToolsRequestSchema, async (request, extra) => {
+ mcpServer.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
+   const toolName = request.params.name;
+   const args = request.params.arguments || {};
+-  
++  const sessionId = extra.sessionId;
++  const user = sessionId ? sessionUsers.get(sessionId) : null;
++
+   try {
+-    const data = await mcpClientManager.callTool(toolName, args);
++    const data = await mcpClientManager.callTool(toolName, args, user?.roles || []);
+     return data;
+   } catch (error: any) {
+     return {
+diff --git a/apps/mcp-gateway/src/routes/tools.ts b/apps/mcp-gateway/src/routes/tools.ts
+index 78977bc..c8ac274 100644
+--- a/apps/mcp-gateway/src/routes/tools.ts
++++ b/apps/mcp-gateway/src/routes/tools.ts
+@@ -413,7 +413,7 @@ toolsRouter.post('/tools/call', async (req, res, next) => {
+     }
+     console.log(`[Tool Execution] final mergedArgs:`, JSON.stringify(mergedArgs));
+ 
+-    const data = await mcpClientManager.callTool(parsed.toolName, mergedArgs);
++    const data = await mcpClientManager.callTool(parsed.toolName, mergedArgs, user.roles);
+ 
+     const durationMs = Date.now() - startedAt;
+ 

@@ -7,6 +7,16 @@ import { VaultService } from '../services/vault.js';
 
 export const adminRouter = Router();
 
+// API key/secret không bao giờ nên trả nguyên văn qua network response (kể cả
+// cho admin) — DevTools, log trung gian, hay 1 lần refactor frontend vô tình
+// prefill input đều có thể làm lộ secret. Chỉ trả về vài ký tự cuối để admin
+// xác nhận "đúng key mình đã lưu", cộng cờ hasApiKey để UI biết đã cấu hình hay chưa.
+function maskSecret(value: string | null | undefined): string {
+  if (!value) return '';
+  if (value.length <= 4) return '****';
+  return `****${value.slice(-4)}`;
+}
+
 // Middleware bảo mật RBAC - Chỉ Admin mới có quyền truy cập các API Quản trị hệ thống
 adminRouter.use(async (req, res, next) => {
   try {
@@ -45,7 +55,8 @@ adminRouter.get('/integrations', async (req, res, next) => {
           integration_code: row.integration_code,
           is_active: row.is_active,
           apiUrl: secrets?.apiUrl || row.api_url || '',
-          apiKey: secrets?.apiKey || row.api_key || ''
+          apiKeyMasked: maskSecret(secrets?.apiKey || row.api_key),
+          hasApiKey: Boolean(secrets?.apiKey || row.api_key)
         };
       })
     );
@@ -108,9 +119,16 @@ adminRouter.post('/integrations', async (req, res, next) => {
       await VaultService.writeSecret(vaultPath, secretData);
     }
 
+    const savedIntegration = dbResult.rows[0] as any;
     res.json({ 
       success: true, 
-      integration: dbResult.rows[0],
+      integration: savedIntegration ? {
+        integration_code: savedIntegration.integration_code,
+        is_active: savedIntegration.is_active,
+        api_url: savedIntegration.api_url,
+        apiKeyMasked: maskSecret(savedIntegration.api_key),
+        hasApiKey: Boolean(savedIntegration.api_key)
+      } : null,
       message: (apiKey || apiUrl) ? 'Đã lưu cấu hình và thông tin kết nối vào Vault' : 'Đã cập nhật trạng thái tích hợp'
     });
   } catch (error) {
