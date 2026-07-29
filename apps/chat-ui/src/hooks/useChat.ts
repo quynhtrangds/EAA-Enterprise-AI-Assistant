@@ -37,13 +37,11 @@ export const useChat = () => {
       });
       if (response.ok) {
         const data = await response.json();
-        console.log('fetchSessions raw data:', data);
         const mappedSessions = (data.sessions || []).map((s: any) => {
           let title = s.title || 'Hội thoại mới';
           if (title.length > 25) {
             title = title.substring(0, 25) + '...';
           }
-          console.log('Mapping session s.updatedAt:', s.updatedAt, 'parsed:', new Date(s.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
           return {
             id: s.sessionId,
             session_code: s.sessionId,
@@ -54,25 +52,29 @@ export const useChat = () => {
         });
 
         if (mappedSessions.length === 0) {
-          setSessions([{
+          const emptyList = [{
             id: 'new-chat-session',
             session_code: 'new-chat-session',
             title: 'Hội thoại mới',
             updatedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
             isStarred: false
-          }]);
+          }];
+          setSessions(emptyList);
           setActiveSessionId('new-chat-session');
           setMessages([]);
+          return emptyList;
         } else {
           setSessions(mappedSessions);
           if (activeSessionId !== 'new-chat-session' && !mappedSessions.some((s: any) => s.id === activeSessionId)) {
             setActiveSessionId('new-chat-session');
           }
+          return mappedSessions;
         }
       }
     } catch (e) {
       console.error('Failed to fetch sessions:', e);
     }
+    return [];
   };
 
   // 2. Search sessions across titles and contents
@@ -112,7 +114,6 @@ export const useChat = () => {
       });
       if (response.ok) {
         const data = await response.json();
-        console.log('fetchSessionDetails raw data:', data);
         const mappedMessages = (data.messages || []).map((m: any) => ({
           id: m.id,
           sender: m.role === 'assistant' ? 'ai' : 'user',
@@ -138,10 +139,10 @@ export const useChat = () => {
       setMessages([]);
     } else {
       setSessions([]);
-      setMessages([]);
       setActiveSessionId('new-chat-session');
+      setMessages([]);
     }
-  }, [authToken, currentUser]);
+  }, [authToken, currentUser?.username, currentUser?.role]);
 
   // Sync messages on active session / token change
   useEffect(() => {
@@ -153,6 +154,11 @@ export const useChat = () => {
 
   const selectSession = (id: string) => {
     setActiveSessionId(id);
+    if (authToken && id !== 'new-chat-session') {
+      fetchSessionDetails(authToken, id);
+    } else if (id === 'new-chat-session') {
+      setMessages([]);
+    }
   };
 
   const createNewSession = () => {
@@ -161,30 +167,28 @@ export const useChat = () => {
   };
 
   const deleteSession = async (id: string) => {
-    // Optimistic update
+    const isGuest = currentUser?.username === 'guest' || currentUser?.role === 'viewer';
     const nextSessions = sessions.filter(s => s.id !== id);
-    setSessions(nextSessions.length > 0 ? nextSessions : [{
+    const updatedList = nextSessions.length > 0 ? nextSessions : [{
       id: 'new-chat-session',
       session_code: 'new-chat-session',
       title: 'Hội thoại mới',
       updatedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       isStarred: false
-    }]);
+    }];
 
-    if (activeSessionId === id) {
+    setSessions(updatedList);
+    if (activeSessionId === id || updatedList[0].id === 'new-chat-session') {
       setActiveSessionId('new-chat-session');
+      setMessages([]);
     }
 
-    // Call API
-    if (authToken) {
+    if (authToken && id !== 'new-chat-session' && !isGuest) {
       try {
-        const response = await fetch(`/api/chat/sessions/${id}`, {
+        await fetch(`/api/chat/sessions/${id}`, {
           method: 'DELETE',
           headers: { 'Authorization': `Bearer ${authToken}` }
         });
-        if (!response.ok) {
-          console.error('Failed to delete session on server');
-        }
       } catch (e) {
         console.error('Failed to delete session:', e);
       }
@@ -194,11 +198,9 @@ export const useChat = () => {
   const editMessage = async (messageId: string, content: string) => {
     const timeStr = formatTimestamp();
 
-    // Find where to truncate
     const index = messages.findIndex(m => m.id === messageId);
     if (index === -1) return;
 
-    // Truncate local state and append the edited message
     const newUserMsg: Message = {
       id: Date.now().toString(),
       sender: 'user',
@@ -227,8 +229,28 @@ export const useChat = () => {
         throw new Error('Không thể kết nối với AI Orchestrator');
       }
 
-      await fetchSessions(authToken!);
-      await fetchSessionDetails(authToken!, activeSessionId);
+      const data = response.json ? await response.json().catch(() => ({})) : {};
+      const isGuest = currentUser?.username === 'guest' || currentUser?.role === 'viewer';
+
+      if (isGuest) {
+        const newAiMsg: Message = {
+          id: (Date.now() + 1).toString(),
+          sender: 'ai',
+          content: data.reply || data.answer || data.content || '',
+          timestamp: formatTimestamp(),
+          toolCalls: data.toolCalls
+        };
+        setMessages(prev => [...prev, newAiMsg]);
+      } else {
+        const targetSessionId = data.sessionId || data.session_id || (activeSessionId === 'new-chat-session' ? `session-${Date.now()}` : activeSessionId);
+
+        const updatedSessions = await fetchSessions(authToken!);
+        const exists = updatedSessions && updatedSessions.some((s: any) => s.id === targetSessionId);
+        const finalSessionId = exists ? targetSessionId : 'new-chat-session';
+
+        setActiveSessionId(finalSessionId);
+        await fetchSessionDetails(authToken!, finalSessionId);
+      }
     } catch (error: any) {
       console.error('Lỗi API:', error);
       const errorMsg: Message = {
@@ -285,13 +307,14 @@ export const useChat = () => {
         };
         setMessages(prev => [...prev, newAiMsg]);
       } else {
-        // If we were on 'new-chat-session', switch our active session to the new generated session id
-        const targetSessionId = activeSessionId === 'new-chat-session' ? data.sessionId : activeSessionId;
+        const targetSessionId = data.sessionId || data.session_id || (activeSessionId === 'new-chat-session' ? `session-${Date.now()}` : activeSessionId);
 
-        // Reload sessions and select the correct session
-        await fetchSessions(authToken!);
-        setActiveSessionId(targetSessionId);
-        await fetchSessionDetails(authToken!, targetSessionId);
+        const updatedSessions = await fetchSessions(authToken!);
+        const exists = updatedSessions && updatedSessions.some((s: any) => s.id === targetSessionId);
+        const finalSessionId = exists ? targetSessionId : 'new-chat-session';
+
+        setActiveSessionId(finalSessionId);
+        await fetchSessionDetails(authToken!, finalSessionId);
       }
     } catch (error: any) {
       console.error('Lỗi API:', error);
@@ -308,18 +331,15 @@ export const useChat = () => {
   };
 
   const renameSessionApi = async (sessionId: string, newTitle: string) => {
-    console.log('renameSessionApi called with:', { sessionId, newTitle, authToken });
     if (!authToken) return;
 
     // Optimistic update
     setSessions(prev => {
-      const next = prev.map(s => s.id === sessionId ? { ...s, title: newTitle } : s);
-      console.log('renameSessionApi optimistic update, prev:', prev, 'next:', next);
-      return next;
+      return prev.map(s => s.id === sessionId ? { ...s, title: newTitle } : s);
     });
 
     try {
-      const response = await fetch(`/api/chat/sessions/${sessionId}`, {
+      await fetch(`/api/chat/sessions/${sessionId}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -327,25 +347,21 @@ export const useChat = () => {
         },
         body: JSON.stringify({ title: newTitle })
       });
-      console.log('renameSessionApi fetch response:', response.status);
     } catch (e) {
       console.error('Failed to rename session:', e);
     }
   };
 
   const toggleStarSessionApi = async (sessionId: string, isStarred: boolean) => {
-    console.log('toggleStarSessionApi called with:', { sessionId, isStarred, authToken });
     if (!authToken) return;
 
     // Optimistic update
     setSessions(prev => {
-      const next = prev.map(s => s.id === sessionId ? { ...s, isStarred } : s);
-      console.log('toggleStarSessionApi optimistic update, prev:', prev, 'next:', next);
-      return next;
+      return prev.map(s => s.id === sessionId ? { ...s, isStarred } : s);
     });
 
     try {
-      const response = await fetch(`/api/chat/sessions/${sessionId}`, {
+      await fetch(`/api/chat/sessions/${sessionId}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -353,7 +369,6 @@ export const useChat = () => {
         },
         body: JSON.stringify({ isStarred })
       });
-      console.log('toggleStarSessionApi fetch response:', response.status);
     } catch (e) {
       console.error('Failed to toggle star session:', e);
     }
