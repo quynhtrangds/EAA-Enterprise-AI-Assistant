@@ -3,6 +3,15 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import Sidebar from '../components/layout/Sidebar';
 import type { Session } from '../hooks/useChat';
 
+vi.mock('../contexts/AuthContext', () => ({
+  useAuth: () => ({
+    authToken: 'mock-token',
+    currentUser: { id: '1', username: 'admin', display_name: 'Quản trị viên', roles: ['admin'] },
+    login: vi.fn(),
+    logout: vi.fn(),
+  }),
+}));
+
 const mockSessions: Session[] = [
   { id: 's1', title: 'Session 1', session_code: 'SC001', isStarred: true, updatedAt: '10:00', messages: [] },
   { id: 's2', title: 'Session 2', session_code: 'SC002', isStarred: false, updatedAt: '10:05', messages: [] },
