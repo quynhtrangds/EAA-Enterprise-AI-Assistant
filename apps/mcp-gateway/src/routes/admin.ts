@@ -7,6 +7,19 @@ import { VaultService } from '../services/vault.js';
 
 export const adminRouter = Router();
 
+// Middleware bảo mật RBAC - Chỉ Admin mới có quyền truy cập các API Quản trị hệ thống
+adminRouter.use(async (req, res, next) => {
+  try {
+    const user = await getCurrentUser(req);
+    if (!user || !user.roles.includes('admin')) {
+      throw new AppError('PERMISSION_DENIED', 'Bạn không có quyền truy cập vào các tính năng Quản trị hệ thống.', 403);
+    }
+    next();
+  } catch (error) {
+    next(error);
+  }
+});
+
 // Lấy danh sách integrations của tenant
 adminRouter.get('/integrations', async (req, res, next) => {
   try {
