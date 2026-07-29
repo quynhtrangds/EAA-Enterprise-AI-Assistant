@@ -21,7 +21,7 @@ const defaultProps = {
   isOpen: true,
   sessions: mockSessions,
   activeSessionId: 's1',
-  currentUser: 'admin',
+  currentUser: { id: '1', username: 'admin', displayName: 'Admin', roles: ['admin'] },
   onSelectSession: vi.fn(),
   onCreateSession: vi.fn(),
   onDeleteSession: vi.fn(),
@@ -241,9 +241,9 @@ describe('Kiểm thử Component Sidebar', () => {
   });
 
   it('TC14: Role mặc định nếu currentUser không khớp', () => {
-    render(<Sidebar {...defaultProps} currentUser="unknown" />);
-    // Role admin là fallback đầu tiên
-    expect(screen.getByText('Admin')).toBeInTheDocument();
+    render(<Sidebar {...defaultProps} currentUser={{ id: '2', username: 'unknown', roles: ['admin'] }} />);
+    // Role admin là fallback đầu tiên với nhãn Quản trị viên
+    expect(screen.getByText('Quản trị viên')).toBeInTheDocument();
   });
 
   it('TC15: Không gọi rename nếu tiêu đề trống hoặc onRenameSession không được truyền', () => {

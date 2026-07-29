@@ -203,12 +203,14 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
         body: JSON.stringify({ role: newRole })
       });
 
-      if (!res.ok) throw new Error('Cập nhật quyền người dùng thất bại');
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.message || 'Cập nhật quyền người dùng thất bại.');
+      }
       setSuccessMsg(`Đã đổi quyền thành công cho người dùng!`);
       setUsers(prev => prev.map(u => u.id === userId ? { ...u, role: newRole } : u));
     } catch (err: any) {
-      setUsers(prev => prev.map(u => u.id === userId ? { ...u, role: newRole } : u));
-      setSuccessMsg(`Đã cập nhật quyền thành: ${newRole.toUpperCase()}`);
+      setError(err.message || 'Đã xảy ra lỗi khi cập nhật quyền người dùng.');
     } finally {
       setUpdatingUserId(null);
     }
