@@ -30,6 +30,7 @@ const roleOptions = [
   { code: 'admin', label: 'Admin' },
   { code: 'manager', label: 'Quản lý' },
   { code: 'staff', label: 'Nhân viên' },
+  { code: 'viewer', label: 'Khách (Viewer)' },
 ];
 
 export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
@@ -256,6 +257,9 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
         } else {
           setUsers(prev => [...prev.filter(u => u.username !== newUsername), newUserObj]);
         }
+        setShowAddUserModal(false);
+        setNewUsername('');
+        setNewEmail('');
       } else {
         const errData = await res.json().catch(() => ({}));
         setError(errData.message || 'Không thể thêm người dùng. Bạn cần đăng nhập tài khoản Admin.');
@@ -264,9 +268,6 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
       setError(err.message || 'Đã xảy ra lỗi khi thêm người dùng.');
     } finally {
       setCreatingUser(false);
-      setShowAddUserModal(false);
-      setNewUsername('');
-      setNewEmail('');
     }
   };
 
@@ -548,6 +549,7 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
                       <option value="admin" className="bg-[#181920] text-slate-100">👑 Admin</option>
                       <option value="manager" className="bg-[#181920] text-slate-100">👔 Quản lý</option>
                       <option value="staff" className="bg-[#181920] text-slate-100">🧑‍💼 Nhân viên</option>
+                      <option value="viewer" className="bg-[#181920] text-slate-100">👁️ Khách (Viewer)</option>
                     </select>
                   </div>
                 </div>
