@@ -39,6 +39,19 @@ describe('MaskingService', () => {
       expect(result.address).toBe('***');
     });
 
+    it('should mask customer_address / customer_email / customer_phone aliases (as returned by get_order_detail)', () => {
+      const input = {
+        customer_name: 'Nguyen Van A',
+        customer_address: '123 Le Loi Street, District 1, HCMC',
+        customer_email: 'nguyenvana@gmail.com',
+        customer_phone: '0987654321'
+      };
+      const result = MaskingService.maskObject(input);
+      expect(result.customer_address).toBe('***');
+      expect(result.customer_email).toContain('***@gmail.com');
+      expect(result.customer_phone).toBe('098***321');
+    });
+
     it('should handle nested objects and arrays', () => {
       const input = {
         users: [

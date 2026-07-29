@@ -1,5 +1,11 @@
 export class MaskingService {
-  private static piiFields = new Set(['email', 'phone', 'address', 'full_name', 'customer_name']);
+  // LƯU Ý: danh sách này phải đồng bộ với mọi alias PII (AS ...) được dùng trong
+  // packages/mcp-server-postgres/src/tools.ts. Thiếu 1 alias là dữ liệu cá nhân
+  // sẽ bị trả về KHÔNG che (xem bug đã phát hiện với `customer_address`).
+  private static piiFields = new Set([
+    'email', 'phone', 'address', 'full_name', 'customer_name',
+    'customer_email', 'customer_phone', 'customer_address'
+  ]);
 
   /**
    * Deeply traverse an object and mask known PII fields.
@@ -36,10 +42,13 @@ export class MaskingService {
     
     switch (field) {
       case 'email':
+      case 'customer_email':
         return this.maskEmail(value);
       case 'phone':
+      case 'customer_phone':
         return this.maskPhone(value);
       case 'address':
+      case 'customer_address':
         return '***';
       case 'full_name':
       case 'customer_name':

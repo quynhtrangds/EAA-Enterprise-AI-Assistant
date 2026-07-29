@@ -180,7 +180,7 @@ adminRouter.post('/users', async (req, res, next) => {
     const insertQuery = `
       INSERT INTO users (tenant_id, username, email, display_name, role)
       VALUES ($1, $2, $3, $4, $5)
-      ON CONFLICT (username) 
+      ON CONFLICT (tenant_id, username) 
       DO UPDATE SET role = EXCLUDED.role, email = EXCLUDED.email, display_name = EXCLUDED.display_name
       RETURNING id, username, display_name, email, role, created_at
     `;

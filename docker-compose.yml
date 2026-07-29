@@ -20,6 +20,7 @@ services:
       - ./database/migrations/004_chat_history.sql:/docker-entrypoint-initdb.d/05_chat_history.sql:ro
       - ./database/migrations/005_multi_tenant_and_sso.sql:/docker-entrypoint-initdb.d/06_multi_tenant_and_sso.sql:ro
       - ./database/migrations/006_integrations.sql:/docker-entrypoint-initdb.d/07_integrations.sql:ro
+      - ./database/migrations/007_fix_username_tenant_scope.sql:/docker-entrypoint-initdb.d/08_fix_username_tenant_scope.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-enterprise_ai_demo}"]
       interval: 5s

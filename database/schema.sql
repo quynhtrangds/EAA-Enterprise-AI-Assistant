@@ -95,7 +95,6 @@ CREATE TABLE IF NOT EXISTS users (
   email VARCHAR(255),
   status VARCHAR(50) NOT NULL DEFAULT 'active',
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  CONSTRAINT uq_users_username UNIQUE (username),
   CONSTRAINT chk_users_status CHECK (status IN ('active', 'inactive', 'blocked'))
 );
 
