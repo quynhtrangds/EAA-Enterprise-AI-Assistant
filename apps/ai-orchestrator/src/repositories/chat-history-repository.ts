@@ -63,6 +63,12 @@ function deriveTitle(message: string): string {
   return compact.length > 80 ? `${compact.slice(0, 77)}...` : compact;
 }
 
+// LƯU Ý: đây là safety-net idempotent (phòng trường hợp app chạy dev/test mà
+// chưa apply migrations qua docker-entrypoint-initdb.d). Nguồn schema CHÍNH
+// THỨC vẫn là database/migrations/004_chat_history.sql (bảng gốc) và
+// 008_chat_sessions_tenant_and_star.sql (tenant_id, is_starred). Nếu sửa
+// schema ở đây, PHẢI đồng bộ thêm 1 migration file tương ứng — tránh tình
+// trạng 2 nguồn schema lệch nhau đã từng xảy ra.
 export async function ensureChatHistoryTables(): Promise<void> {
   ensureChatHistoryTablesPromise ??= query(`
     CREATE TABLE IF NOT EXISTS chat_sessions (

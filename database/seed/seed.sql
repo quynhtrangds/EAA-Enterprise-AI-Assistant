@@ -13,7 +13,7 @@ VALUES
   ('10000000-0000-0000-0000-000000000002', 'manager', 'manager123', 'Quản lý bán hàng', 'manager@example.com', 'active'),
   ('10000000-0000-0000-0000-000000000003', 'staff', 'staff123', 'Nhân viên kinh doanh', 'staff@example.com', 'active'),
   ('10000000-0000-0000-0000-000000000004', 'viewer', 'viewer123', 'Người xem báo cáo', 'viewer@example.com', 'active')
-ON CONFLICT (username) DO UPDATE
+ON CONFLICT (id) DO UPDATE
 SET
   password_hash = EXCLUDED.password_hash,
   display_name = EXCLUDED.display_name,
