@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { writeAuditLog } from '../audit/audit-log.js';
 import { createAuthSession } from '../auth/auth-sessions.js';
 import { createToolContext, getCurrentUser } from '../auth/current-user.js';
+import { verifyPassword } from '../auth/passwords.js';
 import { OAuth2Client } from 'google-auth-library';
 import { query } from '../db/pool.js';
 import { env } from '../config/env.js';
@@ -129,7 +130,7 @@ toolsRouter.post('/login', async (req, res, next) => {
     );
 
     const user = result.rows[0];
-    if (!user || (user.password_hash && user.password_hash !== credentials.password && credentials.password !== user.username)) {
+    if (!user || !(await verifyPassword(credentials.password, user.password_hash))) {
       throw new AppError('UNAUTHENTICATED', 'Username hoac password khong dung.', 401);
     }
 
@@ -147,6 +148,39 @@ toolsRouter.post('/login', async (req, res, next) => {
         email: user.email,
         roles: user.roles,
         tenantId: user.tenant_id
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+toolsRouter.post('/auth/guest', async (_req, res, next) => {
+  try {
+    const result = await query<Pick<LoginUserRow, 'id' | 'tenant_id'>>(
+      `SELECT id, tenant_id
+       FROM users
+       WHERE username = 'viewer'
+         AND status = 'active'
+       LIMIT 1`
+    );
+    const guestUser = result.rows[0];
+    if (!guestUser) {
+      throw new AppError('INTERNAL_ERROR', 'Guest access is not configured.', 503);
+    }
+
+    const session = await createAuthSession(guestUser.id, ['viewer']);
+    res.json({
+      success: true,
+      token: session.token,
+      tokenType: 'Bearer',
+      expiresAt: session.expiresAt,
+      user: {
+        id: guestUser.id,
+        username: 'guest',
+        displayName: 'Guest',
+        roles: ['viewer'],
+        tenantId: guestUser.tenant_id
       }
     });
   } catch (error) {
@@ -202,50 +236,38 @@ toolsRouter.post('/auth/google', async (req, res, next) => {
         u.email,
         u.tenant_id,
         u.role,
+        u.sso_provider,
+        u.sso_id,
         COALESCE(NULLIF(array_agg(r.role_code ORDER BY r.role_code) FILTER (WHERE r.role_code IS NOT NULL), '{}'), ARRAY[COALESCE(u.role, 'admin')]) AS roles
       FROM users u
       LEFT JOIN user_roles ur ON ur.user_id = u.id
       LEFT JOIN roles r ON r.id = ur.role_id
       WHERE u.status = 'active'
         AND u.email = $1
-      GROUP BY u.id, u.username, u.password_hash, u.display_name, u.email, u.tenant_id, u.role
+      GROUP BY u.id, u.username, u.password_hash, u.display_name, u.email, u.tenant_id, u.role, u.sso_provider, u.sso_id
       LIMIT 1
       `,
       [email]
     );
 
-    let user = result.rows[0];
+    const user = result.rows[0];
     if (!user) {
-      const defaultTenantId = '00000000-0000-0000-0000-000000000000';
-      const defaultRole = 'admin';
-      const insertResult = await query<{id: string}>(
-        `INSERT INTO users (username, display_name, email, sso_provider, sso_id, tenant_id, role)
-         VALUES ($1, $2, $3, 'google', $4, $5, $6) RETURNING id`,
-        [email, name || email, email, sub, defaultTenantId, defaultRole]
-      );
+      throw new AppError('UNAUTHORIZED', 'Google account is not authorized for this workspace.', 403);
+    }
 
-      const newUserId = insertResult.rows[0]?.id as string;
-      const roleResult = await query<{id: string}>(`SELECT id FROM roles WHERE role_code = $1 LIMIT 1`, [defaultRole]);
-      if (roleResult.rows.length > 0 && roleResult.rows[0]) {
-        await query(`INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2)`, [newUserId, roleResult.rows[0].id]);
-      }
+    if (user.sso_provider && user.sso_provider !== 'google') {
+      throw new AppError('UNAUTHENTICATED', 'This account is linked to a different sign-in provider.', 401);
+    }
 
-      user = {
-        id: newUserId,
-        username: email,
-        password_hash: '',
-        display_name: name || email,
-        email: email,
-        roles: [defaultRole],
-        tenant_id: defaultTenantId
-      };
-    } else {
-      if (!user.sso_provider) {
-        await query(`UPDATE users SET sso_provider = 'google', sso_id = $1 WHERE id = $2`, [sub, user.id]);
-      }
-      if (user.role) {
-        user.roles = [user.role];
-      }
+    if (user.sso_id && user.sso_id !== sub) {
+      throw new AppError('UNAUTHENTICATED', 'Google account does not match the linked identity.', 401);
+    }
+
+    if (!user.sso_provider) {
+      await query(`UPDATE users SET sso_provider = 'google', sso_id = $1 WHERE id = $2`, [sub, user.id]);
+    }
+    if (user.role) {
+      user.roles = [user.role];
     }
 
     const session = await createAuthSession(user.id, user.roles);
@@ -378,12 +400,11 @@ toolsRouter.post('/tools/call', async (req, res, next) => {
         secrets = null;
       }
       
-      const dbRes = await query<{ api_url: string; api_key: string }>(
-        `SELECT api_url, api_key FROM tenant_integrations WHERE tenant_id = $1 AND integration_code = $2`,
+      const dbRes = await query<{ api_url: string }>(
+        `SELECT api_url FROM tenant_integrations WHERE tenant_id = $1 AND integration_code = $2`,
         [user.tenantId, serverName]
       );
       const dbApiUrl = dbRes.rows[0]?.api_url;
-      const dbApiKey = dbRes.rows[0]?.api_key;
 
       const defaultUrls: Record<string, string> = {
         erpnext: 'https://eaa-enterprise-demo.s.frappe.cloud',
@@ -393,25 +414,13 @@ toolsRouter.post('/tools/call', async (req, res, next) => {
       };
 
       const finalCredentials = {
-        apiKey: secrets?.apiKey || dbApiKey || '',
+        apiKey: secrets?.apiKey || '',
         apiUrl: secrets?.apiUrl || dbApiUrl || defaultUrls[serverName] || ''
       };
 
-      if ((!secrets || !secrets.apiKey) && dbApiKey) {
-        try {
-          await VaultService.writeSecret(vaultPath, {
-            apiKey: dbApiKey,
-            apiUrl: finalCredentials.apiUrl
-          });
-          console.log(`[Vault Auto-Recovery] Re-synced secret for ${vaultPath} into Vault from DB.`);
-        } catch (vErr: any) {
-          console.warn(`[Vault Auto-Recovery Warning]:`, vErr.message);
-        }
-      }
-
       mergedArgs = { ...mergedArgs, _integrationCredentials: finalCredentials };
     }
-    console.log(`[Tool Execution] final mergedArgs:`, JSON.stringify(mergedArgs));
+    console.log(`[Tool Execution] toolName: ${parsed.toolName}, credentialsInjected: ${Boolean(serverName && user.tenantId)}`);
 
     const data = await mcpClientManager.callTool(parsed.toolName, mergedArgs, user.roles);
 
