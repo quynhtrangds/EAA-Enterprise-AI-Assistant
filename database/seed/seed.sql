@@ -7,17 +7,18 @@ VALUES
 ON CONFLICT (role_code) DO UPDATE
 SET role_name = EXCLUDED.role_name;
 
-INSERT INTO users (id, username, password_hash, display_name, email, status)
+INSERT INTO users (id, username, password_hash, display_name, email, role, status)
 VALUES
-  ('10000000-0000-0000-0000-000000000001', 'admin', 'admin123', 'Quản trị viên', 'admin@example.com', 'active'),
-  ('10000000-0000-0000-0000-000000000002', 'manager', 'manager123', 'Quản lý bán hàng', 'manager@example.com', 'active'),
-  ('10000000-0000-0000-0000-000000000003', 'staff', 'staff123', 'Nhân viên kinh doanh', 'staff@example.com', 'active'),
-  ('10000000-0000-0000-0000-000000000004', 'viewer', 'viewer123', 'Người xem báo cáo', 'viewer@example.com', 'active')
+  ('10000000-0000-0000-0000-000000000001', 'admin', 'admin123', 'Quản trị viên', 'admin@example.com', 'admin', 'active'),
+  ('10000000-0000-0000-0000-000000000002', 'manager', 'manager123', 'Quản lý bán hàng', 'manager@example.com', 'manager', 'active'),
+  ('10000000-0000-0000-0000-000000000003', 'staff', 'staff123', 'Nhân viên kinh doanh', 'staff@example.com', 'staff', 'active'),
+  ('10000000-0000-0000-0000-000000000004', 'viewer', 'viewer123', 'Người xem báo cáo', 'viewer@example.com', 'viewer', 'active')
 ON CONFLICT (id) DO UPDATE
 SET
   password_hash = EXCLUDED.password_hash,
   display_name = EXCLUDED.display_name,
   email = EXCLUDED.email,
+  role = EXCLUDED.role,
   status = EXCLUDED.status;
 
 INSERT INTO user_roles (user_id, role_id)

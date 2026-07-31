@@ -93,6 +93,7 @@ CREATE TABLE IF NOT EXISTS users (
   password_hash VARCHAR(255),
   display_name VARCHAR(255) NOT NULL,
   email VARCHAR(255),
+  role VARCHAR(50) NOT NULL DEFAULT 'staff',
   status VARCHAR(50) NOT NULL DEFAULT 'active',
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   CONSTRAINT chk_users_status CHECK (status IN ('active', 'inactive', 'blocked'))
