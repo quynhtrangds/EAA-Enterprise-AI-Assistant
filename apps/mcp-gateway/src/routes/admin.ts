@@ -239,41 +239,32 @@ adminRouter.patch('/users/:userId/role', async (req, res, next) => {
     const { userId } = req.params;
     const { role } = updateRoleSchema.parse(req.body);
 
-    try {
-      const updateQuery = `
-        UPDATE users 
-        SET role = $1, updated_at = CURRENT_TIMESTAMP 
-        WHERE id = $2 AND tenant_id = $3
-        RETURNING id, username, display_name, email, role
-      `;
+    const updateQuery = `
+      UPDATE users 
+      SET role = $1, updated_at = CURRENT_TIMESTAMP 
+      WHERE (id::text = $2 OR username = $2) AND tenant_id = $3
+      RETURNING id, username, display_name, email, role
+    `;
 
-      const dbResult = await query(updateQuery, [role, userId, currentUser.tenantId]);
+    const dbResult = await query(updateQuery, [role, userId, currentUser.tenantId]);
 
-      // Đồng bộ vào bảng user_roles và auth_sessions
-      try {
-        const roleRow = await query<{ id: string }>(`SELECT id FROM roles WHERE role_code = $1 LIMIT 1`, [role]);
-        if (roleRow.rows.length > 0 && roleRow.rows[0]) {
-          await query(`DELETE FROM user_roles WHERE user_id = $1`, [userId]);
-          await query(`INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2)`, [userId, roleRow.rows[0].id]);
-        }
-        await query(`UPDATE auth_sessions SET roles = $1 WHERE user_id = $2`, [[role], userId]);
-      } catch (err: any) {
-        console.warn('Sync user_roles / auth_sessions warning:', err.message);
-      }
-
-      if (dbResult.rows.length > 0) {
-        return res.json({
-          success: true,
-          user: dbResult.rows[0],
-          message: `Đã cập nhật quyền thành: ${role}`
-        });
-      }
-    } catch (e) {
-      console.warn('Update user role DB fallback:', (e as Error).message);
+    if (dbResult.rows.length === 0) {
+      throw new AppError('NOT_FOUND', 'Người dùng không tồn tại hoặc không thuộc tổ chức (tenant) này.', 404);
     }
+
+    const updatedUser = dbResult.rows[0];
+
+    // Đồng bộ vào bảng user_roles và auth_sessions
+    const roleRow = await query<{ id: string }>(`SELECT id FROM roles WHERE role_code = $1 LIMIT 1`, [role]);
+    if (roleRow.rows.length > 0 && roleRow.rows[0]) {
+      await query(`DELETE FROM user_roles WHERE user_id = $1`, [updatedUser.id]);
+      await query(`INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2)`, [updatedUser.id, roleRow.rows[0].id]);
+    }
+    await query(`UPDATE auth_sessions SET roles = $1 WHERE user_id = $2`, [[role], updatedUser.id]);
 
     res.json({
       success: true,
+      user: updatedUser,
       message: `Đã cập nhật quyền thành: ${role}`
     });
   } catch (error) {
