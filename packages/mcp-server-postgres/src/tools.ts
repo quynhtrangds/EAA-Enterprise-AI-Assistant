@@ -198,7 +198,7 @@ const getProductSalesSummaryOutputSchema = z.object({
   )
 });
 
-function assertDateRange(fromDate: string, toDate: string): void {
+export function assertDateRange(fromDate: string, toDate: string): void {
   const from = new Date(`${fromDate}T00:00:00.000Z`);
   const to = new Date(`${toDate}T23:59:59.999Z`);
   const maxRangeMs = 366 * 24 * 60 * 60 * 1000;
