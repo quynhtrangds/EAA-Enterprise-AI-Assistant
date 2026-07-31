@@ -92,7 +92,7 @@ adminRouter.post('/integrations', async (req, res, next) => {
       VALUES ($1, $2, $3, $4, $5, $6)
       ON CONFLICT (tenant_id, integration_code) 
       DO UPDATE SET 
-        is_active = COALESCE(EXCLUDED.is_active, tenant_integrations.is_active),
+        is_active = EXCLUDED.is_active,
         api_url = COALESCE(EXCLUDED.api_url, tenant_integrations.api_url),
         api_key = CASE WHEN EXCLUDED.api_key IS NOT NULL AND EXCLUDED.api_key <> '' THEN EXCLUDED.api_key ELSE tenant_integrations.api_key END,
         updated_at = CURRENT_TIMESTAMP

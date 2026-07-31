@@ -43,7 +43,7 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
   const [selectedIntegration, setSelectedIntegration] = useState<string>('crm');
   const [apiKey, setApiKey] = useState('');
   const [apiUrl, setApiUrl] = useState('');
-  const [isActive, setIsActive] = useState(true);
+  const [isActive, setIsActive] = useState(false);
   const [savingIntegration, setSavingIntegration] = useState(false);
 
   // Users State
@@ -101,8 +101,11 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
 
       const current = data.integrations?.find((i: any) => i.integration_code === selectedIntegration);
       if (current) {
-        setIsActive(current.is_active);
+        setIsActive(Boolean(current.is_active));
         setApiUrl(current.apiUrl || '');
+      } else {
+        setIsActive(false);
+        setApiUrl('');
       }
     } catch (err: any) {
       console.warn('Load integrations warning:', err.message);
@@ -138,10 +141,10 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
 
     const existing = integrations.find(i => i.integration_code === code);
     if (existing) {
-      setIsActive(existing.is_active);
+      setIsActive(Boolean(existing.is_active));
       setApiUrl(existing.apiUrl || '');
     } else {
-      setIsActive(true);
+      setIsActive(false);
       setApiUrl('');
     }
   };
