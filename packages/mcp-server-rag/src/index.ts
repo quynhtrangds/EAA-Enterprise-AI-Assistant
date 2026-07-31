@@ -3,8 +3,12 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 
+export function removeAccents(str: string) {
+  return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D');
+}
+
 // Mock documents for RAG
-const MOCK_DOCUMENTS = [
+export const MOCK_DOCUMENTS = [
   {
     id: 'doc-001',
     title: 'Chính sách nghỉ phép năm 2026',

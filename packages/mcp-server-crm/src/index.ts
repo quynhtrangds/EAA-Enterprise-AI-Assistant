@@ -49,7 +49,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
   };
 });
 
-function getAuthHeaders(apiKey?: string): Record<string, string> {
+export function getAuthHeaders(apiKey?: string): Record<string, string> {
   const headers: Record<string, string> = { 'Accept': 'application/json' };
   if (apiKey) {
     if (apiKey.startsWith('token ')) {

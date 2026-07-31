@@ -6,6 +6,8 @@ import { errorHandler } from './middleware/error-handler.js';
 import { toolsRouter } from './routes/tools.js';
 import { mcpRouter } from './routes/mcp.js';
 import { adminRouter } from './routes/admin.js';
+import { chatRouter } from './routes/chat.js';
+import { env } from './config/env.js';
 
 const apiRateLimiter = rateLimit({
   windowMs: 60 * 1000,
@@ -23,7 +25,7 @@ export function createApp(): express.Express {
   const app = express();
 
   app.use(helmet());
-  app.use(cors());
+  app.use(cors({ origin: env.CORS_ORIGINS.split(',').map((origin) => origin.trim()).filter(Boolean) }));
   app.use((req, res, next) => {
     express.json({ limit: '1mb' })(req, res, next);
   });
@@ -39,6 +41,7 @@ export function createApp(): express.Express {
   app.use('/api', apiRateLimiter);
   app.use('/api', mcpRouter);
   app.use('/api', toolsRouter);
+  app.use('/api', chatRouter);
   app.use('/api/admin', adminRouter);
   app.use(errorHandler);
 

@@ -26,6 +26,14 @@ mcpServer.setRequestHandler(ListToolsRequestSchema, async () => {
   };
 });
 
+export function getAuthHeaders(apiKey?: string): Record<string, string> {
+  const headers: Record<string, string> = { 'Accept': 'application/json' };
+  if (apiKey) {
+    headers['Authorization'] = apiKey.startsWith('Token ') || apiKey.startsWith('Bearer ') ? apiKey : `Token token=${apiKey}`;
+  }
+  return headers;
+}
+
 mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
   const toolName = request.params.name;
   const rawArgs = (request.params.arguments as any) || {};
