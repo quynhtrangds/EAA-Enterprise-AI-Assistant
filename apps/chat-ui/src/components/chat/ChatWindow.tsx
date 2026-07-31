@@ -1,7 +1,7 @@
 import React, { useRef, useEffect } from 'react';
 import ChatInput from './ChatInput'; // Phỏng đoán đường dẫn dựa theo cấu trúc
 import MessageBubble from './MessageBubble';
-import type { Message } from './MessageBubble';
+import type { Message } from '../../types/chat';
 
 interface ChatWindowProps {
   messages: Message[];

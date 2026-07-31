@@ -65,16 +65,6 @@ export async function createAuthSession(userId: string, roles: string[]): Promis
 }
 
 export async function getUserByToken(token: string): Promise<AuthenticatedSessionUser | null> {
-  if (token.startsWith('guest-')) {
-    return {
-      id: '10000000-0000-0000-0000-000000000004',
-      username: 'guest',
-      displayName: 'Khách dùng thử',
-      roles: ['viewer'],
-      tenantId: '00000000-0000-0000-0000-000000000000'
-    };
-  }
-
   await ensureAuthSessionsTable();
 
   const result = await query<AuthSessionUserRow>(

@@ -6,6 +6,7 @@ export type AppErrorCode =
   | 'TOOL_TIMEOUT'
   | 'UNAUTHORIZED'
   | 'UNAUTHENTICATED'
+  | 'NOT_FOUND'
   | 'INTERNAL_ERROR'
   | 'RATE_LIMIT_EXCEEDED';
 

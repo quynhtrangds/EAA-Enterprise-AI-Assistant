@@ -36,7 +36,7 @@ describe('McpRuntime Unit Tests', () => {
     runtime.registerConnector(mockConnector);
     const tools = runtime.listTools();
     expect(tools).toHaveLength(1);
-    expect(tools[0].name).toBe('test_tool');
+    expect(tools[0]?.name).toBe('test_tool');
   });
 
   it('throws error when registering duplicate tool', () => {

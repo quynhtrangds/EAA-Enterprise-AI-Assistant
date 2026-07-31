@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import type { Message } from '../components/chat/MessageBubble';
+import type { Message } from '../types/chat';
 import { useAuth } from '../contexts/AuthContext';
 
 const formatTimestamp = (dateInput?: string) => {

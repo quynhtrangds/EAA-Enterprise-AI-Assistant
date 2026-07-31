@@ -69,17 +69,21 @@ const LoginScreen: React.FC = () => {
     }
   });
 
-  const handleGuestLogin = () => {
-    login(
-      {
-        id: '10000000-0000-0000-0000-000000000004',
-        username: 'guest',
-        displayName: 'Khách',
-        role: 'viewer',
-        roles: ['viewer']
-      },
-      'guest-demo-jwt-token'
-    );
+  const handleGuestLogin = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await fetch('/api/auth/guest', { method: 'POST' });
+      if (!response.ok) {
+        throw new Error('Guest sign-in failed');
+      }
+      const data = await response.json();
+      login(data.user, data.token);
+    } catch {
+      setError('Không thể khởi tạo phiên khách. Vui lòng thử lại.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -195,6 +199,7 @@ const LoginScreen: React.FC = () => {
             <button
               type="button"
               onClick={handleGuestLogin}
+              disabled={isLoading}
               title="Đăng nhập với tư cách Khách (Guest Mode)"
               className="w-10 h-10 rounded-full bg-slate-800 hover:bg-slate-700 hover:border-indigo-500/50 text-white border border-slate-600 shadow-lg flex items-center justify-center transition-colors cursor-pointer"
             >

@@ -93,7 +93,7 @@ services:
       LLM_PROVIDER: ${LLM_PROVIDER:-local}
       OPENAI_MODEL: ${OPENAI_MODEL:-gemini-3.5-flash-lite}
       LOCAL_LLM_BASE_URL: ${LOCAL_LLM_BASE_URL:-https://generativelanguage.googleapis.com/v1beta/openai/}
-      OPENAI_API_KEY: ${OPENAI_API_KEY:-AQ.Ab8RN6Lu27eElcylrJUuLyZCbJ0eh2-EM2ILHYYdIFIW25G6WA}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:?OPENAI_API_KEY must be set before deploying}
     ports:
       - "${AI_ORCHESTRATOR_PORT:-8082}:8082"
     volumes:

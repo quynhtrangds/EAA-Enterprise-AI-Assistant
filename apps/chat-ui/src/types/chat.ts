@@ -1,8 +1,12 @@
 export interface ToolCall {
   toolName: string;
   arguments: any;
-  status: 'success' | 'failed';
+  success?: boolean;
+  status?: 'success' | 'failed';
   durationMs: number;
+  data?: any;
+  errorCode?: string;
+  message?: string;
 }
 
 export interface Message {
@@ -10,5 +14,5 @@ export interface Message {
   sender: 'user' | 'ai';
   content: string;
   timestamp: string;
-  toolCalls?: ToolCall[]; // Mảng chứa các tool AI đã gọi
+  toolCalls?: ToolCall[];
 }

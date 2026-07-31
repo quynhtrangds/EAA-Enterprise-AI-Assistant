@@ -11,6 +11,7 @@ const EnvSchema = z.object({
   POSTGRES_PASSWORD: z.string().default('postgres'),
   TOOL_TIMEOUT_MS: z.coerce.number().int().positive().default(10000),
   GOOGLE_CLIENT_ID: z.string().optional(),
+  CORS_ORIGINS: z.string().default('http://localhost:3000'),
   VAULT_ADDR: z.string().default('http://vault:8200'),
   VAULT_TOKEN: z.string().default('root')
 });

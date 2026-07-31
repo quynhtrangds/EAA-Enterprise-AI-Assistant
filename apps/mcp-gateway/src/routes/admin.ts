@@ -248,11 +248,10 @@ adminRouter.patch('/users/:userId/role', async (req, res, next) => {
 
     const dbResult = await query(updateQuery, [role, userId, currentUser.tenantId]);
 
-    if (dbResult.rows.length === 0) {
+    const updatedUser = dbResult.rows[0];
+    if (!updatedUser) {
       throw new AppError('NOT_FOUND', 'Người dùng không tồn tại hoặc không thuộc tổ chức (tenant) này.', 404);
     }
-
-    const updatedUser = dbResult.rows[0];
 
     // Đồng bộ vào bảng user_roles và auth_sessions
     const roleRow = await query<{ id: string }>(`SELECT id FROM roles WHERE role_code = $1 LIMIT 1`, [role]);

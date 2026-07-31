@@ -1,17 +1,12 @@
 import React, { useState } from 'react';
 
-// Định nghĩa kiểu dữ liệu cho Tool Call dựa theo spec
-interface ToolCall {
-  toolName: string;
-  arguments: any;
-  success: boolean;
-  durationMs: number;
-}
+import type { ToolCall } from '../../types/chat';
 
 const ToolTrace: React.FC<{ tool: ToolCall }> = ({ tool }) => {
   // Trạng thái quản lý việc thu gọn / mở rộng chi tiết log
   const [isOpen, setIsOpen] = useState(false);
-  const statusText = tool.success ? 'success' : 'failed';
+  const isSuccess = tool.success ?? tool.status === 'success';
+  const statusText = isSuccess ? 'success' : 'failed';
 
   return (
     <div className="select-none">
@@ -21,7 +16,7 @@ const ToolTrace: React.FC<{ tool: ToolCall }> = ({ tool }) => {
         className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#1e2028] border border-[#2c2d35]/80 hover:border-slate-600 hover:bg-[#252730] transition-all cursor-pointer group text-left"
       >
         {/* Status dot */}
-        <span className={`w-2 h-2 rounded-full shrink-0 ${tool.success ? 'bg-emerald-400' : 'bg-rose-400'}`} />
+        <span className={`w-2 h-2 rounded-full shrink-0 ${isSuccess ? 'bg-emerald-400' : 'bg-rose-400'}`} />
         
         {/* Tool name */}
         <span className="text-[13px] font-medium text-slate-300 group-hover:text-white transition-colors">

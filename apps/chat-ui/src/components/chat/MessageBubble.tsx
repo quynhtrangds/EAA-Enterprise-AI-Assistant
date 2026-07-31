@@ -3,21 +3,7 @@ import ToolTrace from './ToolTrace';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
-// Định nghĩa interface cho dữ liệu tin nhắn
-interface ToolCall {
-  toolName: string;
-  arguments: any;
-  success: boolean;
-  durationMs: number;
-}
-
-interface Message {
-  id: string;
-  sender: 'user' | 'ai';
-  content: string;
-  timestamp: string;
-  toolCalls?: ToolCall[];
-}
+import type { Message } from '../../types/chat';
 
 interface MessageBubbleProps {
   message: Message;
