@@ -9,10 +9,10 @@ SET role_name = EXCLUDED.role_name;
 
 INSERT INTO users (id, username, password_hash, display_name, email, role, status)
 VALUES
-  ('10000000-0000-0000-0000-000000000001', 'admin', 'admin123', 'Quản trị viên', 'admin@example.com', 'admin', 'active'),
-  ('10000000-0000-0000-0000-000000000002', 'manager', 'manager123', 'Quản lý bán hàng', 'manager@example.com', 'manager', 'active'),
-  ('10000000-0000-0000-0000-000000000003', 'staff', 'staff123', 'Nhân viên kinh doanh', 'staff@example.com', 'staff', 'active'),
-  ('10000000-0000-0000-0000-000000000004', 'viewer', 'viewer123', 'Người xem báo cáo', 'viewer@example.com', 'viewer', 'active')
+  ('10000000-0000-0000-0000-000000000001', 'admin', 'scrypt$bqJUKMa_NUkZJlHCySWKXw$R4_aNdZNjBle9AKIgR_fMl1QYGvU4bLfVNhfwqlDttReo90tZocs-FpOzO8zMg79vZyR80mu8Qdbi__v7QLa0A', 'Quản trị viên', 'admin@example.com', 'admin', 'active'),
+  ('10000000-0000-0000-0000-000000000002', 'manager', 'scrypt$QO5_pQ24g7a-XKVNuAfj5w$FUQH68nxTOcgptmdumGu8vOZD3eilj88nnfkqh7nToZw8OacYyklkiOUmQ3sPb0KlQHWonc1RkLWGNGb0rz3iQ', 'Quản lý bán hàng', 'manager@example.com', 'manager', 'active'),
+  ('10000000-0000-0000-0000-000000000003', 'staff', 'scrypt$qon2tc-bAWKybQgEXe6PXQ$upN6Uhb8469WDy3CUl52n2UbMjQds13vZ1aomw1V8j9e9prSocWgvOu8qNOsixYvAJESI16jzsQXccEOpl7q4w', 'Nhân viên kinh doanh', 'staff@example.com', 'staff', 'active'),
+  ('10000000-0000-0000-0000-000000000004', 'viewer', 'scrypt$vNlCyKbZ3Jcx8lZVgvwMrg$X_k6MwTLVWRUdCe7L1HIWxbG8bF00t9AHr2wCSAg99iX7ufLTGaT6bamykifAkuRIfT9JSWcSwTan9hduVk7-A', 'Người xem báo cáo', 'viewer@example.com', 'viewer', 'active')
 ON CONFLICT (id) DO UPDATE
 SET
   password_hash = EXCLUDED.password_hash,

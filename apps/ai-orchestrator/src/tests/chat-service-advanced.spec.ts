@@ -1,8 +1,19 @@
 import { vi, describe, it, expect, beforeEach, afterEach, afterAll } from 'vitest';
 import request from 'supertest';
-import { createApp } from '../app.js';
-import { pool } from '../db/pool.js';
-import { McpGatewayClient } from '../gateway/mcp-gateway-client.js';
+
+// QUAN TRỌNG: phải set LLM_PROVIDER TRƯỚC khi bất kỳ module nội bộ nào được
+// import — config/env.ts dùng zod parse(process.env) ngay khi module được
+// load lần đầu (đồng bộ, một lần duy nhất). Nếu import tĩnh app.js ở đầu file
+// như bình thường, env sẽ bị "khoá" ở giá trị mặc định LLM_PROVIDER=mock
+// TRƯỚC khi dòng set env dưới đây kịp chạy -> toàn bộ mock global.fetch trong
+// file này vô tác dụng vì code chạy nhánh chatWithMock (rule-based, không gọi
+// fetch) chứ không phải chatWithLLM (nhánh OpenAI thật sự dùng fetch).
+process.env.LLM_PROVIDER = 'openai';
+process.env.OPENAI_API_KEY = process.env.OPENAI_API_KEY || 'test-key-for-vitest';
+
+const { createApp } = await import('../app.js');
+const { pool } = await import('../db/pool.js');
+const { McpGatewayClient } = await import('../gateway/mcp-gateway-client.js');
 
 const app = createApp();
 
