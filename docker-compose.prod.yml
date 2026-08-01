@@ -22,6 +22,7 @@ services:
       - ./database/migrations/006_integrations.sql:/docker-entrypoint-initdb.d/07_integrations.sql:ro
       - ./database/migrations/007_fix_username_tenant_scope.sql:/docker-entrypoint-initdb.d/08_fix_username_tenant_scope.sql:ro
       - ./database/migrations/008_chat_sessions_tenant_and_star.sql:/docker-entrypoint-initdb.d/09_chat_sessions_tenant_and_star.sql:ro
+      - ./database/migrations/009_add_users_role_column.sql:/docker-entrypoint-initdb.d/10_add_users_role_column.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-enterprise_ai_demo}"]
       interval: 5s
@@ -43,10 +44,10 @@ services:
       - IPC_LOCK
 
   mcp-gateway:
-    image: node:20-alpine
+    build:
+      context: .
+      dockerfile: apps/mcp-gateway/Dockerfile
     container_name: enterprise_ai_mcp_gateway
-    working_dir: /app
-    command: sh -c "for d in /packages/mcp-server-*; do (cd \"$$d\" && npm run build); done && npm install --include=dev && npm run build && npm run start"
     restart: always
     env_file:
       - ./apps/mcp-gateway/.env
@@ -64,9 +65,6 @@ services:
       - "host.docker.internal:host-gateway"
     ports:
       - "${MCP_GATEWAY_PORT:-8081}:8081"
-    volumes:
-      - ./apps/mcp-gateway:/app
-      - ./packages:/packages
     depends_on:
       postgres:
         condition: service_healthy
@@ -74,10 +72,10 @@ services:
         condition: service_started
 
   ai-orchestrator:
-    image: node:20-alpine
+    build:
+      context: .
+      dockerfile: apps/ai-orchestrator/Dockerfile
     container_name: enterprise_ai_orchestrator
-    working_dir: /app
-    command: sh -c "npm install --include=dev && npm run build && npm run start"
     restart: always
     env_file:
       - ./apps/ai-orchestrator/.env
@@ -96,25 +94,20 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY:?OPENAI_API_KEY must be set before deploying}
     ports:
       - "${AI_ORCHESTRATOR_PORT:-8082}:8082"
-    volumes:
-      - ./apps/ai-orchestrator:/app
-      - ./packages:/packages
     depends_on:
       - mcp-gateway
 
   chat-ui:
-    image: node:20-alpine
+    build:
+      context: .
+      dockerfile: apps/chat-ui/Dockerfile
     container_name: enterprise_ai_chat_ui
-    working_dir: /app
-    command: sh -c "npm install && npm run dev"
     restart: always
     environment:
       CHAT_UI_PORT: 3000
       AI_ORCHESTRATOR_URL: http://ai-orchestrator:8082
     ports:
       - "${CHAT_UI_PORT:-3000}:3000"
-    volumes:
-      - ./apps/chat-ui:/app
     depends_on:
       - ai-orchestrator
 

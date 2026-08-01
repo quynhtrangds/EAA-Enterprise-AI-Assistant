@@ -31,4 +31,24 @@ describe('MCP Transport Routes Suite (routes/mcp.ts)', () => {
       });
     });
   });
+
+  describe('POST /api/mcp/message', () => {
+    it('trả 400 khi thiếu query param sessionId', async () => {
+      const response = await request(createApp())
+        .post('/api/mcp/message')
+        .send({ method: 'tools/list' })
+        .expect(400);
+
+      expect(response.body).toMatchObject({ success: false, errorCode: 'INVALID_TOOL_INPUT' });
+    });
+
+    it('trả 404 khi sessionId không khớp session SSE nào đang kết nối', async () => {
+      const response = await request(createApp())
+        .post('/api/mcp/message?sessionId=session-khong-ton-tai')
+        .send({ method: 'tools/list' })
+        .expect(404);
+
+      expect(response.body).toMatchObject({ success: false, errorCode: 'TOOL_NOT_FOUND' });
+    });
+  });
 });

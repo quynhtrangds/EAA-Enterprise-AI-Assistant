@@ -72,6 +72,76 @@ mcpServer.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
   }
 });
 
+interface McpJsonRpcRequest {
+  method?: string;
+  params?: {
+    name?: string;
+    arguments?: unknown;
+  };
+}
+
+/**
+ * Kiểm tra quyền thực thi tool + rate limit + inject credential tích hợp
+ * (Vault/DB) cho MỘT request JSON-RPC "tools/call". Được tách ra khỏi route
+ * handler /mcp/message để có thể unit-test trực tiếp mà không cần dựng một
+ * kết nối SSE thật (vốn rất khó mô phỏng trong test).
+ *
+ * Ném AppError nếu bị từ chối quyền hoặc tích hợp đang tắt. Nếu request
+ * không phải 'tools/call' (vd 'tools/list'), hàm không làm gì cả.
+ * Mutate trực tiếp `request.params.arguments` để gắn `_integrationCredentials`
+ * khi tool thuộc 1 server có cấu hình tích hợp (giữ đúng hành vi cũ).
+ */
+export async function authorizeAndPrepareToolRequest(
+  user: CurrentUser,
+  request: McpJsonRpcRequest
+): Promise<void> {
+  if (request.method !== 'tools/call' || !request.params?.name) {
+    return;
+  }
+
+  const toolName = request.params.name;
+  if (!(await canExecuteTool(user.roles, toolName))) {
+    throw new AppError('PERMISSION_DENIED', `Bạn không có quyền thực thi công cụ '${toolName}'.`, 403);
+  }
+
+  checkToolRateLimit(user.id, toolName);
+
+  const serverName = mcpClientManager.toolToServerMap.get(toolName);
+  if (!serverName || !user.tenantId) {
+    return;
+  }
+
+  // Check if integration is active in DB
+  const activeRes = await query<{ is_active: boolean }>(
+    `SELECT is_active FROM tenant_integrations WHERE tenant_id = $1 AND integration_code = $2`,
+    [user.tenantId, serverName]
+  );
+  if (activeRes.rows.length > 0 && activeRes.rows[0]?.is_active === false) {
+    throw new AppError('PERMISSION_DENIED', `Hệ thống tích hợp ${serverName.toUpperCase()} hiện đang bị TẮT trong Cấu hình Tích hợp. Vui lòng BẬT lại để sử dụng.`, 400);
+  }
+
+  const vaultPath = `integrations/${user.tenantId}/${serverName}`;
+  let secrets = await VaultService.readSecret(vaultPath);
+
+  // Fallback to PostgreSQL DB if Vault lost memory or has no apiUrl
+  if (!secrets || !secrets.apiUrl) {
+    const dbRes = await query<{ api_url: string }>(
+      `SELECT api_url FROM tenant_integrations WHERE tenant_id = $1 AND integration_code = $2 AND is_active = true`,
+      [user.tenantId, serverName]
+    );
+    if (dbRes.rows[0]?.api_url) {
+      secrets = { ...(secrets || {}), apiUrl: dbRes.rows[0].api_url };
+    }
+  }
+
+  if (secrets && (secrets.apiKey || secrets.apiUrl)) {
+    request.params.arguments = {
+      ...((request.params.arguments as object) || {}),
+      _integrationCredentials: secrets
+    };
+  }
+}
+
 mcpRouter.get('/mcp/sse', async (req, res, next) => {
   try {
     const user = await getCurrentUser(req);
@@ -109,47 +179,7 @@ mcpRouter.post('/mcp/message', async (req, res, next) => {
       // req.body can be a single request or an array of requests
       const requests = Array.isArray(req.body) ? req.body : [req.body];
       for (const r of requests) {
-        if (r.method === 'tools/call' && r.params?.name) {
-          if (!(await canExecuteTool(user.roles, r.params.name))) {
-            throw new AppError('PERMISSION_DENIED', `Bạn không có quyền thực thi công cụ '${r.params.name}'.`, 403);
-          }
-
-          checkToolRateLimit(user.id, r.params.name);
-
-          // Fetch Vault secrets for this server/tool and inject into _integrationCredentials
-          const serverName = mcpClientManager.toolToServerMap.get(r.params.name);
-          if (serverName && user.tenantId) {
-            // Check if integration is active in DB
-            const activeRes = await query<{ is_active: boolean }>(
-              `SELECT is_active FROM tenant_integrations WHERE tenant_id = $1 AND integration_code = $2`,
-              [user.tenantId, serverName]
-            );
-            if (activeRes.rows.length > 0 && activeRes.rows[0]?.is_active === false) {
-              throw new AppError('PERMISSION_DENIED', `Hệ thống tích hợp ${serverName.toUpperCase()} hiện đang bị TẮT trong Cấu hình Tích hợp. Vui lòng BẬT lại để sử dụng.`, 400);
-            }
-
-            const vaultPath = `integrations/${user.tenantId}/${serverName}`;
-            let secrets = await VaultService.readSecret(vaultPath);
-
-            // Fallback to PostgreSQL DB if Vault lost memory or has no apiUrl
-            if (!secrets || !secrets.apiUrl) {
-              const dbRes = await query<{ api_url: string }>(
-                `SELECT api_url FROM tenant_integrations WHERE tenant_id = $1 AND integration_code = $2 AND is_active = true`,
-                [user.tenantId, serverName]
-              );
-              if (dbRes.rows[0]?.api_url) {
-                secrets = { ...(secrets || {}), apiUrl: dbRes.rows[0].api_url };
-              }
-            }
-
-            if (secrets && (secrets.apiKey || secrets.apiUrl)) {
-              r.params.arguments = {
-                ...((r.params.arguments as object) || {}),
-                _integrationCredentials: secrets
-              };
-            }
-          }
-        }
+        await authorizeAndPrepareToolRequest(user, r);
       }
     }
     

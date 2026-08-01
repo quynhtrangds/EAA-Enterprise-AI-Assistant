@@ -106,7 +106,15 @@ function zodToJsonSchema(schema: unknown): Record<string, unknown> {
 
 toolsRouter.post('/login', async (req, res, next) => {
   try {
-    const credentials = loginSchema.parse(req.body);
+    let credentials: z.infer<typeof loginSchema>;
+    try {
+      credentials = loginSchema.parse(req.body);
+    } catch (zodErr) {
+      if (zodErr instanceof z.ZodError) {
+        throw new AppError('INVALID_TOOL_INPUT', zodErr.issues[0]?.message ?? 'Invalid input', 400);
+      }
+      throw zodErr;
+    }
     const result = await query<LoginUserRow>(
       `
       SELECT
@@ -444,7 +452,7 @@ toolsRouter.post('/tools/call', async (req, res, next) => {
       durationMs
     });
   } catch (error) {
-    console.error('Real error in tools.ts:', error);
+    try { console.error('Real error in tools.ts:', error instanceof Error ? error.message : String(error)); } catch { /* ignore inspect errors */ }
     const durationMs = Date.now() - startedAt;
     const appError =
       error instanceof AppError
@@ -480,7 +488,15 @@ toolsRouter.get('/audit-logs', async (req, res, next) => {
       throw new AppError('PERMISSION_DENIED', 'Chi admin duoc xem audit log.', 403);
     }
 
-    const filters = auditLogQuerySchema.parse(req.query);
+    let filters: z.infer<typeof auditLogQuerySchema>;
+    try {
+      filters = auditLogQuerySchema.parse(req.query);
+    } catch (zodErr) {
+      if (zodErr instanceof z.ZodError) {
+        throw new AppError('INVALID_TOOL_INPUT', zodErr.issues[0]?.message ?? 'Invalid query param', 400);
+      }
+      throw zodErr;
+    }
     const result = await query(
       `
       SELECT
