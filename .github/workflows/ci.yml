@@ -242,13 +242,47 @@ jobs:
             (cd "$d" && npm ci && npm run build)
           done
 
+      - name: Build apps on host runner for instant Docker startup
+        run: |
+          (cd apps/mcp-gateway && npm ci && npm run build)
+          (cd apps/ai-orchestrator && npm ci && npm run build)
+
       - name: Start Full Stack with Docker Compose
         run: |
           docker compose up -d
-          # Wait for PostgreSQL container to become healthy
+          echo "Waiting for PostgreSQL..."
           until [ "$(docker inspect -f '{{.State.Health.Status}}' enterprise_ai_postgres)" == "healthy" ]; do
-            echo "Waiting for PostgreSQL container..."
             sleep 2
+          done
+
+          echo "Waiting for MCP Gateway (8085)..."
+          for i in {1..40}; do
+            if curl -s http://localhost:8085/health | grep -q "ok"; then
+              echo "MCP Gateway is ready!"
+              break
+            fi
+            echo "Waiting for mcp-gateway ($i/40)..."
+            sleep 3
+          done
+
+          echo "Waiting for AI Orchestrator (8082)..."
+          for i in {1..40}; do
+            if curl -s http://localhost:8082/health | grep -q "ok"; then
+              echo "AI Orchestrator is ready!"
+              break
+            fi
+            echo "Waiting for ai-orchestrator ($i/40)..."
+            sleep 3
+          done
+
+          echo "Waiting for Chat UI (3000)..."
+          for i in {1..40}; do
+            if curl -s http://localhost:3000 >/dev/null; then
+              echo "Chat UI is ready!"
+              break
+            fi
+            echo "Waiting for chat-ui ($i/40)..."
+            sleep 3
           done
 
       - name: Install chat-ui dependencies
