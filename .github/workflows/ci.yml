@@ -230,6 +230,18 @@ jobs:
           cp apps/ai-orchestrator/.env.example apps/ai-orchestrator/.env 2>/dev/null || touch apps/ai-orchestrator/.env
           cp apps/mcp-gateway/.env.example apps/mcp-gateway/.env 2>/dev/null || touch apps/mcp-gateway/.env
 
+      - name: Build connector packages
+        # mcp-gateway container chỉ tự build chính nó (npm run build trong
+        # command của service mcp-gateway) — KHÔNG build các package trong
+        # /packages (mount qua volume ./packages:/packages). Vì dist/ của
+        # các package này bị .gitignore nên trên checkout sạch của CI chưa
+        # từng tồn tại. Thiếu bước này, mcp-gateway sẽ báo lỗi "Cannot find
+        # module .../dist/index.js" ngay khi Playwright gọi bất kỳ tool nào.
+        run: |
+          for d in packages/mcp-server-*; do
+            (cd "$d" && npm ci && npm run build)
+          done
+
       - name: Start Full Stack with Docker Compose
         run: |
           docker compose up -d
