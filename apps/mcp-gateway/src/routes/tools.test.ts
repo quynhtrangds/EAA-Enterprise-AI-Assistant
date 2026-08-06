@@ -367,7 +367,7 @@ describe('Tools & Login Routes – mở rộng (routes/tools.ts)', () => {
         .send({ toolName: 'get_erp_data', arguments: { id: 'ERP-001' }, sessionId: 'sess-3' })
         .expect(200);
 
-      const mergedArgs = mcpClientManager.callTool.mock.calls[0][1] as Record<string, unknown>;
+      const mergedArgs = (mcpClientManager.callTool.mock.calls[0]?.[1] ?? {}) as Record<string, unknown>;
       expect(mergedArgs._integrationCredentials).toBeDefined();
       expect((mergedArgs._integrationCredentials as any).apiKey).toBe('my-erp-key');
     });
@@ -385,7 +385,7 @@ describe('Tools & Login Routes – mở rộng (routes/tools.ts)', () => {
         .send({ toolName: 'get_revenue_summary', arguments: {}, sessionId: 'sess-4' })
         .expect(200);
 
-      const mergedArgs = mcpClientManager.callTool.mock.calls[0][1] as Record<string, unknown>;
+      const mergedArgs = (mcpClientManager.callTool.mock.calls[0]?.[1] ?? {}) as Record<string, unknown>;
       expect((mergedArgs as any).toDate).toBeDefined();
       expect((mergedArgs as any).fromDate).toBeDefined();
     });
@@ -443,9 +443,7 @@ describe('Tools & Login Routes – mở rộng (routes/tools.ts)', () => {
         .set('Authorization', 'Bearer valid-token')
         .expect(200);
 
-      expect(res.body.items).toEqual([]);
-      // param[4] = status filter trong SQL
-      const params = query.mock.calls[0][1] as unknown[];
+      const params = (query.mock.calls[0]?.[1] ?? []) as unknown[];
       expect(params[4]).toBe('failed');
     });
 

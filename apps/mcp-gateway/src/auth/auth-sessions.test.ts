@@ -22,7 +22,7 @@ describe('auth/auth-sessions.ts', () => {
 
       // Ít nhất 1 lần query được gọi
       expect(query).toHaveBeenCalled();
-      const sql: string = query.mock.calls[0][0];
+      const sql = String(query.mock.calls[0]?.[0] ?? '');
       expect(sql).toMatch(/CREATE TABLE IF NOT EXISTS auth_sessions/i);
       expect(sql).toMatch(/CREATE INDEX IF NOT EXISTS idx_auth_sessions_token/i);
     });
