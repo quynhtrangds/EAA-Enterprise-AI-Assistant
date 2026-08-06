@@ -210,6 +210,11 @@ jobs:
           cache: npm
           cache-dependency-path: apps/chat-ui/package-lock.json
 
+      - name: Prepare env files
+        run: |
+          cp apps/ai-orchestrator/.env.example apps/ai-orchestrator/.env 2>/dev/null || touch apps/ai-orchestrator/.env
+          cp apps/mcp-gateway/.env.example apps/mcp-gateway/.env 2>/dev/null || touch apps/mcp-gateway/.env
+
       - name: Start Full Stack with Docker Compose
         run: |
           docker compose up -d
@@ -248,6 +253,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Prepare env files
+        run: |
+          cp apps/ai-orchestrator/.env.example apps/ai-orchestrator/.env 2>/dev/null || touch apps/ai-orchestrator/.env
+          cp apps/mcp-gateway/.env.example apps/mcp-gateway/.env 2>/dev/null || touch apps/mcp-gateway/.env
+
       - name: Validate docker-compose.yml syntax
         run: docker compose -f docker-compose.yml config --quiet
 
@@ -256,6 +266,7 @@ jobs:
         env:
           OPENAI_API_KEY: dummy-key-for-validation
         run: docker compose -f docker-compose.prod.yml config --quiet
+
 
   # ──────────────────────────────────────────────────────────
   # JOB 7: Summary Gate (required status check)
