@@ -248,8 +248,10 @@ jobs:
           (cd apps/ai-orchestrator && npm ci && npm run build)
 
       - name: Start Full Stack with Docker Compose
+        env:
+          LLM_PROVIDER: mock
         run: |
-          docker compose up -d
+          LLM_PROVIDER=mock docker compose up -d
           echo "Waiting for PostgreSQL..."
           until [ "$(docker inspect -f '{{.State.Health.Status}}' enterprise_ai_postgres)" == "healthy" ]; do
             sleep 2

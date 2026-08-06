@@ -65,6 +65,7 @@ services:
     environment:
       NODE_ENV: development
       PORT: 8082
+      LLM_PROVIDER: ${LLM_PROVIDER:-mock}
       MCP_GATEWAY_URL: http://mcp-gateway:8081
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
