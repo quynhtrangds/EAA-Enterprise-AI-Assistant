@@ -187,7 +187,7 @@ describe('Postgres MCP Server Tools Suite', () => {
       (query as any).mockResolvedValueOnce({ rows: [mockTopCustomer] });
 
       const parsed = tool.inputSchema.parse({ fromDate: '2026-01-01', toDate: '2026-07-01', limit: 5 });
-      const result = await tool.execute(parsed);
+      const result = (await tool.execute(parsed)) as any;
 
       expect(result.customers).toHaveLength(1);
       expect(result.customers[0].fullName).toBe('Nguyễn Văn A');
@@ -210,7 +210,7 @@ describe('Postgres MCP Server Tools Suite', () => {
       (query as any).mockResolvedValueOnce({ rows: [mockProduct] });
 
       const parsed = tool.inputSchema.parse({ fromDate: '2026-06-01', toDate: '2026-07-01', limit: 10 });
-      const result = await tool.execute(parsed);
+      const result = (await tool.execute(parsed)) as any;
 
       expect(result.products).toHaveLength(1);
       expect(result.products[0].productCode).toBe('SP001');
