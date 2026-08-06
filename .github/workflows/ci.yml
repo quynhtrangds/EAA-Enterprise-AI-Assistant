@@ -126,7 +126,11 @@ jobs:
       LLM_PROVIDER: mock
       OPENAI_API_KEY: test-key-ci
       MCP_GATEWAY_URL: http://localhost:8081
-      DATABASE_URL: postgres://postgres:postgres@localhost:5432/enterprise_ai_test
+      POSTGRES_HOST: localhost
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: enterprise_ai_test
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
       JWT_SECRET: ci-test-secret-key-at-least-32-chars
 
     services:
@@ -156,6 +160,17 @@ jobs:
       - name: Install dependencies
         run: npm ci
         working-directory: apps/ai-orchestrator
+
+      - name: Apply DB schema & migrations
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h localhost -U postgres -d enterprise_ai_test -f database/schema.sql
+          psql -h localhost -U postgres -d enterprise_ai_test -f database/seed/seed.sql
+          for f in database/migrations/*.sql; do
+            echo "Applying $f..."
+            psql -h localhost -U postgres -d enterprise_ai_test -f "$f"
+          done
 
       - name: TypeScript typecheck
         run: npm run typecheck
