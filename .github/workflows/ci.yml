@@ -247,6 +247,16 @@ jobs:
           (cd apps/mcp-gateway && npm ci && npm run build)
           (cd apps/ai-orchestrator && npm ci && npm run build)
 
+      - name: Install chat-ui dependencies
+        run: |
+          sudo chown -R $USER:$USER apps/chat-ui 2>/dev/null || true
+          npm ci
+        working-directory: apps/chat-ui
+
+      - name: Install Playwright Browsers
+        run: npx playwright install --with-deps chromium
+        working-directory: apps/chat-ui
+
       - name: Start Full Stack with Docker Compose
         env:
           LLM_PROVIDER: mock
@@ -286,14 +296,6 @@ jobs:
             echo "Waiting for chat-ui ($i/40)..."
             sleep 3
           done
-
-      - name: Install chat-ui dependencies
-        run: npm ci
-        working-directory: apps/chat-ui
-
-      - name: Install Playwright Browsers
-        run: npx playwright install --with-deps chromium
-        working-directory: apps/chat-ui
 
       - name: Run Playwright E2E tests
         env:
