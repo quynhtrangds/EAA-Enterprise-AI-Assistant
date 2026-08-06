@@ -210,7 +210,16 @@ jobs:
           cache: npm
           cache-dependency-path: apps/chat-ui/package-lock.json
 
-      - name: Install dependencies
+      - name: Start Full Stack with Docker Compose
+        run: |
+          docker compose up -d
+          # Wait for PostgreSQL container to become healthy
+          until [ "$(docker inspect -f '{{.State.Health.Status}}' enterprise_ai_postgres)" == "healthy" ]; do
+            echo "Waiting for PostgreSQL container..."
+            sleep 2
+          done
+
+      - name: Install chat-ui dependencies
         run: npm ci
         working-directory: apps/chat-ui
 
@@ -218,13 +227,16 @@ jobs:
         run: npx playwright install --with-deps chromium
         working-directory: apps/chat-ui
 
-      - name: Build Chat UI
-        run: npm run build
-        working-directory: apps/chat-ui
-
       - name: Run Playwright E2E tests
+        env:
+          POSTGRES_HOST: localhost
+          POSTGRES_PORT: 55432
+          POSTGRES_DB: enterprise_ai_demo
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
         run: npm run test:e2e
         working-directory: apps/chat-ui
+
 
   # ──────────────────────────────────────────────────────────
   # JOB 6: Docker Compose validation (lint only, no build)
