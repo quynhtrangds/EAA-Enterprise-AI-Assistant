@@ -232,24 +232,17 @@ export const useChat = () => {
       const data = response.json ? await response.json().catch(() => ({})) : {};
       const isGuest = currentUser?.username === 'guest' || currentUser?.role === 'viewer';
 
-      if (isGuest) {
-        const newAiMsg: Message = {
-          id: (Date.now() + 1).toString(),
-          sender: 'ai',
-          content: data.reply || data.answer || data.content || '',
-          timestamp: formatTimestamp(),
-          toolCalls: data.toolCalls
-        };
-        setMessages(prev => [...prev, newAiMsg]);
-      } else {
-        const targetSessionId = data.sessionId || data.session_id || (activeSessionId === 'new-chat-session' ? `session-${Date.now()}` : activeSessionId);
+      const newAiMsg: Message = {
+        id: (Date.now() + 1).toString(),
+        sender: 'ai',
+        content: data.reply || data.answer || data.content || '',
+        timestamp: formatTimestamp(),
+        toolCalls: data.toolCalls
+      };
+      setMessages(prev => [...prev, newAiMsg]);
 
-        const updatedSessions = await fetchSessions(authToken!);
-        const exists = updatedSessions && updatedSessions.some((s: any) => s.id === targetSessionId);
-        const finalSessionId = exists ? targetSessionId : 'new-chat-session';
-
-        setActiveSessionId(finalSessionId);
-        await fetchSessionDetails(authToken!, finalSessionId);
+      if (!isGuest && authToken) {
+        fetchSessions(authToken).catch(() => {});
       }
     } catch (error: any) {
       console.error('Lỗi API:', error);
@@ -297,24 +290,17 @@ export const useChat = () => {
       const data = await response.json();
       const isGuest = currentUser?.username === 'guest' || currentUser?.role === 'viewer';
 
-      if (isGuest) {
-        const newAiMsg: Message = {
-          id: (Date.now() + 1).toString(),
-          sender: 'ai',
-          content: data.reply || data.answer || data.content || '',
-          timestamp: formatTimestamp(),
-          toolCalls: data.toolCalls
-        };
-        setMessages(prev => [...prev, newAiMsg]);
-      } else {
-        const targetSessionId = data.sessionId || data.session_id || (activeSessionId === 'new-chat-session' ? `session-${Date.now()}` : activeSessionId);
+      const newAiMsg: Message = {
+        id: (Date.now() + 1).toString(),
+        sender: 'ai',
+        content: data.reply || data.answer || data.content || '',
+        timestamp: formatTimestamp(),
+        toolCalls: data.toolCalls
+      };
+      setMessages(prev => [...prev, newAiMsg]);
 
-        const updatedSessions = await fetchSessions(authToken!);
-        const exists = updatedSessions && updatedSessions.some((s: any) => s.id === targetSessionId);
-        const finalSessionId = exists ? targetSessionId : 'new-chat-session';
-
-        setActiveSessionId(finalSessionId);
-        await fetchSessionDetails(authToken!, finalSessionId);
+      if (!isGuest && authToken) {
+        fetchSessions(authToken).catch(() => {});
       }
     } catch (error: any) {
       console.error('Lỗi API:', error);
