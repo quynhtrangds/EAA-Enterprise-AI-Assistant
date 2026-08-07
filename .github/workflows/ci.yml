@@ -267,6 +267,14 @@ jobs:
             sleep 2
           done
 
+          echo "Applying DB schema & migrations..."
+          export PGPASSWORD=postgres
+          psql -h localhost -p 55432 -U postgres -d enterprise_ai_demo -f database/schema.sql 2>/dev/null || true
+          psql -h localhost -p 55432 -U postgres -d enterprise_ai_demo -f database/seed/seed.sql 2>/dev/null || true
+          for f in database/migrations/*.sql; do
+            psql -h localhost -p 55432 -U postgres -d enterprise_ai_demo -f "$f" 2>/dev/null || true
+          done
+
           echo "Waiting for MCP Gateway (8085)..."
           for i in {1..40}; do
             if curl -s http://localhost:8085/health | grep -q "ok"; then
