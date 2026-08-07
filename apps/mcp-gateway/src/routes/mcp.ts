@@ -7,6 +7,7 @@ import { canExecuteTool } from '../policies/tool-permissions.js';
 import { mcpClientManager } from '../connectors/mcp-client-manager.js';
 import { ListToolsRequestSchema, CallToolRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { checkToolRateLimit } from '../policies/rate-limiter.js';
+import { writeAuditLog } from '../audit/audit-log.js';
 
 import { VaultService } from '../services/vault.js';
 import { query } from '../db/pool.js';
@@ -58,11 +59,39 @@ mcpServer.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
   const args = request.params.arguments || {};
   const sessionId = extra.sessionId;
   const user = sessionId ? sessionUsers.get(sessionId) : null;
+  const startedAt = Date.now();
 
   try {
     const data = await mcpClientManager.callTool(toolName, args, user?.roles || []);
+
+    if (user) {
+      await writeAuditLog({
+        userId: user.id,
+        sessionId: sessionId || null,
+        toolName,
+        input: args,
+        output: data,
+        status: 'success',
+        errorMessage: null,
+        durationMs: Date.now() - startedAt
+      }).catch(console.error);
+    }
+
     return data;
   } catch (error: any) {
+    if (user) {
+      await writeAuditLog({
+        userId: user.id,
+        sessionId: sessionId || null,
+        toolName,
+        input: args,
+        output: null,
+        status: 'failed',
+        errorMessage: error.message,
+        durationMs: Date.now() - startedAt
+      }).catch(console.error);
+    }
+
     return {
       content: [
         { type: "text", text: `Error: ${error.message}` }
@@ -101,6 +130,16 @@ export async function authorizeAndPrepareToolRequest(
 
   const toolName = request.params.name;
   if (!(await canExecuteTool(user.roles, toolName))) {
+    await writeAuditLog({
+      userId: user.id,
+      sessionId: null,
+      toolName,
+      input: request.params.arguments,
+      output: null,
+      status: 'failed',
+      errorMessage: `Bạn không có quyền thực thi công cụ '${toolName}'.`,
+      durationMs: 0
+    }).catch(console.error);
     throw new AppError('PERMISSION_DENIED', `Bạn không có quyền thực thi công cụ '${toolName}'.`, 403);
   }
 
