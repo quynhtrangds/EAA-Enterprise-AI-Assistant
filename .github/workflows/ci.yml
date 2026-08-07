@@ -213,7 +213,7 @@ jobs:
   # ──────────────────────────────────────────────────────────
   test-e2e:
     name: Playwright E2E Tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     needs: [test-mcp-gateway, test-ai-orchestrator, test-chat-ui]
 
     steps:
