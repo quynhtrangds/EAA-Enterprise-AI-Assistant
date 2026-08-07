@@ -60,14 +60,6 @@ export class MockLLMProvider implements LLMProvider {
       };
     }
 
-    if (normalized.includes('khach hang') && (normalized.includes('don hang') || normalized.includes('don'))) {
-      const keyword = cleanCustomerKeyword(message);
-      return {
-        toolName: 'get_customer_orders',
-        arguments: { customerName: keyword || 'Nguyễn Văn A' }
-      };
-    }
-
     if (normalized.includes('khach hang')) {
       const keyword = cleanCustomerKeyword(message);
       return {
