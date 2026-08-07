@@ -60,6 +60,22 @@ export class MockLLMProvider implements LLMProvider {
       };
     }
 
+    if (normalized.includes('khach hang') && (normalized.includes('don hang') || normalized.includes('don'))) {
+      const keyword = cleanCustomerKeyword(message);
+      return {
+        toolName: 'get_customer_orders',
+        arguments: { customerName: keyword || 'Nguyễn Văn A' }
+      };
+    }
+
+    if (normalized.includes('khach hang')) {
+      const keyword = cleanCustomerKeyword(message);
+      return {
+        toolName: 'search_customer',
+        arguments: { keyword: keyword || 'Nguyễn Văn A' }
+      };
+    }
+
     if (normalized.includes('ton kho') || (normalized.includes('san pham') && !normalized.includes('ban chay'))) {
       return { toolName: 'get_inventory_status', arguments: {} };
     }
@@ -73,18 +89,26 @@ export class MockLLMProvider implements LLMProvider {
 
   buildAnswer(_message: string, toolCall: PlannedToolCall | null, toolResult: unknown): string {
     if (!toolCall) {
-      return 'MVP hi\u1ec7n t\u1ea1i h\u1ed7 tr\u1ee3 c\u00e1c c\u00e2u h\u1ecfi v\u1ec1 doanh thu, \u0111\u01a1n h\u00e0ng, kh\u00e1ch h\u00e0ng v\u00e0 s\u1ea3n ph\u1ea9m b\u00e1n ch\u1ea1y.';
+      return 'MVP hiện tại hỗ trợ các câu hỏi về doanh thu, đơn hàng, khách hàng và sản phẩm bán chạy.';
     }
 
     const data = toolResult as Record<string, any>;
 
     if (toolCall.toolName === 'get_revenue_summary') {
-      return `T\u1ed5ng doanh thu trong kho\u1ea3ng \u0111\u00e3 ch\u1ecdn l\u00e0 ${formatMoney(data.totalRevenue)} v\u1edbi ${data.totalOrders ?? 0} \u0111\u01a1n h\u00e0ng \u0111\u00e3 thanh to\u00e1n.`;
+      return `Tổng doanh thu trong khoảng đã chọn là ${formatMoney(data.totalRevenue)} với ${data.totalOrders ?? 0} đơn hàng đã thanh toán.`;
     }
 
     if (toolCall.toolName === 'get_order_detail') {
       const order = data.order;
-      return `\u0110\u01a1n h\u00e0ng ${order?.orderCode} \u0111ang \u1edf tr\u1ea1ng th\u00e1i ${order?.status}, t\u1ed5ng gi\u00e1 tr\u1ecb ${formatMoney(order?.totalAmount)}.`;
+      return `Đơn hàng ${order?.orderCode} đang ở trạng thái ${order?.status}, tổng giá trị ${formatMoney(order?.totalAmount)}.`;
+    }
+
+    if (toolCall.toolName === 'get_customer_orders') {
+      const orders = Array.isArray(data?.orders) ? data.orders : [];
+      if (orders.length === 0) {
+        return `Khách hàng ${toolCall.arguments?.customerName || 'Nguyễn Văn A'} hiện không có đơn hàng nào.`;
+      }
+      return `Danh sách đơn hàng của khách hàng ${toolCall.arguments?.customerName || 'Nguyễn Văn A'}: ${orders.map((o: any) => `${o.orderCode} (${o.status}, ${formatMoney(o.totalAmount)})`).join('; ')}.`;
     }
 
     if (toolCall.toolName === 'search_customer') {
