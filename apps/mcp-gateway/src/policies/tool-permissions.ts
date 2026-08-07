@@ -1,16 +1,12 @@
 import { query } from '../db/pool.js';
 
 interface PermissionRow {
-  can_execute: boolean;
+  can_execute: boolean | null;
 }
 
 export async function canExecuteTool(roles: string[], toolName: string): Promise<boolean> {
   if (roles.length === 0) {
     return false;
-  }
-
-  if (roles.includes('admin')) {
-    return true;
   }
 
   const result = await query<PermissionRow>(
@@ -23,5 +19,13 @@ export async function canExecuteTool(roles: string[], toolName: string): Promise
     [roles, toolName]
   );
 
-  return result.rows[0]?.can_execute === true;
+  if (result.rows.length > 0 && result.rows[0]?.can_execute !== null && result.rows[0]?.can_execute !== undefined) {
+    return result.rows[0].can_execute === true;
+  }
+
+  if (roles.includes('admin')) {
+    return true;
+  }
+
+  return false;
 }

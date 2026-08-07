@@ -226,19 +226,36 @@ export function createPostgresTools() {
       outputSchema: searchCustomerOutputSchema,
       async execute(parsedInput: any) {
         const { keyword, limit } = parsedInput;
-        const result = await query<SearchCustomerRow>(
-          `
-          SELECT id, customer_code, full_name, phone, email, address, status
-          FROM customers
-          WHERE unaccent(full_name) ILIKE unaccent($1)
-             OR phone ILIKE $1
-             OR unaccent(email) ILIKE unaccent($1)
-             OR customer_code ILIKE $1
-          ORDER BY created_at DESC
-          LIMIT $2
-          `,
-          [`%${keyword}%`, limit]
-        );
+        let result;
+        try {
+          result = await query<SearchCustomerRow>(
+            `
+            SELECT id, customer_code, full_name, phone, email, address, status
+            FROM customers
+            WHERE unaccent(full_name) ILIKE unaccent($1)
+               OR phone ILIKE $1
+               OR unaccent(email) ILIKE unaccent($1)
+               OR customer_code ILIKE $1
+            ORDER BY created_at DESC
+            LIMIT $2
+            `,
+            [`%${keyword}%`, limit]
+          );
+        } catch (_err) {
+          result = await query<SearchCustomerRow>(
+            `
+            SELECT id, customer_code, full_name, phone, email, address, status
+            FROM customers
+            WHERE full_name ILIKE $1
+               OR phone ILIKE $1
+               OR email ILIKE $1
+               OR customer_code ILIKE $1
+            ORDER BY created_at DESC
+            LIMIT $2
+            `,
+            [`%${keyword}%`, limit]
+          );
+        }
 
         return {
           customers: result.rows.map((customer) => ({
