@@ -1,185 +1,286 @@
-# Trợ lý AI Doanh nghiệp với MCP PostgreSQL (Enterprise AI Assistant MCP PostgreSQL)
+# Trợ lý AI Doanh nghiệp (Enterprise AI Assistant)
 
-Bản demo MVP cho Trợ lý AI doanh nghiệp bằng tiếng Việt. Mô hình ngôn ngữ lớn (LLM) và Bộ điều phối (AI Orchestrator) không truy cập trực tiếp vào cơ sở dữ liệu. Mọi truy vấn dữ liệu đều phải đi qua MCP Gateway và các công cụ nghiệp vụ (business tools) ở chế độ chỉ đọc (read-only) để đảm bảo an toàn thông tin.
+Nền tảng Trợ lý AI doanh nghiệp bằng tiếng Việt, dựa trên kiến trúc **MCP (Model Context Protocol)**. Mô hình ngôn ngữ lớn (LLM) và AI Orchestrator **không bao giờ** truy cập trực tiếp vào cơ sở dữ liệu hay các hệ thống nghiệp vụ (CRM, ERP, Ticketing...). Mọi thao tác dữ liệu đều phải đi qua **MCP Gateway** dưới dạng các *tool* (công cụ) được kiểm soát quyền (RBAC), rate-limit và ghi audit log đầy đủ.
+
+> 📌 Tài liệu này mô tả nhánh `extended_phase` — đã mở rộng nhiều so với bản MVP ban đầu (thêm xác thực bằng token/Google SSO, multi-tenant, quản lý secret bằng Vault, nhiều connector MCP, lưu lịch sử chat...).
 
 ---
 
-## 📋 Yêu cầu hệ thống trước khi cài đặt
+## 🏗️ Kiến trúc tổng quan
 
-Đảm bảo máy tính của bạn đã được cài đặt đầy đủ các công cụ sau:
+```text
+User (Chat UI)
+   │  Bearer token
+   ▼
+AI Orchestrator  ──(mock / openai / local-LLM)──┐
+   │  HTTP (không SQL)                          │
+   ▼                                            │
+MCP Gateway  (RBAC + rate-limit + audit log)    │
+   │                                            │
+   ├─▶ mcp-server-postgres  (đọc DB nghiệp vụ)  │
+   ├─▶ mcp-server-crm       (mock CRM)          │
+   ├─▶ mcp-server-erpnext   (mock ERPNext)      │
+   ├─▶ mcp-server-zammad    (mock Zammad)       │
+   ├─▶ mcp-server-gitea     (Gitea thật)        │
+   └─▶ mcp-server-rag       (tìm kiếm tài liệu) │
+                                                 │
+PostgreSQL ◀── users, sessions, chat history, tenants, audit_logs
+HashiCorp Vault ◀── lưu secret/API key cho từng tenant integration
+Gitea ◀── git server nội bộ (dùng bởi mcp-server-gitea)
+```
+
+Nguyên tắc bất biến:
+- LLM **không** kết nối database trực tiếp và **không** tự sinh SQL để chạy.
+- Gateway chỉ expose các tool nghiệp vụ đã khai báo trong `tools-config.json`, phần lớn là **read-only**.
+- Mọi tool call đều phải qua kiểm tra quyền (`tool_permissions`) và được ghi vào `audit_logs`.
+- Gateway kết nối tới các MCP server con (trong `packages/`) qua `mcp-client-manager`, không tự thực thi nghiệp vụ trực tiếp.
+
+---
+
+## 📋 Yêu cầu hệ thống
+
 1. **Node.js 20+**
-2. **Docker Desktop** (đã được khởi động)
-3. **npm** (thường đi kèm khi cài đặt Node.js)
+2. **Docker Desktop** (đã khởi động)
+3. **npm**
 
 ---
 
-## 🚀 Hướng dẫn chạy dự án từ đầu
+## 🚀 Chạy dự án
 
-Có hai cách để khởi chạy dự án: sử dụng **Docker Compose** để chạy nhanh toàn bộ các dịch vụ hoặc **chạy cục bộ (local)** từng ứng dụng để phục vụ mục đích phát triển và debug.
+### Cách 1: Docker Compose (khuyến nghị)
 
-### Cách 1: Chạy nhanh toàn bộ bằng Docker Compose
+`docker-compose.yml` khởi chạy **6 service**: `postgres`, `mcp-gateway`, `ai-orchestrator`, `chat-ui`, `vault` (quản lý secret) và `gitea` (git server nội bộ dùng cho connector Gitea).
 
-Cách này sẽ tự động khởi dựng cơ sở dữ liệu PostgreSQL (đã được tạo bảng và nạp dữ liệu mẫu), MCP Gateway, AI Orchestrator và giao diện Chat UI.
+```bash
+cd EAA-Enterprise-AI-Assistant
+docker compose up -d
+docker compose ps
+```
 
-1. Mở terminal (ví dụ: PowerShell hoặc Command Prompt) và di chuyển vào thư mục dự án:
-   ```powershell
-   cd C:\2025-2026\SPEC_MPV
-   ```
+Địa chỉ mặc định:
 
-2. Khởi chạy toàn bộ hệ thống bằng Docker Compose:
-   ```powershell
-   docker compose up -d
-   ```
+| Service          | URL                          |
+|------------------|-------------------------------|
+| Chat UI          | http://127.0.0.1:3000        |
+| MCP Gateway      | http://127.0.0.1:8081        |
+| AI Orchestrator  | http://127.0.0.1:8082        |
+| PostgreSQL       | localhost:55432               |
+| Vault            | http://127.0.0.1:8200 (token: `root`, chỉ dùng cho dev) |
+| Gitea            | http://127.0.0.1:3001         |
 
-3. Kiểm tra xem tất cả các container đã chạy thành công chưa:
-   ```powershell
-   docker compose ps
-   ```
+### Cách 2: Chạy local từng service (dev/debug, hot-reload)
 
-4. Các địa chỉ URL mặc định để truy cập:
-   * **Chat UI (Giao diện người dùng):** [http://127.0.0.1:3000](http://127.0.0.1:3000)
-   * **MCP Gateway:** [http://127.0.0.1:8081](http://127.0.0.1:8081)
-   * **AI Orchestrator:** [http://127.0.0.1:8082](http://127.0.0.1:8082)
-   * **PostgreSQL (Cổng kết nối):** `localhost:55432`
+```bash
+# 1) Chỉ chạy database (+ Vault nếu cần đọc secret integration)
+cd EAA-Enterprise-AI-Assistant
+docker compose up -d postgres vault
+
+# 2) MCP Gateway
+cd apps/mcp-gateway
+cp .env.example .env      # chỉnh JWT_SECRET, VAULT_ADDR... nếu cần
+npm install
+npm run dev                # http://127.0.0.1:8081/health
+
+# 3) AI Orchestrator (cần Gateway chạy trước)
+cd apps/ai-orchestrator
+cp .env.example .env
+npm install
+npm run dev                # http://127.0.0.1:8082/health
+
+# 4) Chat UI (cần Orchestrator chạy trước)
+cd apps/chat-ui
+npm install
+npm run dev                # http://127.0.0.1:3000
+```
+
+Biến môi trường quan trọng — xem chi tiết trong `apps/mcp-gateway/.env.example` và `apps/ai-orchestrator/.env.example` (bao gồm `JWT_SECRET`, `VAULT_ADDR`, `VAULT_TOKEN`, `CORS_ORIGINS`, `LLM_PROVIDER`...).
 
 ---
 
-### Cách 2: Chạy cục bộ (local) từng ứng dụng
+## 🔐 Xác thực (Authentication)
 
-Sử dụng cách này khi bạn muốn chỉnh sửa mã nguồn và kiểm tra các thay đổi ngay lập tức nhờ chế độ hot-reload.
+Hệ thống **không còn** dùng header `x-user` như bản MVP đầu tiên. Toàn bộ API (trừ `/health` và `/login`, `/auth/*`) yêu cầu header:
 
-#### Bước 1: Khởi động cơ sở dữ liệu PostgreSQL bằng Docker
-Chạy lệnh sau tại thư mục gốc của dự án để khởi động cơ sở dữ liệu cùng với các file cấu hình bảng (`schema.sql`) và dữ liệu mẫu (`seed.sql`):
-```powershell
-cd C:\2025-2026\SPEC_MPV
-docker compose up -d postgres
+```
+Authorization: Bearer <token>
 ```
 
-#### Bước 2: Cài đặt và chạy ứng dụng MCP Gateway
-Mở cửa sổ terminal mới và thực hiện:
-```powershell
-cd C:\2025-2026\SPEC_MPV\apps\mcp-gateway
-npm install
-npm run dev
-```
-*Bạn có thể kiểm tra xem Gateway hoạt động chưa bằng cách truy cập: [http://127.0.0.1:8081/health](http://127.0.0.1:8081/health).*
+Token lấy được bằng 1 trong 3 cách:
 
-#### Bước 3: Cài đặt và chạy ứng dụng AI Orchestrator
-Mở cửa sổ terminal mới thứ hai và thực hiện:
-```powershell
-cd C:\2025-2026\SPEC_MPV\apps\ai-orchestrator
-npm install
-npm run dev
+**1. Đăng nhập username/password**
+```bash
+curl -X POST http://127.0.0.1:8081/api/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"admin","password":"admin123"}'
 ```
-*Bạn có thể kiểm tra xem Orchestrator hoạt động chưa bằng cách truy cập: [http://127.0.0.1:8082/health](http://127.0.0.1:8082/health).*
+Trả về `{ success, token, tokenType: "Bearer", expiresAt, user }`.
 
-#### Bước 4: Cài đặt và chạy giao diện Chat UI
-Mở cửa sổ terminal mới thứ ba và thực hiện:
-```powershell
-cd C:\2025-2026\SPEC_MPV\apps\chat-ui
-npm install
-npm run dev
+**2. Đăng nhập khách (guest, quyền `viewer`)**
+```bash
+curl -X POST http://127.0.0.1:8081/api/auth/guest
 ```
-*Mở trình duyệt và truy cập giao diện chat tại: [http://127.0.0.1:3000](http://127.0.0.1:3000).*
+
+**3. Đăng nhập Google SSO**
+```bash
+curl -X POST http://127.0.0.1:8081/api/auth/google \
+  -H "Content-Type: application/json" \
+  -d '{"idToken":"<google_id_token>"}'
+```
+Cần cấu hình `GOOGLE_CLIENT_ID`.
+
+Tài khoản demo có sẵn trong `database/seed/seed.sql` (mật khẩu theo quy ước `<username>123`):
+
+| Username  | Password    | Vai trò |
+|-----------|-------------|---------|
+| admin     | admin123    | admin   |
+| manager   | manager123  | manager |
+| staff     | staff123    | staff   |
+| viewer    | viewer123   | viewer  |
+
+Kiểm tra thông tin user hiện tại:
+```bash
+curl http://127.0.0.1:8081/api/me -H "Authorization: Bearer <token>"
+```
+
+### Phân quyền (RBAC)
+
+Quyền thực thi từng tool được lưu trong bảng `tool_permissions` (theo `role_code` + `tool_name`), không hard-code trong app. Vai trò `admin` mặc định được phép tất cả nếu không có bản ghi permission tường minh.
 
 ---
 
-## ⚙️ Cấu hình mô hình ngôn ngữ lớn (LLM)
+## 🔌 Các API chính
 
-Mặc định, AI Orchestrator sử dụng **Mock Provider** để chạy demo offline không cần kết nối internet và không mất phí:
+### MCP Gateway (`:8081`)
+
+| Method | Endpoint | Mô tả | Quyền |
+|---|---|---|---|
+| POST | `/api/login` | Đăng nhập username/password | public |
+| POST | `/api/auth/guest` | Đăng nhập khách | public |
+| POST | `/api/auth/google` | Đăng nhập Google SSO | public |
+| GET  | `/api/me` | Thông tin user hiện tại | đã login |
+| GET  | `/api/tools` | Danh sách tool theo quyền của user | đã login |
+| POST | `/api/tools/call` | Gọi 1 tool | đã login + đúng quyền |
+| GET  | `/api/audit-logs` | Xem lịch sử audit log | admin |
+| GET  | `/api/chat/sessions` | Danh sách phiên chat | đã login |
+| GET  | `/api/chat/sessions/:sessionCode` | Chi tiết 1 phiên chat | đã login |
+| POST | `/api/chat/messages` | Lưu 1 lượt hội thoại | đã login |
+| GET  | `/api/admin/integrations` | Danh sách integration của tenant | admin |
+| POST | `/api/admin/integrations` | Thêm/sửa integration (lưu secret vào Vault) | admin |
+| GET  | `/api/admin/users` | Danh sách user trong tenant | admin |
+| POST | `/api/admin/users` | Tạo user mới | admin |
+| DELETE | `/api/admin/users/:userId` | Xoá user | admin |
+| GET/POST | `/api/mcp/sse`, `/api/mcp/message` | Kênh MCP transport (SSE) cho client MCP chuẩn | đã login |
+
+Gọi tool trực tiếp:
+```bash
+curl -X POST http://127.0.0.1:8081/api/tools/call \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"toolName":"search_customer","arguments":{"keyword":"Nguyen","limit":5},"sessionId":"session-001"}'
+```
+
+### AI Orchestrator (`:8082`)
+
+| Method | Endpoint | Mô tả |
+|---|---|---|
+| POST | `/api/login` | Proxy đăng nhập tới MCP Gateway |
+| POST | `/api/auth/google` | Proxy đăng nhập Google tới MCP Gateway |
+| POST | `/api/chat` | Gửi câu hỏi, nhận câu trả lời (agentic loop tool-calling) |
+| POST | `/api/chat/edit` | Sửa 1 lượt hội thoại đã gửi |
+| GET  | `/api/chat/sessions` | Danh sách phiên chat của user |
+| GET  | `/api/chat/search` | Tìm kiếm trong lịch sử chat |
+| GET  | `/api/chat/sessions/:sessionId` | Lấy toàn bộ tin nhắn 1 phiên |
+
+```bash
+curl -X POST http://127.0.0.1:8082/api/chat \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"sessionId":"chat-001","message":"Hôm nay doanh thu bao nhiêu?"}'
+```
+
+---
+
+## ⚙️ Cấu hình LLM Provider
+
+`LLM_PROVIDER` hỗ trợ 3 giá trị:
+
 ```env
+# 1) Mock — chạy offline, không cần API key, dùng rule-based planner
 LLM_PROVIDER=mock
+
+# 2) OpenAI (hoặc API tương thích OpenAI, ví dụ Gemini OpenAI-compatible endpoint)
+LLM_PROVIDER=openai
+OPENAI_API_KEY=sk-...
+OPENAI_MODEL=gpt-4.1-mini
+
+# 3) Local LLM (ví dụ Ollama)
+LLM_PROVIDER=local
+LOCAL_LLM_BASE_URL=http://localhost:1234/v1
 ```
 
-Nếu muốn kết nối với mô hình **OpenAI** thực tế:
-1. Tạo một file `.env` tại đường dẫn `apps/ai-orchestrator/.env`.
-2. Điền khóa API và cấu hình như sau:
-   ```env
-   LLM_PROVIDER=openai
-   OPENAI_API_KEY=sk-tên_khóa_api_của_bạn_ở_đây
-   OPENAI_MODEL=gpt-4o-mini
-   ```
-
-Ở chế độ OpenAI, Orchestrator sẽ lấy danh sách các công cụ khả dụng từ MCP Gateway bằng `GET /api/tools`, chuyển đổi `inputSchema` thành cấu trúc OpenAI Function Tools, thực thi các công cụ qua `POST /api/tools/call`, sau đó truyền kết quả trả về cho OpenAI để tổng hợp thành câu trả lời bằng tiếng Việt cho người dùng.
+Ở chế độ `openai`/`local`, Orchestrator lấy danh sách tool từ MCP Gateway (`GET /api/tools`), chuyển `inputSchema` sang OpenAI Function Tools, cho phép LLM thực hiện **nhiều vòng gọi tool liên tiếp** (agentic loop, giới hạn bởi `MAX_TOOL_CALL_ROUNDS`) trước khi tổng hợp câu trả lời tiếng Việt cuối cùng.
 
 ---
 
-## 🔌 Lệnh kiểm tra nhanh API (PowerShell)
+## 🔑 Quản lý secret (Vault) & tích hợp bên thứ 3
 
-### 1. Lấy danh sách các công cụ theo quyền của từng User:
-```powershell
-Invoke-RestMethod -Headers @{ 'x-user'='manager' } http://127.0.0.1:8081/api/tools
-```
+Các API key/URL của từng integration (CRM, ERPNext, Zammad, Gitea...) theo từng tenant được lưu trong **HashiCorp Vault**, không lưu plaintext trong DB (DB chỉ giữ `vault_path`). Admin cấu hình qua `POST /api/admin/integrations`; response luôn che (mask) secret, chỉ hiển thị 4 ký tự cuối.
 
-### 2. Gọi trực tiếp một công cụ (Tool Call):
-```powershell
-$body = @{
-  toolName='search_customer'
-  arguments=@{ keyword='Nguyen'; limit=5 }
-  sessionId='session-001'
-} | ConvertTo-Json -Depth 5
+Trong dev, Vault chạy ở chế độ dev-server (`VAULT_DEV_ROOT_TOKEN_ID=root`) — **không dùng cấu hình này cho production**.
 
-Invoke-RestMethod -Method Post `
-  -Headers @{ 'x-user'='staff' } `
-  -ContentType 'application/json' `
-  -Body $body `
-  http://127.0.0.1:8081/api/tools/call
-```
+---
 
-### 3. Xem lịch sử log (chỉ tài khoản Admin mới có quyền truy cập):
-```powershell
-Invoke-RestMethod -Headers @{ 'x-user'='admin' } http://127.0.0.1:8081/api/audit-logs
-```
+## 🧩 Các MCP Server con (`packages/`)
 
-### 4. Gửi câu hỏi chat đến Orchestrator:
-```powershell
-$body = @{
-  sessionId='chat-001'
-  message='Hôm nay doanh thu bao nhiêu?'
-} | ConvertTo-Json
+| Package | Vai trò |
+|---|---|
+| `mcp-server-postgres` | Đọc dữ liệu nghiệp vụ (khách hàng, đơn hàng, doanh thu...) từ PostgreSQL |
+| `mcp-server-crm` | Mock CRM |
+| `mcp-server-erpnext` | Mock ERPNext |
+| `mcp-server-zammad` | Mock Zammad (helpdesk/ticket) |
+| `mcp-server-gitea` | Kết nối Gitea thật (repo, issue...) |
+| `mcp-server-rag` | Tìm kiếm tài liệu nội bộ (RAG) |
 
-Invoke-RestMethod -Method Post `
-  -Headers @{ 'x-user'='manager' } `
-  -ContentType 'application/json' `
-  -Body $body `
-  http://127.0.0.1:8082/api/chat
+Danh sách chi tiết 6 tool đọc PostgreSQL (search_customer, get_customer_orders, get_order_detail, get_revenue_summary, get_top_customers, get_product_sales_summary) xem tại [`docs/tools.md`](docs/tools.md). *(Lưu ý: tài liệu này hiện chỉ mô tả connector Postgres — cần bổ sung tool của các connector còn lại.)*
+
+---
+
+## 🧪 Build & Test
+
+```bash
+# Từng app
+cd apps/mcp-gateway && npm run typecheck && npm run build && npm run test
+cd apps/ai-orchestrator && npm run typecheck && npm run build && npm run test
+cd apps/chat-ui && npm run typecheck && npm run build && npm run test
+
+# E2E (Playwright) cho Chat UI
+cd apps/chat-ui && npm run test:e2e
+
+# Chạy toàn bộ test từ root
+npm test
 ```
 
 ---
 
-## 🧪 Kiểm tra mã nguồn (Build & Test)
+## 🚢 Triển khai Production
 
-Dự án sử dụng TypeScript và Vitest để thực hiện kiểm tra lỗi kiểu dữ liệu và chạy các test case tự động.
+Đã có sẵn script và cấu hình triển khai production, dùng `docker-compose.prod.yml`:
 
-### 1. Kiểm tra kiểu dữ liệu (Typecheck) và Build:
-```powershell
-# Cho MCP Gateway
-cd C:\2025-2026\SPEC_MPV\apps\mcp-gateway
-npm run typecheck
-npm run build
-
-# Cho AI Orchestrator
-cd C:\2025-2026\SPEC_MPV\apps\ai-orchestrator
-npm run typecheck
-npm run build
-
-# Cho Chat UI
-cd C:\2025-2026\SPEC_MPV\apps\chat-ui
-npm run typecheck
-npm run build
+```bash
+cp .env.production.example .env   # nhớ đổi POSTGRES_PASSWORD, VAULT_TOKEN, GOOGLE_CLIENT_ID...
+./deploy.sh          # Linux/macOS
+# hoặc
+./deploy.ps1          # Windows PowerShell
 ```
-*(Trên PowerShell, nếu gặp lỗi về phân quyền thực thi của npm, hãy đổi lệnh thành `npm.cmd run typecheck`)*
 
-### 2. Chạy test case tự động:
-```powershell
-cd C:\2025-2026\SPEC_MPV\apps\mcp-gateway
-npm run test
-```
+Xem chi tiết tại [`docs/DEPLOYMENT_GUIDE.md`](docs/DEPLOYMENT_GUIDE.md).
 
 ---
 
-## 📌 Các bước phát triển tiếp theo
+## 📌 Việc tiếp theo / nợ kỹ thuật
 
-1. Viết thêm các test case Vitest cho các tools và phân quyền trong file `gateway.spec.ts`.
-2. Tạo thêm các local LLM provider (như Llama, Ollama) phục vụ việc chạy mô hình ngôn ngữ hoàn toàn offline.
-3. Khi triển khai lên production, sử dụng các Dockerfile multi-stage được tối ưu hóa cho từng service thay vì sử dụng container dev như hiện tại.
+1. Cập nhật `docs/architecture.md`, `docs/project-guide.md`, `docs/setup.md`, `docs/tools.md` cho khớp với auth Bearer token, 6 service Docker và kiến trúc multi-connector hiện tại (các tài liệu này hiện vẫn mô tả bản MVP cũ).
+2. Bổ sung tài liệu tool cho `mcp-server-crm`, `mcp-server-erpnext`, `mcp-server-zammad`, `mcp-server-gitea`, `mcp-server-rag`.
+3. Dọn dẹp các file `.patch` ở thư mục gốc (đã merge thì xoá, chưa thì áp dụng hoặc lưu trong `docs/changelogs/`).
+4. Xoá file rác không rõ nguồn gốc ở thư mục gốc repo (tên file trông giống commit message bị lưu nhầm).
+5. Đổi `VAULT_TOKEN=root` / cấu hình Vault dev-mode trước khi dùng thật cho production.

@@ -41,3 +41,7 @@ Thumbs.db
 *.sqlite
 *.sqlite-shm
 *.sqlite-wal
+
+# Playwright test reports & artifacts
+playwright-report/
+test-results/
