@@ -275,25 +275,39 @@ jobs:
             psql -h localhost -p 55432 -U postgres -d enterprise_ai_demo -f "$f" 2>/dev/null || true
           done
 
-          echo "Waiting for MCP Gateway (8085)..."
+          echo "Waiting for MCP Gateway (8081)..."
+          gateway_ready=false
           for i in {1..40}; do
-            if curl -s http://localhost:8085/health | grep -q "ok"; then
+            if curl -s http://localhost:8081/health | grep -q "ok"; then
               echo "MCP Gateway is ready!"
+              gateway_ready=true
               break
             fi
             echo "Waiting for mcp-gateway ($i/40)..."
             sleep 3
           done
+          if [ "$gateway_ready" != "true" ]; then
+            echo "::error::MCP Gateway did not become healthy in time"
+            docker compose logs mcp-gateway
+            exit 1
+          fi
 
           echo "Waiting for AI Orchestrator (8082)..."
+          orchestrator_ready=false
           for i in {1..40}; do
             if curl -s http://localhost:8082/health | grep -q "ok"; then
               echo "AI Orchestrator is ready!"
+              orchestrator_ready=true
               break
             fi
             echo "Waiting for ai-orchestrator ($i/40)..."
             sleep 3
           done
+          if [ "$orchestrator_ready" != "true" ]; then
+            echo "::error::AI Orchestrator did not become healthy in time"
+            docker compose logs ai-orchestrator
+            exit 1
+          fi
 
           echo "Waiting for Chat UI (3000)..."
           for i in {1..40}; do
@@ -314,6 +328,19 @@ jobs:
           POSTGRES_PASSWORD: postgres
         run: npm run test:e2e
         working-directory: apps/chat-ui
+
+      - name: Dump backend container logs (on failure)
+        if: failure()
+        run: |
+          echo "::group::mcp-gateway logs"
+          docker compose logs mcp-gateway --no-color
+          echo "::endgroup::"
+          echo "::group::ai-orchestrator logs"
+          docker compose logs ai-orchestrator --no-color
+          echo "::endgroup::"
+          echo "::group::postgres logs"
+          docker compose logs postgres --no-color
+          echo "::endgroup::"
 
 
   # ──────────────────────────────────────────────────────────

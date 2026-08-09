@@ -56,7 +56,20 @@ mcpServer.setRequestHandler(ListToolsRequestSchema, async (request, extra) => {
 
 mcpServer.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
   const toolName = request.params.name;
-  const args = request.params.arguments || {};
+  let args = (request.params.arguments || {}) as any;
+
+  if (['get_customer_orders', 'get_revenue_summary', 'get_top_customers', 'get_product_sales_summary'].includes(toolName)) {
+    if (!args.toDate) {
+      args.toDate = new Date().toISOString();
+    }
+    if (!args.fromDate) {
+      const d = new Date();
+      d.setDate(d.getDate() - 90);
+      args.fromDate = d.toISOString();
+    }
+    request.params.arguments = args;
+  }
+
   const sessionId = extra.sessionId;
   const user = sessionId ? sessionUsers.get(sessionId) : null;
   const startedAt = Date.now();
@@ -129,6 +142,19 @@ export async function authorizeAndPrepareToolRequest(
   }
 
   const toolName = request.params.name;
+  if (['get_customer_orders', 'get_revenue_summary', 'get_top_customers', 'get_product_sales_summary'].includes(toolName)) {
+    const args = (request.params.arguments || {}) as any;
+    if (!args.toDate) {
+      args.toDate = new Date().toISOString();
+    }
+    if (!args.fromDate) {
+      const d = new Date();
+      d.setDate(d.getDate() - 90);
+      args.fromDate = d.toISOString();
+    }
+    request.params.arguments = args;
+  }
+
   if (!(await canExecuteTool(user.roles, toolName))) {
     await writeAuditLog({
       userId: user.id,
@@ -159,25 +185,35 @@ export async function authorizeAndPrepareToolRequest(
     throw new AppError('PERMISSION_DENIED', `Hệ thống tích hợp ${serverName.toUpperCase()} hiện đang bị TẮT trong Cấu hình Tích hợp. Vui lòng BẬT lại để sử dụng.`, 400);
   }
 
-  const vaultPath = `integrations/${user.tenantId}/${serverName}`;
-  let secrets = await VaultService.readSecret(vaultPath);
+  // Lấy credential tích hợp (Vault, fallback DB) là tính năng BEST-EFFORT —
+  // chỉ những tool gọi API bên ngoài (ERPNext/CRM/Zammad...) mới thực sự cần
+  // _integrationCredentials; tool nội bộ như postgres không bao giờ đọc field
+  // này. Vì vậy Vault tạm thời không kết nối được (mạng chậm, chưa kịp khởi
+  // động, sai địa chỉ...) KHÔNG được phép làm sập toàn bộ tool call — chỉ nên
+  // bỏ qua bước inject credential và tiếp tục, log lỗi để biết mà xử lý.
+  try {
+    const vaultPath = `integrations/${user.tenantId}/${serverName}`;
+    let secrets = await VaultService.readSecret(vaultPath);
 
-  // Fallback to PostgreSQL DB if Vault lost memory or has no apiUrl
-  if (!secrets || !secrets.apiUrl) {
-    const dbRes = await query<{ api_url: string }>(
-      `SELECT api_url FROM tenant_integrations WHERE tenant_id = $1 AND integration_code = $2 AND is_active = true`,
-      [user.tenantId, serverName]
-    );
-    if (dbRes.rows[0]?.api_url) {
-      secrets = { ...(secrets || {}), apiUrl: dbRes.rows[0].api_url };
+    // Fallback to PostgreSQL DB if Vault lost memory or has no apiUrl
+    if (!secrets || !secrets.apiUrl) {
+      const dbRes = await query<{ api_url: string }>(
+        `SELECT api_url FROM tenant_integrations WHERE tenant_id = $1 AND integration_code = $2 AND is_active = true`,
+        [user.tenantId, serverName]
+      );
+      if (dbRes.rows[0]?.api_url) {
+        secrets = { ...(secrets || {}), apiUrl: dbRes.rows[0].api_url };
+      }
     }
-  }
 
-  if (secrets && (secrets.apiKey || secrets.apiUrl)) {
-    request.params.arguments = {
-      ...((request.params.arguments as object) || {}),
-      _integrationCredentials: secrets
-    };
+    if (secrets && (secrets.apiKey || secrets.apiUrl)) {
+      request.params.arguments = {
+        ...((request.params.arguments as object) || {}),
+        _integrationCredentials: secrets
+      };
+    }
+  } catch (err) {
+    console.error(`[authorizeAndPrepareToolRequest] Không lấy được integration credentials cho '${serverName}', tiếp tục KHÔNG có credentials:`, err);
   }
 }
 
