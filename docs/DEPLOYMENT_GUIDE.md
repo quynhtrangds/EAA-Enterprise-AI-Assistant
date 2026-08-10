@@ -92,34 +92,54 @@ Sau khi triển khai thành công, các dịch vụ sẽ hoạt động tại c�
 
 ## 🛡️ 5. Quy trình Sao lưu & Khôi phục Dữ liệu (Backup & Disaster Recovery)
 
+Hệ thống cung cấp sẵn các script sao lưu và khôi phục tự động (hỗ trợ nén gzip và tự động dọn dẹp bản sao lưu quá 30 ngày):
+
 ### A. Sao lưu Cơ sở Dữ liệu PostgreSQL
-```bash
-docker exec enterprise_ai_postgres pg_dump -U postgres enterprise_ai_demo > backup_enterprise_ai_$(date +%Y%m%d).sql
-```
+- **Trên Linux/Ubuntu (Bash):**
+  ```bash
+  chmod +x scripts/backup-db.sh
+  ./scripts/backup-db.sh ./backups
+  ```
+- **Trên Windows Server (PowerShell):**
+  ```powershell
+  .\scripts\backup-db.ps1 -BackupDir ./backups -RetentionDays 30
+  ```
 
-### B. Sao lưu Két sắt Vault Secrets
-```bash
-docker exec enterprise_ai_vault vault operator raft snapshot save /vault/data/vault_backup.snap
-```
+### B. Khôi phục Dữ liệu PostgreSQL
+- **Trên Linux/Ubuntu (Bash):**
+  ```bash
+  ./scripts/restore-db.sh ./backups/eaa_backup_enterprise_ai_demo_20260810_120000.sql.gz
+  ```
+- **Trên Windows Server (PowerShell):**
+  ```powershell
+  .\scripts\restore-db.ps1 -BackupFile ./backups/eaa_backup_enterprise_ai_demo_20260810_120000.sql.gz
+  ```
 
-### C. Khôi phục Dữ liệu PostgreSQL
+---
+
+## 🔒 6. Triển khai Nginx SSL/TLS Reverse Proxy (Production)
+
+Khi đưa ứng dụng lên môi trường Internet/Production thật, sử dụng file `docker-compose.prod.yml` kết hợp với Nginx SSL proxy ([`nginx/nginx.prod.conf`](../nginx/nginx.prod.conf)) để tự động xử lý HTTPS, HTTP->HTTPS Redirect, SSL Certificate (Certbot/Let's Encrypt) và Rate-limiting:
+
 ```bash
-cat backup_enterprise_ai_20260723.sql | docker exec -i enterprise_ai_postgres psql -U postgres -d enterprise_ai_demo
+# Khởi tạo production với Nginx reverse proxy & SSL
+DOMAIN=eaa.yourdomain.com docker compose -f docker-compose.prod.yml up -d
 ```
 
 ---
 
-## 🩺 6. Kiểm tra Sức khỏe Hệ thống (Health Checks)
+## 🩺 7. Giám sát & Cảnh báo Sức khỏe Tự động (Proactive Health Monitoring)
 
-Bạn có thể kiểm tra trạng thái hoạt động của các API chính:
+Hệ thống tích hợp sẵn script tự động ping kiểm tra sức khỏe tất cả services (`/health`) và bắn alert Webhook (Slack / Telegram / Discord) khi có dịch vụ bị gián đoạn:
 
-```bash
-# Kiểm tra MCP Gateway
-curl http://localhost:8081/health
-
-# Kiểm tra AI Orchestrator
-curl http://localhost:8082/health
-```
+- **Linux Cronjob (mỗi 5 phút):**
+  ```bash
+  WEBHOOK_URL="https://hooks.slack.com/services/..." ./scripts/monitor-health.sh
+  ```
+- **Windows Task Scheduler (PowerShell):**
+  ```powershell
+  .\scripts\monitor-health.ps1 -WebhookUrl "https://hooks.slack.com/services/..."
+  ```
 
 ---
 

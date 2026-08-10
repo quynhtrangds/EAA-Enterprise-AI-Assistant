@@ -135,6 +135,24 @@ services:
       postgres:
         condition: service_healthy
 
+  nginx:
+    image: nginx:alpine
+    container_name: enterprise_ai_nginx_proxy
+    restart: always
+    environment:
+      DOMAIN: ${DOMAIN:-eaa.yourdomain.com}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.prod.conf:/etc/nginx/nginx.conf:ro
+      - certbot_certs:/etc/letsencrypt
+      - certbot_www:/var/www/certbot
+    depends_on:
+      - chat-ui
+      - ai-orchestrator
+      - mcp-gateway
+
 volumes:
   postgres_data:
     name: enterprise_ai_postgres_data
@@ -142,3 +160,7 @@ volumes:
     name: enterprise_ai_vault_data
   gitea_data:
     name: enterprise_ai_gitea_data
+  certbot_certs:
+    name: enterprise_ai_certbot_certs
+  certbot_www:
+    name: enterprise_ai_certbot_www
