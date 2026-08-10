@@ -277,16 +277,8 @@ Xem chi tiết tại [`docs/DEPLOYMENT_GUIDE.md`](docs/DEPLOYMENT_GUIDE.md).
 
 ---
 
-## 📌 Lộ trình triển khai Production & Lợi ích đã hoàn thiện
+## 📌 Thao tác khi triển khai Production
 
-### ✅ Các hạng mục nợ kỹ thuật đã được giải quyết dứt điểm:
-- [x] **Dọn dẹp mã thừa (Dead Code):** Đã xóa class `McpRuntime` cũ và toàn bộ các file patch tạm thời.
-- [x] **Cập nhật tài liệu kỹ thuật:** Đã cập nhật [`docs/architecture.md`](docs/architecture.md) và tài liệu chi tiết 6 bộ connector trong [`docs/tools.md`](docs/tools.md).
-- [x] **Tự động hóa Backup & Restore:** Cung cấp sẵn script sao lưu/khôi phục tự động nén `.sql.gz` ([`scripts/backup-db.sh`](scripts/backup-db.sh) / [`scripts/backup-db.ps1`](scripts/backup-db.ps1)).
-- [x] **Nginx SSL/TLS Reverse Proxy:** Đã bổ sung cấu hình Nginx Production ([`nginx/nginx.prod.conf`](nginx/nginx.prod.conf)) hỗ trợ HTTPS, Certbot và Rate Limiting.
-- [x] **Giám sát & Cảnh báo sự cố:** Đã xây dựng script tự động kiểm tra `/health` và bắn thông báo sự cố tức thì tới Telegram/Slack ([`scripts/monitor-health.sh`](scripts/monitor-health.sh)).
-
-### 🎯 Thao tác còn lại khi đưa lên Server Production thật:
 1. **Cấu hình biến môi trường bảo mật:** Đổi `POSTGRES_PASSWORD`, `VAULT_TOKEN` (thay vì `root`), `GOOGLE_CLIENT_ID` và `DOMAIN` thực tế trong `.env`.
 2. **Đặt Cronjob / Task Scheduler trên Server:**
    - Chạy script sao lưu DB hàng ngày: `0 2 * * * ./scripts/backup-db.sh /var/backups/eaa`
