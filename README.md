@@ -277,10 +277,18 @@ Xem chi tiết tại [`docs/DEPLOYMENT_GUIDE.md`](docs/DEPLOYMENT_GUIDE.md).
 
 ---
 
-## 📌 Việc tiếp theo / nợ kỹ thuật
+## 📌 Lộ trình triển khai Production & Lợi ích đã hoàn thiện
 
-1. Cập nhật `docs/architecture.md`, `docs/project-guide.md`, `docs/setup.md`, `docs/tools.md` cho khớp với auth Bearer token, 6 service Docker và kiến trúc multi-connector hiện tại (các tài liệu này hiện vẫn mô tả bản MVP cũ).
-2. Bổ sung tài liệu tool cho `mcp-server-crm`, `mcp-server-erpnext`, `mcp-server-zammad`, `mcp-server-gitea`, `mcp-server-rag`.
-3. Dọn dẹp các file `.patch` ở thư mục gốc (đã merge thì xoá, chưa thì áp dụng hoặc lưu trong `docs/changelogs/`).
-4. Xoá file rác không rõ nguồn gốc ở thư mục gốc repo (tên file trông giống commit message bị lưu nhầm).
-5. Đổi `VAULT_TOKEN=root` / cấu hình Vault dev-mode trước khi dùng thật cho production.
+### ✅ Các hạng mục nợ kỹ thuật đã được giải quyết dứt điểm:
+- [x] **Dọn dẹp mã thừa (Dead Code):** Đã xóa class `McpRuntime` cũ và toàn bộ các file patch tạm thời.
+- [x] **Cập nhật tài liệu kỹ thuật:** Đã cập nhật [`docs/architecture.md`](docs/architecture.md) và tài liệu chi tiết 6 bộ connector trong [`docs/tools.md`](docs/tools.md).
+- [x] **Tự động hóa Backup & Restore:** Cung cấp sẵn script sao lưu/khôi phục tự động nén `.sql.gz` ([`scripts/backup-db.sh`](scripts/backup-db.sh) / [`scripts/backup-db.ps1`](scripts/backup-db.ps1)).
+- [x] **Nginx SSL/TLS Reverse Proxy:** Đã bổ sung cấu hình Nginx Production ([`nginx/nginx.prod.conf`](nginx/nginx.prod.conf)) hỗ trợ HTTPS, Certbot và Rate Limiting.
+- [x] **Giám sát & Cảnh báo sự cố:** Đã xây dựng script tự động kiểm tra `/health` và bắn thông báo sự cố tức thì tới Telegram/Slack ([`scripts/monitor-health.sh`](scripts/monitor-health.sh)).
+
+### 🎯 Thao tác còn lại khi đưa lên Server Production thật:
+1. **Cấu hình biến môi trường bảo mật:** Đổi `POSTGRES_PASSWORD`, `VAULT_TOKEN` (thay vì `root`), `GOOGLE_CLIENT_ID` và `DOMAIN` thực tế trong `.env`.
+2. **Đặt Cronjob / Task Scheduler trên Server:**
+   - Chạy script sao lưu DB hàng ngày: `0 2 * * * ./scripts/backup-db.sh /var/backups/eaa`
+   - Chạy script cảnh báo sức khỏe 5 phút/lần: `*/5 * * * * WEBHOOK_URL="<telegram_or_slack_link>" ./scripts/monitor-health.sh`
+3. **Nâng cấp RAG Vector Search (Tùy chọn):** Thay dữ liệu mock tài liệu nội bộ trong `mcp-server-rag` bằng Vector Database thực tế (Qdrant / Milvus / Pgvector) khi doanh nghiệp cần tìm kiếm hàng nghìn tài liệu PDF/Word.
