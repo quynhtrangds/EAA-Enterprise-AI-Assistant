@@ -7,18 +7,20 @@ export async function syncVaultWithDatabase(): Promise<void> {
       `SELECT tenant_id, integration_code, api_url, api_key FROM tenant_integrations WHERE api_key IS NOT NULL AND api_key <> ''`
     );
 
-    for (const row of res.rows) {
-      const vaultPath = `integrations/${row.tenant_id}/${row.integration_code}`;
-      try {
-        await VaultService.writeSecret(vaultPath, {
-          apiKey: row.api_key,
-          apiUrl: row.api_url
-        });
-        console.log(`[Vault Auto-Sync] Successfully re-synced secret for ${vaultPath} into Vault.`);
-      } catch (e: any) {
-        console.warn(`[Vault Auto-Sync Error for ${vaultPath}]:`, e.message);
-      }
-    }
+    await Promise.all(
+      res.rows.map(async (row) => {
+        const vaultPath = `integrations/${row.tenant_id}/${row.integration_code}`;
+        try {
+          await VaultService.writeSecret(vaultPath, {
+            apiKey: row.api_key,
+            apiUrl: row.api_url
+          });
+          console.log(`[Vault Auto-Sync] Successfully re-synced secret for ${vaultPath} into Vault.`);
+        } catch (e: any) {
+          console.warn(`[Vault Auto-Sync Error for ${vaultPath}]:`, e.message);
+        }
+      })
+    );
   } catch (err: any) {
     console.warn(`[Vault Auto-Sync Global Warning]:`, err.message);
   }

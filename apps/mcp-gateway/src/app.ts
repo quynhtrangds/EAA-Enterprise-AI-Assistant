@@ -6,7 +6,6 @@ import { errorHandler } from './middleware/error-handler.js';
 import { toolsRouter } from './routes/tools.js';
 import { mcpRouter } from './routes/mcp.js';
 import { adminRouter } from './routes/admin.js';
-import { chatRouter } from './routes/chat.js';
 import { env } from './config/env.js';
 
 const apiRateLimiter = rateLimit({
@@ -41,7 +40,6 @@ export function createApp(): express.Express {
   app.use('/api', apiRateLimiter);
   app.use('/api', mcpRouter);
   app.use('/api', toolsRouter);
-  app.use('/api', chatRouter);
   app.use('/api/admin', adminRouter);
   app.use(errorHandler);
 

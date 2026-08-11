@@ -33,7 +33,7 @@ docker-compose -f docker-compose.prod.yml down --remove-orphans 2>$null
 docker-compose -f docker-compose.prod.yml up -d --build
 
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "LỖI THỰC SỰ: Không thể khởi tạo các container Docker. Dừng kịch bản!" -ForegroundColor Red
+    Write-Host "LỖI: Không thể khởi tạo các container Docker. Dừng kịch bản!" -ForegroundColor Red
     exit 1
 }
 
