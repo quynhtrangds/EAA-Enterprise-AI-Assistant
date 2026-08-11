@@ -154,26 +154,7 @@ mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
         }
       }
     } catch (err: any) {
-      console.warn(`[MCP ERPNext Warning] Tải tồn kho từ ERPNext [${baseUrl}] thất bại (${err.message}). Chuyển sang dữ liệu mẫu fallback.`);
-      const mockItems = [
-        { name: 'ITEM-001', item_name: 'Laptop Dell XPS 15', item_group: 'Thiết bị công nghệ', stock_uom: 'Cái', opening_stock: 45, actual_qty: 42, standard_rate: 32000000 },
-        { name: 'ITEM-002', item_name: 'Màn hình Dell UltraSharp 27 inch', item_group: 'Thiết bị công nghệ', stock_uom: 'Cái', opening_stock: 120, actual_qty: 115, standard_rate: 8500000 },
-        { name: 'ITEM-003', item_name: 'Bàn phím cơ Logitech MX Keys', item_group: 'Phụ kiện máy tính', stock_uom: 'Cái', opening_stock: 80, actual_qty: 78, standard_rate: 2800000 },
-        { name: 'ITEM-004', item_name: 'Chuột không dây MX Master 3S', item_group: 'Phụ kiện máy tính', stock_uom: 'Cái', opening_stock: 60, actual_qty: 55, standard_rate: 2400000 }
-      ];
-      const filtered = keyword ? mockItems.filter(i => i.item_name.toLowerCase().includes(keyword.toLowerCase()) || i.name.toLowerCase().includes(keyword.toLowerCase())) : mockItems;
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({
-              total: filtered.length,
-              items: filtered,
-              note: `Thông báo: Kết nối tới máy chủ ERPNext [${baseUrl}] tạm thời gặp sự cố (${err.message}). Dưới đây là dữ liệu tồn kho hệ thống phục vụ kiểm thử.`
-            }, null, 2)
-          }
-        ]
-      };
+      throw new Error(`Không thể lấy danh sách sản phẩm từ máy chủ Frappe/ERPNext [${baseUrl}]. Lý do: ${err.message}. Vui lòng kiểm tra lại Endpoint URL và API Key trong Vault/Cấu hình tích hợp.`);
     }
 
     return {
