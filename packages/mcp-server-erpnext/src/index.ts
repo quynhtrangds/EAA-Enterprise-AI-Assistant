@@ -81,6 +81,13 @@ export function getAuthHeaders(apiKey?: string): Record<string, string> {
   return headers;
 }
 
+function cleanBaseUrl(url: string): string {
+  let clean = (url || '').trim().replace(/\/+$/, '');
+  clean = clean.replace(/\/api\/resource(\/[^/]+)?$/i, '');
+  clean = clean.replace(/\/api$/i, '');
+  return clean;
+}
+
 mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
   const toolName = request.params.name;
   const rawArgs = (request.params.arguments as any) || {};
@@ -91,10 +98,10 @@ mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
   if (toolName === 'get_inventory_status') {
     const keyword = (rawArgs.keyword as string || '').trim();
     if (!apiUrl) {
-      throw new Error("Chưa cấu hình Endpoint URL cho hệ thống ERPNext. Vui lòng vào Cấu hình Tích hợp để nhập URL.");
+      throw new Error("Chưa cấu hình Endpoint URL cho hệ thống ERPNext. Vui lòng vào Cấu hình Tích hợp để nhập URL (ví dụ: https://erp.example.com).");
     }
 
-    const baseUrl = apiUrl.endsWith('/') ? apiUrl.slice(0, -1) : apiUrl;
+    const baseUrl = cleanBaseUrl(apiUrl);
     const fields = JSON.stringify(['name', 'item_name', 'item_group', 'stock_uom', 'opening_stock', 'valuation_rate', 'standard_rate']);
     let queryParams = `fields=${encodeURIComponent(fields)}`;
     
@@ -114,7 +121,7 @@ mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
       const resp = await fetch(targetUrl, { headers, signal: AbortSignal.timeout(10000) });
       if (!resp.ok) {
         const errText = await resp.text().catch(() => '');
-        throw new Error(`ERPNext HTTP Error ${resp.status}: ${errText || resp.statusText}`);
+        throw new Error(`Máy chủ ERPNext trả về HTTP ${resp.status} (${resp.statusText || 'Error'}). ${errText.slice(0, 200)}`);
       }
 
       const data = (await resp.json()) as { data?: any[] };
@@ -147,7 +154,7 @@ mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
         }
       }
     } catch (err: any) {
-      throw new Error(`Không thể kết nối tới máy chủ ERPNext tại URL [${baseUrl}]. Chi tiết: ${err.message}.`);
+      throw new Error(`Không thể truy vấn tồn kho từ ERPNext [${baseUrl}]. Chi tiết: ${err.message}. Lưu ý: Vui lòng nhập URL gốc của ERPNext (ví dụ: https://erp.example.com) và nhập API Key / Secret theo định dạng 'api_key:api_secret'.`);
     }
 
     return {
@@ -171,7 +178,7 @@ mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
       throw new Error("Chưa cấu hình Endpoint URL cho hệ thống ERPNext.");
     }
 
-    const baseUrl = apiUrl.endsWith('/') ? apiUrl.slice(0, -1) : apiUrl;
+    const baseUrl = cleanBaseUrl(apiUrl);
     const targetFields = isSales 
       ? ['name', 'customer', 'customer_name', 'posting_date', 'due_date', 'grand_total', 'status', 'currency']
       : ['name', 'supplier', 'supplier_name', 'posting_date', 'due_date', 'grand_total', 'status', 'currency'];
@@ -196,10 +203,7 @@ mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
     }
 
     const targetUrl = `${baseUrl}/api/resource/${encodeURIComponent(docType)}?${queryParams}`;
-    const headers: Record<string, string> = { 'Accept': 'application/json' };
-    if (apiKey) {
-      headers['Authorization'] = apiKey.startsWith('token ') ? apiKey : `token ${apiKey}`;
-    }
+    const headers = getAuthHeaders(apiKey);
 
     try {
       const resp = await fetch(targetUrl, { headers, signal: AbortSignal.timeout(10000) });
