@@ -72,6 +72,9 @@ mcpServer.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
 
   const sessionId = extra.sessionId;
   const user = sessionId ? sessionUsers.get(sessionId) : null;
+  if (user?.tenantId) {
+    args._tenantId = user.tenantId;
+  }
   const startedAt = Date.now();
 
   try {

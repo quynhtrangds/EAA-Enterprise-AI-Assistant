@@ -400,6 +400,9 @@ toolsRouter.post('/tools/call', async (req, res, next) => {
     const serverName = targetServerName; // Use targetServerName
     console.log(`[Tool Execution] toolName: ${parsed.toolName}, serverName: ${serverName}, tenantId: ${user?.tenantId}`);
     let mergedArgs = { ...((parsed.arguments as object) || {}) };
+    if (user?.tenantId) {
+      (mergedArgs as any)._tenantId = user.tenantId;
+    }
 
     if (serverName && user.tenantId) {
       const vaultPath = `integrations/${user.tenantId}/${serverName}`;

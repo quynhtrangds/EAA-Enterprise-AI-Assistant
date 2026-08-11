@@ -216,6 +216,10 @@ function toNumber(value: unknown): number {
   return Number(value ?? 0);
 }
 
+function getTenantId(input: any): string {
+  return input._tenantId || input.tenantId || '00000000-0000-0000-0000-000000000000';
+}
+
 export function createPostgresTools() {
   return [
     {
@@ -226,34 +230,39 @@ export function createPostgresTools() {
       outputSchema: searchCustomerOutputSchema,
       async execute(parsedInput: any) {
         const { keyword, limit } = parsedInput;
+        const tenantId = getTenantId(parsedInput);
         let result;
         try {
           result = await query<SearchCustomerRow>(
             `
             SELECT id, customer_code, full_name, phone, email, address, status
             FROM customers
-            WHERE unaccent(full_name) ILIKE unaccent($1)
-               OR phone ILIKE $1
-               OR unaccent(email) ILIKE unaccent($1)
-               OR customer_code ILIKE $1
+            WHERE tenant_id = $1 AND (
+               unaccent(full_name) ILIKE unaccent($2)
+               OR phone ILIKE $2
+               OR unaccent(email) ILIKE unaccent($2)
+               OR customer_code ILIKE $2
+            )
             ORDER BY created_at DESC
-            LIMIT $2
+            LIMIT $3
             `,
-            [`%${keyword}%`, limit]
+            [tenantId, `%${keyword}%`, limit]
           );
         } catch (_err) {
           result = await query<SearchCustomerRow>(
             `
             SELECT id, customer_code, full_name, phone, email, address, status
             FROM customers
-            WHERE full_name ILIKE $1
-               OR phone ILIKE $1
-               OR email ILIKE $1
-               OR customer_code ILIKE $1
+            WHERE tenant_id = $1 AND (
+               full_name ILIKE $2
+               OR phone ILIKE $2
+               OR email ILIKE $2
+               OR customer_code ILIKE $2
+            )
             ORDER BY created_at DESC
-            LIMIT $2
+            LIMIT $3
             `,
-            [`%${keyword}%`, limit]
+            [tenantId, `%${keyword}%`, limit]
           );
         }
 
@@ -278,17 +287,19 @@ export function createPostgresTools() {
       outputSchema: getCustomerOrdersOutputSchema,
       async execute(parsedInput: any) {
         const parsed = parsedInput;
+        const tenantId = getTenantId(parsed);
         const result = await query<CustomerOrderRow>(
           `
           SELECT id, order_code, order_date, status, total_amount
           FROM orders
-          WHERE customer_id = $1
-            AND order_date >= COALESCE($2::timestamptz, now() - INTERVAL '90 days')
-            AND order_date <= COALESCE($3::timestamptz, now())
+          WHERE tenant_id = $1
+            AND customer_id = $2
+            AND order_date >= COALESCE($3::timestamptz, now() - INTERVAL '90 days')
+            AND order_date <= COALESCE($4::timestamptz, now())
           ORDER BY order_date DESC
-          LIMIT $4
+          LIMIT $5
           `,
-          [parsed.customerId, parsed.fromDate ?? null, parsed.toDate ?? null, parsed.limit]
+          [tenantId, parsed.customerId, parsed.fromDate ?? null, parsed.toDate ?? null, parsed.limit]
         );
 
         return {
@@ -310,6 +321,7 @@ export function createPostgresTools() {
       outputSchema: getOrderDetailOutputSchema,
       async execute(parsedInput: any) {
         const { orderCode } = parsedInput;
+        const tenantId = getTenantId(parsedInput);
         const orderResult = await query<OrderDetailRow>(
           `
           SELECT
@@ -322,10 +334,10 @@ export function createPostgresTools() {
             c.address AS customer_address
           FROM orders o
           JOIN customers c ON c.id = o.customer_id
-          WHERE UPPER(o.order_code) = UPPER($1)
+          WHERE o.tenant_id = $1 AND UPPER(o.order_code) = UPPER($2)
           LIMIT 1
           `,
-          [orderCode]
+          [tenantId, orderCode]
         );
 
         const order = orderResult.rows[0];
@@ -394,6 +406,7 @@ export function createPostgresTools() {
       outputSchema: getRevenueSummaryOutputSchema,
       async execute(parsedInput: any) {
         const parsed = parsedInput;
+        const tenantId = getTenantId(parsed);
         assertDateRange(parsed.fromDate, parsed.toDate);
 
         const groupExpression =
@@ -411,13 +424,14 @@ export function createPostgresTools() {
             COALESCE(SUM(p.amount), 0)::numeric AS total_revenue
           FROM payments p
           JOIN orders o ON o.id = p.order_id
-          WHERE p.status = 'paid'
-            AND p.paid_at >= $1::timestamptz
-            AND p.paid_at < ($2::date + INTERVAL '1 day')
+          WHERE o.tenant_id = $1
+            AND p.status = 'paid'
+            AND p.paid_at >= $2::timestamptz
+            AND p.paid_at < ($3::date + INTERVAL '1 day')
           GROUP BY group_key
           ORDER BY group_key ASC
           `,
-          [parsed.fromDate, parsed.toDate]
+          [tenantId, parsed.fromDate, parsed.toDate]
         );
 
         const groups = groupsResult.rows.map((row) => ({
@@ -442,6 +456,7 @@ export function createPostgresTools() {
       inputSchema: getTopCustomersInput,
       async execute(parsedInput: any) {
         const parsed = parsedInput;
+        const tenantId = getTenantId(parsed);
         assertDateRange(parsed.fromDate, parsed.toDate);
 
         const result = await query<TopCustomerRow>(
@@ -457,14 +472,15 @@ export function createPostgresTools() {
           FROM customers c
           JOIN orders o ON o.customer_id = c.id
           JOIN payments p ON p.order_id = o.id
-          WHERE p.status = 'paid'
-            AND p.paid_at >= $1::timestamptz
-            AND p.paid_at < ($2::date + INTERVAL '1 day')
+          WHERE c.tenant_id = $1
+            AND p.status = 'paid'
+            AND p.paid_at >= $2::timestamptz
+            AND p.paid_at < ($3::date + INTERVAL '1 day')
           GROUP BY c.id, c.customer_code, c.full_name, c.phone, c.email
           ORDER BY total_revenue DESC
-          LIMIT $3
+          LIMIT $4
           `,
-          [parsed.fromDate, parsed.toDate, parsed.limit]
+          [tenantId, parsed.fromDate, parsed.toDate, parsed.limit]
         );
 
         return {
@@ -485,6 +501,7 @@ export function createPostgresTools() {
       inputSchema: getProductSalesSummaryInput,
       async execute(parsedInput: any) {
         const parsed = parsedInput;
+        const tenantId = getTenantId(parsed);
         assertDateRange(parsed.fromDate, parsed.toDate);
 
         const result = await query<ProductSalesRow>(
@@ -501,14 +518,15 @@ export function createPostgresTools() {
           JOIN order_items oi ON oi.product_id = p.id
           JOIN orders o ON o.id = oi.order_id
           JOIN payments pay ON pay.order_id = o.id
-          WHERE pay.status = 'paid'
-            AND pay.paid_at >= $1::timestamptz
-            AND pay.paid_at < ($2::date + INTERVAL '1 day')
+          WHERE o.tenant_id = $1
+            AND pay.status = 'paid'
+            AND pay.paid_at >= $2::timestamptz
+            AND pay.paid_at < ($3::date + INTERVAL '1 day')
           GROUP BY p.id, p.product_code, p.name, p.category
           ORDER BY total_quantity DESC, total_sales DESC
-          LIMIT $3
+          LIMIT $4
           `,
-          [parsed.fromDate, parsed.toDate, parsed.limit]
+          [tenantId, parsed.fromDate, parsed.toDate, parsed.limit]
         );
 
         return {
