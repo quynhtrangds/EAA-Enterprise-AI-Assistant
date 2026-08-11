@@ -337,7 +337,7 @@ toolsRouter.get('/tools', async (req, res, next) => {
         riskLevel: config.riskLevel,
         readOnly: config.readOnly,
         requiresConfirmation: config.requiresConfirmation,
-        inputSchema: tool.inputSchema,
+        inputSchema: zodToJsonSchema(tool.inputSchema),
         permitted: isPermitted
       });
     }
@@ -383,6 +383,8 @@ toolsRouter.post('/tools/call', async (req, res, next) => {
     if (!(await canExecuteTool(user.roles, parsed.toolName))) {
       throw new AppError('PERMISSION_DENIED', 'Ban khong co quyen goi tool nay.', 403);
     }
+
+    checkToolRateLimit(user.id, parsed.toolName);
 
     await writeAuditLog({
       userId: user.id,

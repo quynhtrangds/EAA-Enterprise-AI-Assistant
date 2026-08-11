@@ -418,10 +418,9 @@ export class ChatService {
       const message = error instanceof Error ? error.message : 'Unknown LLM error';
       console.error('LLM Error Details:', (error as any).error || error);
 
-      // Trả về câu trả lời thân thiện thay vì ném lỗi 502 để UI không báo "Mất kết nối"
       return {
         sessionId: input.sessionId,
-        answer: 'Xin lỗi, tôi đã gặp khó khăn khi xử lý yêu cầu này (có thể do thiếu thông tin cụ thể hoặc công cụ không hỗ trợ). Bạn vui lòng cung cấp thêm chi tiết hoặc thử đổi cách hỏi nhé.',
+        answer: `Lỗi kết nối mô hình LLM (${message}). Vui lòng kiểm tra lại API Key, quota tài khoản hoặc cấu hình LLM Provider.`,
         toolCalls: []
       };
     }

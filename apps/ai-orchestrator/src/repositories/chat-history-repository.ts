@@ -170,6 +170,15 @@ export async function editChatTurn(input: {
 }): Promise<void> {
   await ensureChatHistoryTables();
 
+  // Verify session belongs to current user
+  const sessionCheck = await query(
+    `SELECT id FROM chat_sessions WHERE session_id = $1 AND user_id = $2`,
+    [input.sessionId, input.userId]
+  );
+  if (sessionCheck.rows.length === 0) {
+    throw new AppError('FORBIDDEN', 'Bạn không có quyền sửa phiên trò chuyện này.', 403);
+  }
+
   const result = await query(
     `SELECT created_at FROM chat_messages WHERE message_id = $1 AND session_id = $2`,
     [input.messageId, input.sessionId]

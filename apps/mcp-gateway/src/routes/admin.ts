@@ -87,16 +87,16 @@ adminRouter.post('/integrations', async (req, res, next) => {
     const vaultPath = `integrations/${user.tenantId}/${integrationCode}`;
 
     // Lưu vào database
+    // Store integration metadata in database (api_key is kept NULL/masked in DB; raw secret is stored ONLY in Vault)
     const upsertQuery = `
       INSERT INTO tenant_integrations (tenant_id, integration_code, vault_path, is_active, api_url, api_key)
-      VALUES ($1, $2, $3, $4, $5, $6)
+      VALUES ($1, $2, $3, $4, $5, NULL)
       ON CONFLICT (tenant_id, integration_code) 
       DO UPDATE SET 
         is_active = EXCLUDED.is_active,
         api_url = COALESCE(EXCLUDED.api_url, tenant_integrations.api_url),
-        api_key = CASE WHEN EXCLUDED.api_key IS NOT NULL AND EXCLUDED.api_key <> '' THEN EXCLUDED.api_key ELSE tenant_integrations.api_key END,
         updated_at = CURRENT_TIMESTAMP
-      RETURNING integration_code, is_active, api_url, api_key
+      RETURNING integration_code, is_active, api_url
     `;
     
     const dbResult = await query(upsertQuery, [
@@ -104,8 +104,7 @@ adminRouter.post('/integrations', async (req, res, next) => {
       integrationCode,
       vaultPath,
       isActive !== undefined ? isActive : true,
-      apiUrl !== undefined ? apiUrl : null,
-      apiKey !== undefined ? apiKey : null
+      apiUrl !== undefined ? apiUrl : null
     ]);
 
     // Nếu có apiKey hoặc apiUrl, lưu/cập nhật vào HashiCorp Vault
