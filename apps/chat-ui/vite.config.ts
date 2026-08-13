@@ -12,13 +12,23 @@ export default defineConfig({
     strictPort: true,
     host: '0.0.0.0',
     proxy: {
+      '/api/login': {
+        target: process.env.MCP_GATEWAY_URL || 'http://localhost:8081',
+        changeOrigin: true,
+        secure: false
+      },
+      '/api/auth': {
+        target: process.env.MCP_GATEWAY_URL || 'http://localhost:8081',
+        changeOrigin: true,
+        secure: false
+      },
       '/api/admin': {
-        target: process.env.MCP_GATEWAY_URL || 'http://mcp-gateway:8081',
+        target: process.env.MCP_GATEWAY_URL || 'http://localhost:8081',
         changeOrigin: true,
         secure: false
       },
       '/api': {
-        target: process.env.AI_ORCHESTRATOR_URL || 'http://ai-orchestrator:8082',
+        target: process.env.AI_ORCHESTRATOR_URL || 'http://localhost:8082',
         changeOrigin: true,
         secure: false
       }
