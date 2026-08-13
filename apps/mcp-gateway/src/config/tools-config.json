@@ -1,14 +1,62 @@
 {
-  "search_customer": { "riskLevel": "low", "readOnly": true, "requiresConfirmation": false },
-  "get_customer_orders": { "riskLevel": "low", "readOnly": true, "requiresConfirmation": false },
-  "get_order_detail": { "riskLevel": "low", "readOnly": true, "requiresConfirmation": false },
-  "get_revenue_summary": { "riskLevel": "medium", "readOnly": true, "requiresConfirmation": false },
-  "get_top_customers": { "riskLevel": "medium", "readOnly": true, "requiresConfirmation": false },
-  "get_product_sales_summary": { "riskLevel": "medium", "readOnly": true, "requiresConfirmation": false },
-  "get_inventory_status": { "riskLevel": "low", "readOnly": true, "requiresConfirmation": false },
-  "crm_get_customer_status": { "riskLevel": "low", "readOnly": true, "requiresConfirmation": false },
-  "crm_get_opportunities": { "riskLevel": "low", "readOnly": true, "requiresConfirmation": false },
-  "get_open_tickets": { "riskLevel": "low", "readOnly": true, "requiresConfirmation": false },
-  "search_repositories": { "riskLevel": "low", "readOnly": true, "requiresConfirmation": false },
-  "search_internal_documents": { "riskLevel": "low", "readOnly": true, "requiresConfirmation": false }
+  "search_customer": {
+    "riskLevel": "low",
+    "readOnly": true,
+    "requiresConfirmation": false
+  },
+  "get_customer_orders": {
+    "riskLevel": "low",
+    "readOnly": true,
+    "requiresConfirmation": false
+  },
+  "get_order_detail": {
+    "riskLevel": "low",
+    "readOnly": true,
+    "requiresConfirmation": false
+  },
+  "get_revenue_summary": {
+    "riskLevel": "medium",
+    "readOnly": true,
+    "requiresConfirmation": false
+  },
+  "get_top_customers": {
+    "riskLevel": "medium",
+    "readOnly": true,
+    "requiresConfirmation": false
+  },
+  "get_product_sales_summary": {
+    "riskLevel": "medium",
+    "readOnly": true,
+    "requiresConfirmation": false
+  },
+  "get_inventory_status": {
+    "riskLevel": "low",
+    "readOnly": true,
+    "requiresConfirmation": false
+  },
+  "crm_get_customer_status": {
+    "riskLevel": "low",
+    "readOnly": true,
+    "requiresConfirmation": false
+  },
+  "crm_get_opportunities": {
+    "riskLevel": "low",
+    "readOnly": true,
+    "requiresConfirmation": false
+  },
+  "get_open_tickets": {
+    "riskLevel": "low",
+    "readOnly": true,
+    "requiresConfirmation": false
+  },
+  "search_repositories": {
+    "riskLevel": "low",
+    "readOnly": true,
+    "requiresConfirmation": false
+  },
+  "search_internal_documents": {
+    "riskLevel": "low",
+    "readOnly": true,
+    "requiresConfirmation": false
+  }
 }
