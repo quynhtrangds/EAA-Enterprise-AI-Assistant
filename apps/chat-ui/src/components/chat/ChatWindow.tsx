@@ -21,13 +21,11 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ messages, isLoading, sendMessag
     return (
       <div className="flex-1 flex flex-col items-center justify-center p-6 lg:px-12 w-full max-w-4xl mx-auto -mt-20">
         <div className="w-full text-center pb-2 animate-fade-in">
-          <div className="w-16 h-16 bg-[#a855f7]/10 text-[#c084fc] border border-[#a855f7]/20 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg shadow-purple-500/5">
-            <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
-            </svg>
+          <div className="w-14 h-14 rounded-full border border-brass/50 flex items-center justify-center mx-auto mb-6">
+            <span className="font-mono text-brass text-base">AI</span>
           </div>
-          <h2 className="text-3xl font-bold text-white mb-3 tracking-wide">Enterprise AI Assistant</h2>
-          <p className="text-[17px] text-slate-400 max-w-xl mx-auto mb-6 leading-relaxed">
+          <h2 className="text-2xl font-semibold text-ink-1 mb-3">Trợ lý AI Doanh nghiệp</h2>
+          <p className="text-[16px] text-ink-2 max-w-xl mx-auto mb-6 leading-relaxed">
             Trợ lý thông minh kết nối trực tiếp với hệ thống dữ liệu doanh nghiệp
           </p>
         </div>
@@ -61,11 +59,11 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ messages, isLoading, sendMessag
 
           {/* Vùng hiển thị đang tải */}
           {isLoading && (
-            <div className="flex items-center text-[15px] text-slate-500 italic mt-6 ml-14">
+            <div className="flex items-center text-[15px] text-ink-3 italic mt-6 ml-14">
               <div className="flex space-x-1 mr-3">
-                <div className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce"></div>
-                <div className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce animation-delay-150"></div>
-                <div className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce animation-delay-300"></div>
+                <div className="w-2 h-2 bg-brass rounded-full animate-bounce"></div>
+                <div className="w-2 h-2 bg-brass rounded-full animate-bounce animation-delay-150"></div>
+                <div className="w-2 h-2 bg-brass rounded-full animate-bounce animation-delay-300"></div>
               </div>
               Đang truy vấn dữ liệu...
             </div>

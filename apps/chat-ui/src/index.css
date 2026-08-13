@@ -1,7 +1,40 @@
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap');
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
 
-/* Custom Scrollbar - Mặc định cho khung sáng */
+/*
+  Design tokens — thay cho việc gọi thẳng slate/emerald/indigo mặc định
+  của Tailwind rải rác khắp component. Dùng: bg-ink, bg-surface, border-hair,
+  text-ink-1, text-ink-2, bg-brass, text-brass, bg-sage, text-sage, bg-clay, text-clay
+*/
+@theme {
+  --color-ink: #14171c;
+  /* nền chính */
+  --color-surface: #1b1f26;
+  /* nền card/sidebar */
+  --color-surface-raised: #21262f;
+  /* input, hover state */
+  --color-hair: #2a2f38;
+  /* viền hairline */
+  --color-ink-1: #edeef1;
+  /* chữ chính */
+  --color-ink-2: #8b93a0;
+  /* chữ phụ */
+  --color-ink-3: #5b6270;
+  /* chữ mờ nhất, placeholder */
+
+  --color-brass: #c08a44;
+  /* accent DUY NHẤT: nút chính, active, focus ring */
+  --color-brass-hover: #d19b57;
+  --color-sage: #5b9b82;
+  /* trạng thái thành công / online */
+  --color-clay: #c1584b;
+  /* lỗi / cảnh báo */
+
+  --font-mono: "IBM Plex Mono", "JetBrains Mono", ui-monospace, monospace;
+}
+
+/* Custom Scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -12,29 +45,15 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #cbd5e1; /* slate-300 */
+  background: var(--color-hair);
   border-radius: 10px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8; /* slate-400 */
+  background: var(--color-ink-3);
 }
 
-/* Scrollbar cho khung tối (Sidebar) */
-.dark-scrollbar::-webkit-scrollbar-thumb {
-  background: #475569; /* slate-600 */
-}
-
-.dark-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #64748b; /* slate-500 */
-}
-
-/* For Firefox */
 * {
   scrollbar-width: thin;
-  scrollbar-color: #cbd5e1 transparent;
-}
-
-.dark-scrollbar {
-  scrollbar-color: #475569 transparent;
+  scrollbar-color: var(--color-hair) transparent;
 }

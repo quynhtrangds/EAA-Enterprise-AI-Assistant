@@ -87,46 +87,41 @@ const LoginScreen: React.FC = () => {
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-[#0f172a] font-sans">
-      {/* Subtle Corporate Deep Slate background */}
-      <div className="absolute inset-0 bg-gradient-to-b from-[#0f172a] via-[#1e293b]/40 to-[#0f172a] pointer-events-none" />
-
-      <div className="relative w-full max-w-md p-10 bg-[#1e293b]/90 backdrop-blur-xl rounded-3xl shadow-2xl shadow-black/40 border border-slate-700/80">
-        <div className="text-center mb-10">
-          {/* Logo - Emerald Corporate Style */}
-          <div className="w-14 h-14 rounded-2xl bg-emerald-600 shadow-lg shadow-emerald-500/20 flex items-center justify-center mx-auto mb-5">
-            <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-            </svg>
+    <div className="flex items-center justify-center min-h-screen bg-ink font-sans px-4">
+      <div className="relative w-full max-w-md p-9 bg-surface rounded-lg border border-hair">
+        {/* Dấu — thay cho icon hộp vô nghĩa. Gợi "niêm phong / xác nhận",
+            đúng bản chất: mọi câu trả lời đều đi qua kiểm soát quyền + audit log. */}
+        <div className="text-center mb-9">
+          <div className="w-11 h-11 rounded-full border border-brass/50 flex items-center justify-center mx-auto mb-5">
+            <span className="font-mono text-brass text-sm">AI</span>
           </div>
-          <h2 className="text-2xl font-bold text-white tracking-wide">Enterprise UI</h2>
-          <p className="text-sm text-emerald-400 font-bold uppercase tracking-wider mt-1">MCP GATEWAY</p>
-          <p className="text-[15px] text-slate-300 mt-4">Đăng nhập để tiếp tục</p>
+          <h2 className="text-xl font-semibold text-ink-1">Trợ lý AI Doanh nghiệp</h2>
+          <p className="text-sm text-ink-2 mt-2">Đăng nhập để tiếp tục</p>
         </div>
 
         {error && (
-          <div className="mb-5 p-3.5 bg-red-500/10 text-red-400 text-[15px] rounded-xl border border-red-500/20 font-medium">
+          <div className="mb-5 p-3.5 bg-clay/10 text-clay text-sm rounded-lg border border-clay/25">
             {error}
           </div>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-5">
           <div>
-            <label className="block text-[15px] font-semibold text-slate-300 mb-2">
+            <label className="block text-sm font-medium text-ink-2 mb-2">
               Tên đăng nhập
             </label>
             <input
               type="text"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              className="w-full px-4 py-3 bg-[#0f172a] border border-slate-700/80 rounded-xl focus:ring-2 focus:ring-emerald-500/80 focus:border-emerald-500 outline-none transition-all text-white text-[15px] placeholder-slate-500"
+              className="w-full px-3.5 py-2.5 bg-surface-raised border border-hair rounded-lg focus:ring-1 focus:ring-brass focus:border-brass outline-none transition-colors text-ink-1 text-[15px] placeholder-ink-3"
               placeholder="Nhập tên đăng nhập"
               disabled={isLoading}
             />
           </div>
 
           <div>
-            <label className="block text-[15px] font-semibold text-slate-300 mb-2">
+            <label className="block text-sm font-medium text-ink-2 mb-2">
               Mật khẩu
             </label>
             <div className="relative">
@@ -134,23 +129,23 @@ const LoginScreen: React.FC = () => {
                 type={showPassword ? 'text' : 'password'}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-3 bg-[#0f172a] border border-slate-700/80 rounded-xl focus:ring-2 focus:ring-emerald-500/80 focus:border-emerald-500 outline-none transition-all text-white text-[15px] placeholder-slate-500 pr-12"
+                className="w-full px-3.5 py-2.5 bg-surface-raised border border-hair rounded-lg focus:ring-1 focus:ring-brass focus:border-brass outline-none transition-colors text-ink-1 text-[15px] placeholder-ink-3 pr-11"
                 placeholder="Nhập mật khẩu"
                 disabled={isLoading}
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 focus:outline-none transition-colors cursor-pointer"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-3 hover:text-ink-2 focus:outline-none transition-colors cursor-pointer"
               >
                 {showPassword ? (
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                  <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
                   </svg>
                 ) : (
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                  <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                   </svg>
                 )}
               </button>
@@ -160,10 +155,10 @@ const LoginScreen: React.FC = () => {
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full py-3 px-4 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-xl shadow-lg shadow-emerald-600/20 transition-all flex items-center justify-center disabled:opacity-70 text-[16px] mt-2 cursor-pointer"
+            className="w-full py-2.5 px-4 bg-brass hover:bg-brass-hover text-ink font-medium rounded-lg transition-colors flex items-center justify-center disabled:opacity-60 text-[15px] mt-1 cursor-pointer"
           >
             {isLoading ? (
-              <svg className="animate-spin h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
+              <svg className="animate-spin h-4.5 w-4.5" fill="none" viewBox="0 0 24 24">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
               </svg>
@@ -172,22 +167,21 @@ const LoginScreen: React.FC = () => {
             )}
           </button>
 
-          <div className="relative flex items-center justify-center my-6">
-            <div className="w-full border-t border-slate-700/60"></div>
-            <span className="absolute px-3 bg-[#1e293b] text-slate-400 text-xs font-bold uppercase tracking-widest">
-              HOẶC
+          <div className="relative flex items-center justify-center my-5">
+            <div className="w-full border-t border-hair"></div>
+            <span className="absolute px-3 bg-surface text-ink-3 text-xs">
+              hoặc
             </span>
           </div>
 
-          <div className="flex items-center justify-center gap-5 mt-4">
-            {/* Google Login Circle Button */}
+          <div className="flex items-center justify-center gap-4">
             <button
               type="button"
               onClick={() => googleCustomLogin()}
               title="Đăng nhập bằng Google"
-              className="w-10 h-10 rounded-full bg-slate-800 hover:bg-slate-700 hover:border-emerald-500/50 text-white border border-slate-600 shadow-lg flex items-center justify-center transition-colors cursor-pointer"
+              className="w-9 h-9 rounded-full bg-surface-raised hover:border-brass/50 text-ink-1 border border-hair flex items-center justify-center transition-colors cursor-pointer"
             >
-              <svg className="w-5 h-5" viewBox="0 0 24 24">
+              <svg className="w-4.5 h-4.5" viewBox="0 0 24 24">
                 <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
                 <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
                 <path fill="#FBBC05" d="M5.84 14.1c-.22-.66-.35-1.36-.35-2.1s.13-1.44.35-2.1V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.62z" />
@@ -195,15 +189,14 @@ const LoginScreen: React.FC = () => {
               </svg>
             </button>
 
-            {/* Guest Login Circle Button */}
             <button
               type="button"
               onClick={handleGuestLogin}
               disabled={isLoading}
               title="Đăng nhập với tư cách Khách (Guest Mode)"
-              className="w-10 h-10 rounded-full bg-slate-800 hover:bg-slate-700 hover:border-emerald-500/50 text-white border border-slate-600 shadow-lg flex items-center justify-center transition-colors cursor-pointer"
+              className="w-9 h-9 rounded-full bg-surface-raised hover:border-brass/50 text-ink-2 border border-hair flex items-center justify-center transition-colors cursor-pointer"
             >
-              <svg className="w-5 h-5 text-emerald-400" fill="currentColor" viewBox="0 0 20 20">
+              <svg className="w-4.5 h-4.5" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
               </svg>
             </button>

@@ -57,7 +57,7 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
 
   const filteredUsers = (users || []).filter(u => {
     const queryStr = userSearchQuery.trim().toLowerCase();
-    const matchesSearch = !queryStr || 
+    const matchesSearch = !queryStr ||
       (u.username || '').toLowerCase().includes(queryStr) ||
       (u.display_name || '').toLowerCase().includes(queryStr) ||
       (u.email || '').toLowerCase().includes(queryStr);
@@ -315,15 +315,15 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-md animate-in fade-in duration-200 p-4">
-      <div className="relative w-full max-w-4xl h-[620px] bg-[#181920] border border-slate-700/60 rounded-3xl shadow-2xl overflow-hidden flex animate-in zoom-in-95 duration-150">
+      <div className="relative w-full max-w-4xl h-[620px] bg-surface border border-hair rounded-lg overflow-hidden flex animate-in zoom-in-95 duration-150">
 
         {/* Left Navigation Sidebar (Matching Image 2 Layout) */}
-        <div className="w-64 bg-[#121319]/90 border-r border-slate-800/80 p-5 flex flex-col justify-between shrink-0">
+        <div className="w-64 bg-ink/90 border-r border-hair p-5 flex flex-col justify-between shrink-0">
           <div>
             {/* Top Close Button (x) */}
             <button
               onClick={onClose}
-              className="w-8 h-8 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white flex items-center justify-center transition-colors mb-6 cursor-pointer"
+              className="w-8 h-8 rounded-lg bg-surface-raised hover:bg-hair text-ink-2 hover:text-ink-1 flex items-center justify-center transition-colors mb-6 cursor-pointer"
               title="Đóng Cài đặt"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -331,18 +331,18 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
               </svg>
             </button>
 
-            <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-3 px-1">Cài đặt Hệ thống</p>
+            <p className="text-[11px] font-bold text-ink-3 uppercase tracking-wider mb-3 px-1">Cài đặt Hệ thống</p>
 
             {/* Vertical Tabs Navigation List */}
             <div className="space-y-1">
               <button
                 onClick={() => { setActiveTab('integrations'); setError(null); setSuccessMsg(''); }}
                 className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all text-left cursor-pointer ${activeTab === 'integrations'
-                  ? 'bg-slate-800 text-white font-semibold shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
+                  ? 'bg-surface-raised text-ink-1 font-semibold'
+                  : 'text-ink-2 hover:text-ink-1 hover:bg-surface-raised/60'
                   }`}
               >
-                <svg className="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4 text-brass" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
                 </svg>
                 <span>Kết nối Tích hợp</span>
@@ -351,11 +351,11 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
               <button
                 onClick={() => { setActiveTab('users'); setError(null); setSuccessMsg(''); }}
                 className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all text-left cursor-pointer ${activeTab === 'users'
-                  ? 'bg-slate-800 text-white font-semibold shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
+                  ? 'bg-surface-raised text-ink-1 font-semibold'
+                  : 'text-ink-2 hover:text-ink-1 hover:bg-surface-raised/60'
                   }`}
               >
-                <svg className="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4 text-brass" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
                 </svg>
                 <span>Phân quyền</span>
@@ -363,31 +363,31 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
             </div>
           </div>
 
-          <div className="pt-4 border-t border-slate-800/80">
-            <p className="text-[11px] text-slate-500 font-medium">Enterprise Assistant v1.0</p>
+          <div className="pt-4 border-t border-hair">
+            <p className="text-[11px] text-ink-3 font-medium">Enterprise Assistant v1.0</p>
           </div>
         </div>
 
         {/* Right Content Area */}
-        <div className="flex-1 bg-[#181920] p-8 overflow-y-auto flex flex-col justify-between">
+        <div className="flex-1 bg-surface p-8 overflow-y-auto flex flex-col justify-between">
           <div>
-            <h2 className="text-xl font-bold text-white mb-6">
+            <h2 className="text-xl font-bold text-ink-1 mb-6">
               {activeTab === 'integrations' ? 'Kết nối Tích hợp' : 'Phân quyền'}
             </h2>
 
             {/* Global Error/Success Messages */}
             {(error || successMsg) && (
               <div className="mb-6">
-                {error && <div className="p-3.5 bg-red-500/10 border border-red-500/20 text-red-400 rounded-xl text-sm font-medium">{error}</div>}
-                {successMsg && <div className="p-3.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-xl text-sm font-medium">{successMsg}</div>}
+                {error && <div className="p-3.5 bg-clay/10 border border-clay/25 text-clay rounded-xl text-sm font-medium">{error}</div>}
+                {successMsg && <div className="p-3.5 bg-brass/10 border border-brass/25 text-brass rounded-xl text-sm font-medium">{successMsg}</div>}
               </div>
             )}
 
             {/* TAB 1: INTEGRATIONS */}
             {activeTab === 'integrations' && (
               <div className="flex gap-6">
-                <div className="w-1/3 border-r border-slate-800 pr-4 space-y-2">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3 px-1">Hệ thống Doanh nghiệp</p>
+                <div className="w-1/3 border-r border-hair pr-4 space-y-2">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-ink-3 mb-3 px-1">Hệ thống Doanh nghiệp</p>
                   {availableIntegrations.map((item) => {
                     const config = integrations.find(i => i.integration_code === item.code);
                     const isConfigActive = config ? config.is_active : false;
@@ -398,12 +398,12 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
                         key={item.code}
                         onClick={() => handleSelectIntegration(item.code)}
                         className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-sm font-medium transition-all text-left cursor-pointer ${isSelected
-                          ? 'bg-emerald-600/20 text-emerald-300 border border-emerald-500/40 shadow-sm'
-                          : 'text-slate-300 hover:bg-slate-800/60 hover:text-white'
+                          ? 'bg-brass/15 text-brass border border-brass/40'
+                          : 'text-ink-2 hover:bg-surface-raised hover:text-ink-1'
                           }`}
                       >
                         <span>{item.name}</span>
-                        <span className={`w-2.5 h-2.5 rounded-full ${isConfigActive ? 'bg-emerald-400 shadow-sm shadow-emerald-400/50' : 'bg-slate-600'}`} />
+                        <span className={`w-2.5 h-2.5 rounded-full ${isConfigActive ? 'bg-sage ' : 'bg-slate-600'}`} />
                       </button>
                     );
                   })}
@@ -412,46 +412,46 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
                 <div className="w-2/3 flex flex-col">
                   {loadingIntegrations ? (
                     <div className="py-12 flex justify-center">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-500"></div>
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brass"></div>
                     </div>
                   ) : (
                     <form onSubmit={handleSaveIntegration} className="space-y-5">
-                      <div className="flex items-center justify-between pb-4 border-b border-slate-800">
-                        <h3 className="text-base font-semibold text-white">
+                      <div className="flex items-center justify-between pb-4 border-b border-hair">
+                        <h3 className="text-base font-semibold text-ink-1">
                           {availableIntegrations.find(i => i.code === selectedIntegration)?.name}
                         </h3>
                         <label className="relative inline-flex items-center cursor-pointer">
                           <input type="checkbox" className="sr-only peer" checked={isActive} onChange={(e) => handleToggleActive(e.target.checked)} />
-                          <div className="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
-                          <span className="ml-3 text-xs font-semibold text-slate-300 w-16 inline-block">
+                          <div className="w-11 h-6 bg-surface-raised peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-sage"></div>
+                          <span className="ml-3 text-xs font-semibold text-ink-2 w-16 inline-block">
                             {isActive ? 'Đang bật' : 'Đã tắt'}
                           </span>
                         </label>
                       </div>
 
                       <div>
-                        <label className="block text-xs font-semibold text-slate-400 mb-2">Endpoint URL (API Base URL)</label>
+                        <label className="block text-xs font-semibold text-ink-2 mb-2">Endpoint URL (API Base URL)</label>
                         <input
                           type="url"
                           value={apiUrl}
                           onChange={(e) => setApiUrl(e.target.value)}
                           placeholder="https://api.example.com..."
-                          className="w-full bg-[#121319] border border-slate-700/80 rounded-xl px-4 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all text-sm mb-4"
+                          className="w-full bg-ink border border-hair rounded-xl px-4 py-2.5 text-ink-1 placeholder-ink-3 focus:outline-none focus:border-brass focus:ring-1 focus:ring-brass transition-all text-sm mb-4"
                         />
-                        <label className="block text-xs font-semibold text-slate-400 mb-2">API Key / Token (Vault Security)</label>
+                        <label className="block text-xs font-semibold text-ink-2 mb-2">API Key / Token (Vault Security)</label>
                         <input
                           type="password"
                           value={apiKey}
                           onChange={(e) => setApiKey(e.target.value)}
                           placeholder="Bỏ trống nếu không muốn thay đổi..."
-                          className="w-full bg-[#121319] border border-slate-700/80 rounded-xl px-4 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all text-sm"
+                          className="w-full bg-ink border border-hair rounded-xl px-4 py-2.5 text-ink-1 placeholder-ink-3 focus:outline-none focus:border-brass focus:ring-1 focus:ring-brass transition-all text-sm"
                         />
-                        <p className="mt-2 text-xs text-slate-500">
+                        <p className="mt-2 text-xs text-ink-3">
                           Thông tin kết nối được bảo mật hai lớp bằng HashiCorp Vault.
                         </p>
                         {selectedIntegration === 'erpnext' && (
-                          <p className="mt-2 text-xs text-amber-400 font-medium">
-                            💡 Đối với Frappe Cloud, bạn cần nhập kết hợp cả API Key và API Secret theo định dạng: <span className="bg-slate-800 px-1.5 py-0.5 rounded text-white font-mono">&lt;api_key&gt;:&lt;api_secret&gt;</span> (Ví dụ: <span className="bg-slate-800 px-1.5 py-0.5 rounded text-emerald-300 font-mono">93b68c02976a26e:a1b2c3d4e5f6</span>).
+                          <p className="mt-2 text-xs text-brass font-medium">
+                            Đối với Frappe Cloud, bạn cần nhập kết hợp cả API Key và API Secret theo định dạng: <span className="bg-surface-raised px-1.5 py-0.5 rounded text-ink-1 font-mono">&lt;api_key&gt;:&lt;api_secret&gt;</span> (Ví dụ: <span className="bg-surface-raised px-1.5 py-0.5 rounded text-brass font-mono">93b68c02976a26e:a1b2c3d4e5f6</span>).
                           </p>
                         )}
                       </div>
@@ -460,9 +460,9 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
                         <button
                           type="submit"
                           disabled={savingIntegration}
-                          className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-semibold text-sm shadow-lg shadow-emerald-600/20 transition-all active:scale-95 disabled:opacity-50 flex items-center gap-2 cursor-pointer"
+                          className="px-6 py-2.5 bg-brass hover:bg-brass-hover text-ink-1 rounded-xl font-semibold text-sm shadow-lg transition-all active:scale-95 disabled:opacity-50 flex items-center gap-2 cursor-pointer"
                         >
-                          {savingIntegration && <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>}
+                          {savingIntegration && <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-ink-1" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>}
                           Lưu kết nối
                         </button>
                       </div>
@@ -475,47 +475,47 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
             {/* TAB 2: USERS & ROLES */}
             {activeTab === 'users' && (
               <div className="space-y-4">
-                <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+                <div className="flex items-center justify-between pb-3 border-b border-hair">
                   <div>
-                    <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+                    <h3 className="text-sm font-semibold text-ink-1 flex items-center gap-2">
                       Danh sách Phân quyền (RBAC)
                       <button
                         type="button"
                         onClick={() => setShowToolMatrixInfo(!showToolMatrixInfo)}
-                        className="text-xs font-normal text-emerald-400 hover:text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 px-2 py-0.5 rounded-md border border-emerald-500/20 transition-all cursor-pointer"
+                        className="text-xs font-normal text-brass hover:text-brass bg-brass/10 hover:bg-brass/15 px-2 py-0.5 rounded-md border border-brass/25 transition-all cursor-pointer"
                         title="Xem ma trận quyền hạn các vai trò"
                       >
-                        ℹ️ Chi tiết quyền hạn
+                        Chi tiết quyền hạn
                       </button>
                     </h3>
-                    <p className="text-xs text-slate-400">Phân quyền trực tiếp cho từng người dùng hệ thống</p>
+                    <p className="text-xs text-ink-2">Phân quyền trực tiếp cho từng người dùng hệ thống</p>
                   </div>
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => setShowAddUserModal(true)}
-                      className="text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-500 px-3.5 py-2 rounded-xl shadow-md transition-all flex items-center gap-1.5 cursor-pointer"
+                      className="text-xs font-semibold text-ink-1 bg-brass hover:bg-brass-hover px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer"
                     >
-                      ➕ Thêm Người dùng
+                      Thêm người dùng
                     </button>
                   </div>
                 </div>
 
                 {/* Tool Matrix Info Drawer */}
                 {showToolMatrixInfo && (
-                  <div className="p-3.5 bg-slate-800/60 border border-indigo-500/30 rounded-xl space-y-2 text-xs text-slate-300">
-                    <div className="font-semibold text-indigo-400 flex items-center justify-between">
-                      <span>📋 CHI TIẾT VAI TRÒ & PHẦN QUYỀN TRUY VẤN CÔNG CỤ (RBAC MATRIX):</span>
-                      <button onClick={() => setShowToolMatrixInfo(false)} className="text-slate-400 hover:text-white cursor-pointer">✕</button>
+                  <div className="p-3.5 bg-surface-raised border border-brass/25 rounded-xl space-y-2 text-xs text-ink-2">
+                    <div className="font-semibold text-brass flex items-center justify-between">
+                      <span>Vai trò & phạm vi truy vấn công cụ</span>
+                      <button onClick={() => setShowToolMatrixInfo(false)} className="text-ink-2 hover:text-ink-1 cursor-pointer">✕</button>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-[11.5px]">
-                      <div className="p-2 bg-[#121319] rounded-lg border border-slate-700/50">
-                        <span className="font-bold text-purple-400">👑 Admin (Quản trị viên):</span> Toàn quyền cấu hình hệ thống & truy vấn tất cả công cụ (ERPNext, CRM, Gitea, Zammad, Postgres, RAG).
+                      <div className="p-2 bg-ink rounded-lg border border-hair/50">
+                        <span className="font-bold text-brass">Admin —</span> Toàn quyền cấu hình hệ thống & truy vấn tất cả công cụ (ERPNext, CRM, Gitea, Zammad, Postgres, RAG).
                       </div>
-                      <div className="p-2 bg-[#121319] rounded-lg border border-slate-700/50">
-                        <span className="font-bold text-blue-400">👔 Quản lý (Manager):</span> Xem báo cáo doanh thu tổng hợp, hóa đơn bán/mua ERPNext, cơ hội kinh doanh CRM & hỗ trợ Zammad.
+                      <div className="p-2 bg-ink rounded-lg border border-hair/50">
+                        <span className="font-bold text-ink-1">Quản lý —</span> Xem báo cáo doanh thu tổng hợp, hóa đơn bán/mua ERPNext, cơ hội kinh doanh CRM & hỗ trợ Zammad.
                       </div>
-                      <div className="p-2 bg-[#121319] rounded-lg border border-slate-700/50">
-                        <span className="font-bold text-emerald-400">🧑‍💼 Nhân viên (Staff):</span> Tra cứu tồn kho, thông tin khách hàng, chi tiết đơn hàng & phiếu hỗ trợ kỹ thuật.
+                      <div className="p-2 bg-ink rounded-lg border border-hair/50">
+                        <span className="font-bold text-brass">Nhân viên —</span> Tra cứu tồn kho, thông tin khách hàng, chi tiết đơn hàng & phiếu hỗ trợ kỹ thuật.
                       </div>
                     </div>
                   </div>
@@ -528,41 +528,41 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
                       type="text"
                       value={userSearchQuery}
                       onChange={(e) => setUserSearchQuery(e.target.value)}
-                      placeholder="🔎 Tìm kiếm theo tên hoặc email..."
-                      className="w-full bg-[#121319] border border-slate-800 focus:border-indigo-500 text-xs text-white rounded-xl px-3.5 py-2 focus:outline-none transition-colors"
+                      placeholder="Tìm kiếm theo tên hoặc email..."
+                      className="w-full bg-ink border border-hair focus:border-brass text-xs text-ink-1 rounded-xl px-3.5 py-2 focus:outline-none transition-colors"
                     />
                     {userSearchQuery && (
                       <button
                         onClick={() => setUserSearchQuery('')}
-                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-slate-400 hover:text-white"
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-ink-2 hover:text-ink-1"
                       >
                         ✕
                       </button>
                     )}
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-xs text-slate-400 font-medium">Lọc vai trò:</span>
+                    <span className="text-xs text-ink-2 font-medium">Lọc vai trò:</span>
                     <select
                       value={userRoleFilter}
                       onChange={(e) => setUserRoleFilter(e.target.value)}
-                      className="bg-[#181920] border border-slate-700 text-xs font-medium text-slate-100 rounded-xl px-3 py-2 focus:outline-none focus:border-indigo-500 cursor-pointer"
+                      className="bg-surface border border-hair text-xs font-medium text-ink-1 rounded-xl px-3 py-2 focus:outline-none focus:border-brass cursor-pointer"
                     >
-                      <option value="all" className="bg-[#181920] text-slate-100">Tất cả vai trò</option>
-                      <option value="admin" className="bg-[#181920] text-slate-100">👑 Admin</option>
-                      <option value="manager" className="bg-[#181920] text-slate-100">👔 Quản lý</option>
-                      <option value="staff" className="bg-[#181920] text-slate-100">🧑‍💼 Nhân viên</option>
+                      <option value="all" className="bg-surface text-ink-1">Tất cả vai trò</option>
+                      <option value="admin" className="bg-surface text-ink-1">Admin</option>
+                      <option value="manager" className="bg-surface text-ink-1">Quản lý</option>
+                      <option value="staff" className="bg-surface text-ink-1">Nhân viên</option>
                     </select>
                   </div>
                 </div>
 
                 {loadingUsers ? (
                   <div className="py-12 flex justify-center">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500"></div>
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brass"></div>
                   </div>
                 ) : (
-                  <div className="overflow-x-auto border border-slate-800 rounded-2xl">
-                    <table className="w-full text-left text-sm text-slate-300">
-                      <thead className="bg-[#121319] text-xs uppercase font-semibold text-slate-400 border-b border-slate-800">
+                  <div className="overflow-x-auto border border-hair rounded-lg">
+                    <table className="w-full text-left text-sm text-ink-2">
+                      <thead className="bg-ink text-xs uppercase font-semibold text-ink-2 border-b border-hair">
                         <tr>
                           <th className="px-4 py-3">Tài khoản / Email</th>
                           <th className="px-4 py-3">Tên hiển thị</th>
@@ -570,23 +570,23 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
                           <th className="px-4 py-3 text-right">Thao tác</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-slate-800/60 bg-[#181920]">
+                      <tbody className="divide-y divide-hair bg-surface">
                         {filteredUsers.map(u => {
                           const isSelf = currentUser && (
-                            u.id === currentUser.id || 
-                            u.username === currentUser.username || 
+                            u.id === currentUser.id ||
+                            u.username === currentUser.username ||
                             (u.email && currentUser.email && u.email === currentUser.email)
                           );
                           const isAdminRole = u.role === 'admin' || u.username === 'admin' || u.id === '10000000-0000-0000-0000-000000000001';
                           const cannotBeDeleted = isSelf || isAdminRole;
 
                           return (
-                            <tr key={u.id} className="hover:bg-slate-800/40 transition-colors">
-                              <td className="px-4 py-3 font-medium text-white">
+                            <tr key={u.id} className="hover:bg-surface-raised/60 transition-colors">
+                              <td className="px-4 py-3 font-medium text-ink-1">
                                 <div>{u.username}</div>
-                                {u.email && <div className="text-xs text-slate-400">{u.email}</div>}
+                                {u.email && <div className="text-xs text-ink-2">{u.email}</div>}
                               </td>
-                              <td className="px-4 py-3 text-slate-300">{u.display_name || u.username}</td>
+                              <td className="px-4 py-3 text-ink-2">{u.display_name || u.username}</td>
                               <td className="px-4 py-3">
                                 <select
                                   value={u.role}
@@ -599,11 +599,11 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
                                       handleUpdateRole(u.id, targetRole);
                                     }
                                   }}
-                                  className="bg-[#181920] border border-slate-700 text-white text-xs font-semibold rounded-xl px-3 py-1.5 focus:outline-none focus:border-indigo-500 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+                                  className="bg-surface border border-hair text-ink-1 text-xs font-semibold rounded-xl px-3 py-1.5 focus:outline-none focus:border-brass cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
                                   title={u.role === 'admin' ? 'Tài khoản Quản trị viên (Admin) không thể hạ quyền.' : 'Thay đổi quyền hạn'}
                                 >
                                   {roleOptions.map(r => (
-                                    <option key={r.code} value={r.code} className="bg-[#181920] text-slate-100 py-1 font-normal">
+                                    <option key={r.code} value={r.code} className="bg-surface text-ink-1 py-1 font-normal">
                                       {r.label}
                                     </option>
                                   ))}
@@ -613,7 +613,7 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
                                 {!cannotBeDeleted ? (
                                   <button
                                     onClick={() => handleDeleteUser(u.id, u.username)}
-                                    className="p-1.5 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors cursor-pointer"
+                                    className="p-1.5 text-ink-2 hover:text-clay hover:bg-clay/10 rounded-lg transition-colors cursor-pointer"
                                     title="Xóa người dùng"
                                   >
                                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -621,11 +621,11 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
                                     </svg>
                                   </button>
                                 ) : isSelf ? (
-                                  <span className="text-[11px] text-slate-500 italic pr-2" title="Không thể xóa tài khoản đang đăng nhập">
+                                  <span className="text-[11px] text-ink-3 italic pr-2" title="Không thể xóa tài khoản đang đăng nhập">
                                     Đang sử dụng
                                   </span>
                                 ) : (
-                                  <span className="text-[11px] text-purple-400/60 italic pr-2" title="Tài khoản Quản trị viên không thể bị xóa">
+                                  <span className="text-[11px] text-ink-3 italic pr-2" title="Tài khoản Quản trị viên không thể bị xóa">
                                     Cố định
                                   </span>
                                 )}
@@ -647,40 +647,40 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
       {/* ADD USER MODAL */}
       {showAddUserModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-xs">
-          <div className="w-full max-w-md bg-[#181920] border border-slate-700 rounded-3xl p-6 shadow-2xl">
-            <h3 className="text-lg font-bold text-white mb-1">Thêm Người dùng Doanh nghiệp</h3>
-            <p className="text-xs text-slate-400 mb-5">Cấp quyền trước cho email nhân viên trước khi đăng nhập</p>
+          <div className="w-full max-w-md bg-surface border border-hair rounded-lg p-6">
+            <h3 className="text-lg font-bold text-ink-1 mb-1">Thêm Người dùng Doanh nghiệp</h3>
+            <p className="text-xs text-ink-2 mb-5">Cấp quyền trước cho email nhân viên trước khi đăng nhập</p>
 
             <form onSubmit={handleAddUser} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5">Tên tài khoản *</label>
+                <label className="block text-xs font-semibold text-ink-2 mb-1.5">Tên tài khoản *</label>
                 <input
                   type="text"
                   required
                   value={newUsername}
                   onChange={(e) => setNewUsername(e.target.value)}
                   placeholder="Ví dụ: nguyenvana"
-                  className="w-full bg-[#121319] border border-slate-700 rounded-xl px-3.5 py-2.5 text-white text-sm focus:outline-none focus:border-indigo-500"
+                  className="w-full bg-ink border border-hair rounded-xl px-3.5 py-2.5 text-ink-1 text-sm focus:outline-none focus:border-brass"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5">Email Công ty / Google</label>
+                <label className="block text-xs font-semibold text-ink-2 mb-1.5">Email Công ty / Google</label>
                 <input
                   type="email"
                   value={newEmail}
                   onChange={(e) => setNewEmail(e.target.value)}
                   placeholder="nguyenvana@company.com"
-                  className="w-full bg-[#121319] border border-slate-700 rounded-xl px-3.5 py-2.5 text-white text-sm focus:outline-none focus:border-indigo-500"
+                  className="w-full bg-ink border border-hair rounded-xl px-3.5 py-2.5 text-ink-1 text-sm focus:outline-none focus:border-brass"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5">Vai trò (Role)</label>
+                <label className="block text-xs font-semibold text-ink-2 mb-1.5">Vai trò (Role)</label>
                 <select
                   value={newRole}
                   onChange={(e) => setNewRole(e.target.value)}
-                  className="w-full bg-[#121319] border border-slate-700 text-white text-sm rounded-xl px-3.5 py-2.5 focus:outline-none focus:border-indigo-500 cursor-pointer"
+                  className="w-full bg-ink border border-hair text-ink-1 text-sm rounded-xl px-3.5 py-2.5 focus:outline-none focus:border-brass cursor-pointer"
                 >
                   {roleOptions.map(r => (
                     <option key={r.code} value={r.code}>{r.label}</option>
@@ -688,18 +688,18 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
                 </select>
               </div>
 
-              <div className="flex justify-end gap-3 pt-5 border-t border-slate-800">
+              <div className="flex justify-end gap-3 pt-5 border-t border-hair">
                 <button
                   type="button"
                   onClick={() => setShowAddUserModal(false)}
-                  className="px-4 py-2 text-xs font-semibold text-slate-400 hover:text-white rounded-xl hover:bg-slate-800 transition-colors"
+                  className="px-4 py-2 text-xs font-semibold text-ink-2 hover:text-ink-1 rounded-xl hover:bg-surface-raised transition-colors"
                 >
                   Hủy
                 </button>
                 <button
                   type="submit"
                   disabled={creatingUser}
-                  className="px-5 py-2 text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl shadow-md transition-all cursor-pointer"
+                  className="px-5 py-2 text-xs font-semibold bg-brass hover:bg-brass-hover text-ink-1 rounded-xl transition-all cursor-pointer"
                 >
                   Thêm Người dùng
                 </button>

@@ -38,7 +38,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, showTimestamp = 
       {/* Phân cách timestamp giữa các ngày */}
       {showTimestamp && (
         <div className="text-center w-full mb-6">
-          <span className="text-[12px] font-bold text-slate-500 uppercase tracking-widest">{message.timestamp}</span>
+          <span className="text-[11px] font-mono text-ink-3 uppercase tracking-widest">{message.timestamp}</span>
         </div>
       )}
 
@@ -48,7 +48,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, showTimestamp = 
           <div className={`relative group flex flex-col gap-1.5 w-full ${isAI ? '' : 'items-end'}`}>
             <span className="sr-only">{isAI ? 'Enterprise AI' : 'You'}</span>
             {isEditing ? (
-              <div className="flex flex-col gap-3 w-full max-w-2xl bg-[#2b2c35] border border-slate-800/80 rounded-2xl p-4">
+              <div className="flex flex-col gap-3 w-full max-w-2xl bg-surface-raised border border-hair rounded-lg p-4">
                 <textarea
                   ref={textareaRef}
                   value={editContent}
@@ -57,38 +57,38 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, showTimestamp = 
                     e.target.style.height = 'auto';
                     e.target.style.height = e.target.scrollHeight + 'px';
                   }}
-                  className="w-full bg-slate-900/50 text-white rounded-xl p-3 outline-none resize-none overflow-hidden border border-slate-800 text-[15.5px]"
+                  className="w-full bg-ink text-ink-1 rounded-lg p-3 outline-none resize-none overflow-hidden border border-hair text-[15.5px]"
                   rows={1}
                 />
                 <div className="flex justify-end gap-2">
                   <button
                     onClick={() => { setIsEditing(false); setEditContent(message.content); }}
-                    className="px-4 py-1.5 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-semibold transition-colors cursor-pointer"
+                    className="px-4 py-1.5 rounded-full bg-surface hover:bg-surface-raised text-ink-2 hover:text-ink-1 text-xs font-semibold transition-colors cursor-pointer"
                   >
                     Cancel
                   </button>
                   <button
                     onClick={handleEditSubmit}
                     disabled={!editContent.trim()}
-                    className="px-4 py-1.5 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold transition-colors disabled:opacity-50 cursor-pointer"
+                    className="px-4 py-1.5 rounded-full bg-brass hover:bg-brass-hover text-ink text-xs font-semibold transition-colors disabled:opacity-50 cursor-pointer"
                   >
                     Send
                   </button>
                 </div>
               </div>
             ) : (
-              <div className={`transition-all ${isAI
-                ? 'w-full text-slate-200'
-                : 'bg-[#1e293b] border border-slate-700/80 text-white rounded-3xl rounded-tr-sm px-5 py-3 shadow-lg shadow-black/20 max-w-[80%] text-[15.5px] leading-relaxed'
+              <div className={`transition-colors ${isAI
+                ? 'w-full text-ink-1'
+                : 'bg-surface border border-hair text-ink-1 rounded-lg rounded-tr-sm px-5 py-3 max-w-[80%] text-[15.5px] leading-relaxed'
                 }`}>
                 {isAI ? (
-                  <div className="prose prose-invert max-w-none text-[15.5px] leading-relaxed text-slate-200">
+                  <div className="prose prose-invert max-w-none text-[15.5px] leading-relaxed text-ink-1">
                     {message.content ? (
                       <ReactMarkdown remarkPlugins={[remarkGfm]}>
                         {message.content}
                       </ReactMarkdown>
                     ) : (
-                      <span className="text-red-400 font-medium italic">⚠️ Lỗi: Dữ liệu message.content bị rỗng (undefined)</span>
+                      <span className="text-clay font-medium italic">Lỗi: nội dung tin nhắn bị rỗng.</span>
                     )}
                   </div>
                 ) : (
@@ -108,12 +108,12 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, showTimestamp = 
             {/* Hover Actions (Copy & Edit) */}
             {!isEditing && (
               <div className={`absolute -bottom-8 ${isAI ? 'left-0' : 'right-0'} flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10`}>
-                <span className="text-[11px] text-slate-500 font-medium select-none">
+                <span className="text-[11px] font-mono text-ink-3 select-none">
                   {message.timestamp.includes(' at ') ? message.timestamp.split(' at ')[1] : message.timestamp}
                 </span>
                 <button
                   onClick={() => navigator.clipboard.writeText(message.content)}
-                  className="p-1.5 rounded-lg bg-[#202123]/90 border border-slate-800/80 text-slate-400 hover:text-white hover:bg-slate-850 transition-all cursor-pointer shadow"
+                  className="p-1.5 rounded-lg bg-surface border border-hair text-ink-2 hover:text-ink-1 hover:bg-surface-raised transition-colors cursor-pointer"
                   title="Sao chép"
                 >
                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -123,7 +123,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, showTimestamp = 
                 {!isAI && (
                   <button
                     onClick={() => setIsEditing(true)}
-                    className="p-1.5 rounded-lg bg-[#202123]/90 border border-slate-800/80 text-slate-400 hover:text-white hover:bg-slate-850 transition-all cursor-pointer shadow"
+                    className="p-1.5 rounded-lg bg-surface border border-hair text-ink-2 hover:text-ink-1 hover:bg-surface-raised transition-colors cursor-pointer"
                     title="Chỉnh sửa"
                   >
                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

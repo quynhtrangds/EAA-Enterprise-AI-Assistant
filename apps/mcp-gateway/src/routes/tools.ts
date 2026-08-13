@@ -165,16 +165,26 @@ toolsRouter.post('/login', async (req, res, next) => {
 
 toolsRouter.post('/auth/guest', async (_req, res, next) => {
   try {
-    const result = await query<Pick<LoginUserRow, 'id' | 'tenant_id'>>(
+    let result = await query<Pick<LoginUserRow, 'id' | 'tenant_id'>>(
       `SELECT id, tenant_id
        FROM users
        WHERE username = 'viewer'
          AND status = 'active'
        LIMIT 1`
     );
-    const guestUser = result.rows[0];
+    let guestUser = result.rows[0];
     if (!guestUser) {
-      throw new AppError('INTERNAL_ERROR', 'Guest access is not configured.', 503);
+      const upsert = await query<Pick<LoginUserRow, 'id' | 'tenant_id'>>(
+        `INSERT INTO users (id, username, password_hash, display_name, email, role, status)
+         VALUES ('10000000-0000-0000-0000-000000000004', 'viewer', null, 'Người xem (Guest)', 'viewer@example.com', 'viewer', 'active')
+         ON CONFLICT (id) DO UPDATE SET status = 'active'
+         RETURNING id, tenant_id`
+      );
+      guestUser = upsert.rows[0];
+    }
+
+    if (!guestUser) {
+      throw new AppError('INTERNAL_ERROR', 'Khởi tạo tài khoản Khách thất bại.', 500);
     }
 
     const session = await createAuthSession(guestUser.id, ['viewer']);

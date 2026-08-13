@@ -9,49 +9,48 @@ const ToolTrace: React.FC<{ tool: ToolCall }> = ({ tool }) => {
   const statusText = isSuccess ? 'success' : 'failed';
 
   return (
-    <div className="select-none">
-      {/* Compact inline chip */}
+    <div className="select-none font-mono">
+      {/* Compact inline chip — thiết kế như 1 dòng log, không như 1 "chip" trang trí */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#1e2028] border border-[#2c2d35]/80 hover:border-slate-600 hover:bg-[#252730] transition-all cursor-pointer group text-left"
+        className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-surface border border-hair hover:border-brass/40 transition-colors cursor-pointer group text-left"
       >
         {/* Status dot */}
-        <span className={`w-2 h-2 rounded-full shrink-0 ${isSuccess ? 'bg-emerald-400' : 'bg-rose-400'}`} />
-        
+        <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isSuccess ? 'bg-sage' : 'bg-clay'}`} />
+
         {/* Tool name */}
-        <span className="text-[13px] font-medium text-slate-300 group-hover:text-white transition-colors">
+        <span className="text-[13px] text-ink-2 group-hover:text-ink-1 transition-colors">
           {tool.toolName}
         </span>
 
         {/* Duration badge */}
-        <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${
-          tool.success ? 'bg-emerald-500/15 text-emerald-400' : 'bg-rose-500/15 text-rose-400'
-        }`}>
+        <span className={`text-[10px] px-1.5 py-0.5 rounded ${isSuccess ? 'bg-sage/15 text-sage' : 'bg-clay/15 text-clay'
+          }`}>
           {tool.durationMs}ms
         </span>
 
         {/* Expand chevron */}
-        <svg className={`w-3 h-3 text-slate-500 group-hover:text-slate-300 transition-transform duration-200 ${isOpen ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+        <svg className={`w-3 h-3 text-ink-3 group-hover:text-ink-2 transition-transform duration-200 ${isOpen ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
         </svg>
       </button>
 
       {/* Expandable detail panel */}
       {isOpen && (
-        <div className="mt-2 ml-1 p-3 border border-[#2c2d35]/60 rounded-xl text-xs bg-[#121319] max-w-xl">
-          <p className="text-slate-400 mb-1.5 font-semibold">Input:</p>
-          <pre className="bg-slate-950 text-emerald-400 p-3 rounded-xl overflow-x-auto font-mono mb-3 border border-slate-900">
+        <div className="mt-2 ml-1 p-3 border border-hair rounded-lg text-xs bg-ink max-w-xl">
+          <p className="text-ink-3 mb-1.5">input:</p>
+          <pre className="bg-surface text-ink-1 p-3 rounded-lg overflow-x-auto mb-3 border border-hair">
             {JSON.stringify(tool.arguments, null, 2)}
           </pre>
-          <div className="flex items-center gap-4 text-slate-400">
+          <div className="flex items-center gap-4 text-ink-3">
             <p>
-              <span className="font-medium">Status:</span>{' '}
-              <span className={tool.success ? 'text-green-400 font-bold' : 'text-red-400 font-bold'}>
+              status:{' '}
+              <span className={isSuccess ? 'text-sage' : 'text-clay'}>
                 {statusText}
               </span>
             </p>
             <p>
-              <span className="font-medium">Duration:</span> {tool.durationMs}ms
+              duration: {tool.durationMs}ms
             </p>
           </div>
         </div>

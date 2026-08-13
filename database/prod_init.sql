@@ -11,12 +11,14 @@ ON CONFLICT (role_code) DO UPDATE SET role_name = EXCLUDED.role_name;
 
 INSERT INTO users (id, username, password_hash, display_name, email, role, status)
 VALUES
-  ('10000000-0000-0000-0000-000000000001', 'admin', 'scrypt$bqJUKMa_NUkZJlHCySWKXw$R4_aNdZNjBle9AKIgR_fMl1QYGvU4bLfVNhfwqlDttReo90tZocs-FpOzO8zMg79vZyR80mu8Qdbi__v7QLa0A', 'Quản trị viên', 'admin@example.com', 'admin', 'active')
+  ('10000000-0000-0000-0000-000000000001', 'admin', 'scrypt$bqJUKMa_NUkZJlHCySWKXw$R4_aNdZNjBle9AKIgR_fMl1QYGvU4bLfVNhfwqlDttReo90tZocs-FpOzO8zMg79vZyR80mu8Qdbi__v7QLa0A', 'Quản trị viên', 'admin@example.com', 'admin', 'active'),
+  ('10000000-0000-0000-0000-000000000004', 'viewer', null, 'Người xem báo cáo (Guest)', 'viewer@example.com', 'viewer', 'active')
 ON CONFLICT (id) DO UPDATE SET status = EXCLUDED.status;
 
 INSERT INTO user_roles (user_id, role_id)
 VALUES
-  ('10000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001')
+  ('10000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001'),
+  ('10000000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000004')
 ON CONFLICT (user_id, role_id) DO NOTHING;
 
 INSERT INTO tool_permissions (role_code, tool_name, can_execute)
