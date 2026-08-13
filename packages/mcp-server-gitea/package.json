@@ -1,7 +1,7 @@
 {
   "name": "@eaa/mcp-server-gitea",
   "version": "1.0.0",
-  "description": "Mock Gitea MCP Server",
+  "description": "Gitea MCP Server using the configured Gitea API",
   "type": "module",
   "main": "dist/index.js",
   "scripts": {

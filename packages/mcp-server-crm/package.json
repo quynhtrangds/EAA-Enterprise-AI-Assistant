@@ -1,7 +1,7 @@
 {
   "name": "@eaa/mcp-server-crm",
   "version": "1.0.0",
-  "description": "Mock CRM MCP Server",
+  "description": "CRM MCP Server using the configured CRM API",
   "type": "module",
   "main": "dist/index.js",
   "scripts": {

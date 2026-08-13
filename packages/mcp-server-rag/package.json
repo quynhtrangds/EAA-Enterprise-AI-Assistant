@@ -1,7 +1,7 @@
 {
   "name": "@eaa/mcp-server-rag",
   "version": "1.0.0",
-  "description": "Mock RAG MCP Server for Document Search",
+  "description": "Disabled internal document connector; configure a real document API before enabling",
   "type": "module",
   "main": "dist/index.js",
   "scripts": {

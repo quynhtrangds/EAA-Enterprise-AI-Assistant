@@ -3,7 +3,6 @@ import type { ChatCompletionMessageParam, ChatCompletionTool } from 'openai/reso
 import { env } from '../config/env.js';
 import { AppError } from '../errors/app-error.js';
 import { McpGatewayClient } from '../gateway/mcp-gateway-client.js';
-import { MockLLMProvider } from '../providers/mock-llm-provider.js';
 import type { ChatInput, ChatOutput, PlannedToolCall, ToolCallTrace } from '../types/chat.js';
 
 interface GatewayTool {
@@ -16,30 +15,6 @@ interface GatewayTool {
 
 function today(): string {
   return new Date().toISOString().slice(0, 10);
-}
-
-function daysAgo(days: number): string {
-  const date = new Date();
-  date.setUTCDate(date.getUTCDate() - days);
-  return date.toISOString().slice(0, 10);
-}
-
-function formatMoney(value: unknown): string {
-  return `${Number(value ?? 0).toLocaleString('vi-VN')} VND`;
-}
-
-function normalizeVietnamese(value: string): string {
-  return value
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/\u0111/g, 'd')
-    .replace(/\u0110/g, 'D')
-    .toLowerCase();
-}
-
-function isCustomerOrdersQuestion(message: string): boolean {
-  const normalized = normalizeVietnamese(message);
-  return normalized.includes('khach hang') && normalized.includes('don hang');
 }
 
 function toTrace(plannedToolCall: PlannedToolCall, gatewayResult: Awaited<ReturnType<McpGatewayClient['callTool']>>): ToolCallTrace {
@@ -73,19 +48,6 @@ function parseToolArguments(rawArguments: string | undefined): Record<string, un
   return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? (parsed as Record<string, unknown>) : {};
 }
 
-function buildCustomerOrdersAnswer(customer: any, orders: any[]): string {
-  if (orders.length === 0) {
-    return `Kh\u00e1ch h\u00e0ng ${customer.fullName} ch\u01b0a c\u00f3 \u0111\u01a1n h\u00e0ng n\u00e0o trong 90 ng\u00e0y g\u1ea7n nh\u1ea5t.`;
-  }
-
-  const orderSummary = orders
-    .slice(0, 8)
-    .map((order) => `${order.orderCode} (${order.status}, ${formatMoney(order.totalAmount)})`)
-    .join('; ');
-
-  return `Kh\u00e1ch h\u00e0ng ${customer.fullName} c\u00f3 ${orders.length} \u0111\u01a1n h\u00e0ng trong 90 ng\u00e0y g\u1ea7n nh\u1ea5t: ${orderSummary}.`;
-}
-
 function formatToolErrorMessage(message?: string): string {
   if (!message) {
     return 'Hệ thống tạm thời chưa thể truy vấn được thông tin này. Bạn vui lòng thử lại hoặc bổ sung thêm chi tiết câu hỏi.';
@@ -114,95 +76,13 @@ const VIEWER_PERMISSION_DENIED_MESSAGE =
   `Tài khoản hiện tại chưa được cấp quyền truy vấn dữ liệu này. Vui lòng liên hệ Quản trị viên để biết thêm chi tiết.`;
 
 export class ChatService {
-  private readonly llm = new MockLLMProvider();
-
   async chat(input: ChatInput): Promise<ChatOutput> {
     const gateway = new McpGatewayClient();
     try {
-      if (env.LLM_PROVIDER === 'openai' || env.LLM_PROVIDER === 'local') {
-        return await this.chatWithLLM(input, gateway);
-      }
-      return await this.chatWithMock(input, gateway);
+      return await this.chatWithLLM(input, gateway);
     } finally {
       await gateway.disconnect();
     }
-  }
-
-  private async chatWithMock(input: ChatInput, gateway: McpGatewayClient): Promise<ChatOutput> {
-    await gateway.listTools(input.authToken);
-    const plannedToolCall = this.llm.planToolCall(input.message);
-
-    if (!plannedToolCall) {
-      return {
-        sessionId: input.sessionId,
-        answer: this.llm.buildAnswer(input.message, null, null),
-        toolCalls: []
-      };
-    }
-
-    const gatewayResult = await gateway.callTool(
-      input.authToken,
-      input.sessionId,
-      plannedToolCall.toolName,
-      plannedToolCall.arguments
-    );
-
-    const trace = toTrace(plannedToolCall, gatewayResult);
-
-    if (!gatewayResult.success) {
-      return {
-        sessionId: input.sessionId,
-        answer: gatewayResult.message ?? 'Không thể gọi tool.',
-        toolCalls: [trace]
-      };
-    }
-
-    if (plannedToolCall.toolName === 'search_customer' && isCustomerOrdersQuestion(input.message)) {
-      const customers = Array.isArray((gatewayResult.data as any)?.customers) ? (gatewayResult.data as any).customers : [];
-      const customer = customers[0];
-
-      if (!customer) {
-        return {
-          sessionId: input.sessionId,
-          answer: 'Không tìm thấy khách hàng phù hợp.',
-          toolCalls: [trace]
-        };
-      }
-
-      const ordersCall: PlannedToolCall = {
-        toolName: 'get_customer_orders',
-        arguments: {
-          customerId: customer.customerId,
-          fromDate: daysAgo(90),
-          toDate: today(),
-          limit: 20
-        }
-      };
-
-      const ordersResult = await gateway.callTool(input.authToken, input.sessionId, ordersCall.toolName, ordersCall.arguments);
-      const ordersTrace = toTrace(ordersCall, ordersResult);
-
-      if (!ordersResult.success) {
-        return {
-          sessionId: input.sessionId,
-          answer: ordersResult.message ?? 'Không thể lấy danh sách đơn hàng.',
-          toolCalls: [trace, ordersTrace]
-        };
-      }
-
-      const orders = Array.isArray((ordersResult.data as any)?.orders) ? (ordersResult.data as any).orders : [];
-      return {
-        sessionId: input.sessionId,
-        answer: buildCustomerOrdersAnswer(customer, orders),
-        toolCalls: [trace, ordersTrace]
-      };
-    }
-
-    return {
-      sessionId: input.sessionId,
-      answer: this.llm.buildAnswer(input.message, plannedToolCall, gatewayResult.data),
-      toolCalls: [trace]
-    };
   }
 
   private async chatWithLLM(input: ChatInput, gateway: McpGatewayClient): Promise<ChatOutput> {

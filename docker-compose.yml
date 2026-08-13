@@ -13,16 +13,15 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./database/schema.sql:/docker-entrypoint-initdb.d/00_schema.sql:ro
-      - ./database/seed/seed.sql:/docker-entrypoint-initdb.d/01_seed.sql:ro
-      - ./database/migrations/001_utf8_seed_data.sql:/docker-entrypoint-initdb.d/02_utf8_seed_data.sql:ro
-      - ./database/migrations/002_expand_seed_data.sql:/docker-entrypoint-initdb.d/03_expand_seed_data.sql:ro
-      - ./database/migrations/003_auth_sessions.sql:/docker-entrypoint-initdb.d/04_auth_sessions.sql:ro
-      - ./database/migrations/004_chat_history.sql:/docker-entrypoint-initdb.d/05_chat_history.sql:ro
-      - ./database/migrations/005_multi_tenant_and_sso.sql:/docker-entrypoint-initdb.d/06_multi_tenant_and_sso.sql:ro
-      - ./database/migrations/006_integrations.sql:/docker-entrypoint-initdb.d/07_integrations.sql:ro
-      - ./database/migrations/007_fix_username_tenant_scope.sql:/docker-entrypoint-initdb.d/08_fix_username_tenant_scope.sql:ro
-      - ./database/migrations/008_chat_sessions_tenant_and_star.sql:/docker-entrypoint-initdb.d/09_chat_sessions_tenant_and_star.sql:ro
-      - ./database/migrations/009_add_users_role_column.sql:/docker-entrypoint-initdb.d/10_add_users_role_column.sql:ro
+      - ./database/prod_init.sql:/docker-entrypoint-initdb.d/01_prod_init.sql:ro
+      - ./database/migrations/003_auth_sessions.sql:/docker-entrypoint-initdb.d/03_auth_sessions.sql:ro
+      - ./database/migrations/004_chat_history.sql:/docker-entrypoint-initdb.d/04_chat_history.sql:ro
+      - ./database/migrations/005_multi_tenant_and_sso.sql:/docker-entrypoint-initdb.d/05_multi_tenant_and_sso.sql:ro
+      - ./database/migrations/006_integrations.sql:/docker-entrypoint-initdb.d/06_integrations.sql:ro
+      - ./database/migrations/007_fix_username_tenant_scope.sql:/docker-entrypoint-initdb.d/07_fix_username_tenant_scope.sql:ro
+      - ./database/migrations/008_chat_sessions_tenant_and_star.sql:/docker-entrypoint-initdb.d/08_chat_sessions_tenant_and_star.sql:ro
+      - ./database/migrations/009_add_users_role_column.sql:/docker-entrypoint-initdb.d/09_add_users_role_column.sql:ro
+      - ./database/migrations/010_tenant_isolation_indexes.sql:/docker-entrypoint-initdb.d/10_tenant_isolation_indexes.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-enterprise_ai_demo}"]
       interval: 5s
@@ -76,7 +75,7 @@ services:
     environment:
       NODE_ENV: development
       PORT: 8082
-      LLM_PROVIDER: ${LLM_PROVIDER:-mock}
+      LLM_PROVIDER: ${LLM_PROVIDER:-local}
       MCP_GATEWAY_URL: http://mcp-gateway:8081
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432

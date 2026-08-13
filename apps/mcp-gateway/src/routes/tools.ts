@@ -406,30 +406,12 @@ toolsRouter.post('/tools/call', async (req, res, next) => {
 
     if (serverName && user.tenantId) {
       const vaultPath = `integrations/${user.tenantId}/${serverName}`;
-      let secrets: Record<string, any> | null = null;
-      try {
-        secrets = await VaultService.readSecret(vaultPath);
-      } catch {
-        secrets = null;
+      const secrets = await VaultService.readSecret(vaultPath);
+      if (!secrets?.apiKey || !secrets.apiUrl) {
+        throw new AppError('INTEGRATION_NOT_CONFIGURED', `Tích hợp ${serverName.toUpperCase()} chưa có đầy đủ API URL và API key trong Vault.`, 400);
       }
-      
-      const dbRes = await query<{ api_url: string }>(
-        `SELECT api_url FROM tenant_integrations WHERE tenant_id = $1 AND integration_code = $2`,
-        [user.tenantId, serverName]
-      );
-      const dbApiUrl = dbRes.rows[0]?.api_url;
 
-      const defaultUrls: Record<string, string> = {
-        erpnext: 'https://eaa-enterprise-demo.s.frappe.cloud',
-        zammad: 'http://host.docker.internal:8080',
-        gitea: 'http://host.docker.internal:3001',
-        n8n: 'http://host.docker.internal:5678'
-      };
-
-      const finalCredentials = {
-        apiKey: secrets?.apiKey || '',
-        apiUrl: secrets?.apiUrl || dbApiUrl || defaultUrls[serverName] || ''
-      };
+      const finalCredentials = { apiKey: secrets.apiKey, apiUrl: secrets.apiUrl };
 
       mergedArgs = { ...mergedArgs, _integrationCredentials: finalCredentials };
     }

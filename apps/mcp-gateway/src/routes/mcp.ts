@@ -188,36 +188,16 @@ export async function authorizeAndPrepareToolRequest(
     throw new AppError('PERMISSION_DENIED', `Hệ thống tích hợp ${serverName.toUpperCase()} hiện đang bị TẮT trong Cấu hình Tích hợp. Vui lòng BẬT lại để sử dụng.`, 400);
   }
 
-  // Lấy credential tích hợp (Vault, fallback DB) là tính năng BEST-EFFORT —
-  // chỉ những tool gọi API bên ngoài (ERPNext/CRM/Zammad...) mới thực sự cần
-  // _integrationCredentials; tool nội bộ như postgres không bao giờ đọc field
-  // này. Vì vậy Vault tạm thời không kết nối được (mạng chậm, chưa kịp khởi
-  // động, sai địa chỉ...) KHÔNG được phép làm sập toàn bộ tool call — chỉ nên
-  // bỏ qua bước inject credential và tiếp tục, log lỗi để biết mà xử lý.
-  try {
-    const vaultPath = `integrations/${user.tenantId}/${serverName}`;
-    let secrets = await VaultService.readSecret(vaultPath);
-
-    // Fallback to PostgreSQL DB if Vault lost memory or has no apiUrl
-    if (!secrets || !secrets.apiUrl) {
-      const dbRes = await query<{ api_url: string }>(
-        `SELECT api_url FROM tenant_integrations WHERE tenant_id = $1 AND integration_code = $2 AND is_active = true`,
-        [user.tenantId, serverName]
-      );
-      if (dbRes.rows[0]?.api_url) {
-        secrets = { ...(secrets || {}), apiUrl: dbRes.rows[0].api_url };
-      }
-    }
-
-    if (secrets && (secrets.apiKey || secrets.apiUrl)) {
-      request.params.arguments = {
-        ...((request.params.arguments as object) || {}),
-        _integrationCredentials: secrets
-      };
-    }
-  } catch (err) {
-    console.error(`[authorizeAndPrepareToolRequest] Không lấy được integration credentials cho '${serverName}', tiếp tục KHÔNG có credentials:`, err);
+  const vaultPath = `integrations/${user.tenantId}/${serverName}`;
+  const secrets = await VaultService.readSecret(vaultPath);
+  if (!secrets?.apiKey || !secrets.apiUrl) {
+    throw new AppError('INTEGRATION_NOT_CONFIGURED', `Tích hợp ${serverName.toUpperCase()} chưa có đầy đủ API URL và API key trong Vault.`, 400);
   }
+
+  request.params.arguments = {
+    ...((request.params.arguments as object) || {}),
+    _integrationCredentials: { apiKey: secrets.apiKey, apiUrl: secrets.apiUrl }
+  };
 }
 
 mcpRouter.get('/mcp/sse', async (req, res, next) => {

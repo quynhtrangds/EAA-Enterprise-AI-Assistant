@@ -1,7 +1,7 @@
 {
   "name": "@eaa/mcp-server-zammad",
   "version": "1.0.0",
-  "description": "Mock Zammad MCP Server",
+  "description": "Zammad MCP Server using the configured Zammad API",
   "type": "module",
   "main": "dist/index.js",
   "scripts": {

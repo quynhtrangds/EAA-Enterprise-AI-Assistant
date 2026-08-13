@@ -4,10 +4,10 @@ Express service nhan cau hoi chat, goi MCP Gateway de lay/call tools, va tong ho
 
 ## LLM provider
 
-Mac dinh service dung `MockLLMProvider`:
+Service luôn dùng LLM provider thật:
 
 ```env
-LLM_PROVIDER=mock
+LLM_PROVIDER=local
 ```
 
 De dung OpenAI provider that:

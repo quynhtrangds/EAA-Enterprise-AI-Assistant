@@ -11,7 +11,7 @@ const EnvSchema = z.object({
   POSTGRES_DB: z.string().default('enterprise_ai_demo'),
   POSTGRES_USER: z.string().default('postgres'),
   POSTGRES_PASSWORD: z.string().default('postgres'),
-  LLM_PROVIDER: z.enum(['mock', 'openai', 'local']).default('mock'),
+  LLM_PROVIDER: z.enum(['openai', 'local']).default('local'),
   OPENAI_API_KEY: z.string().optional(),
   OPENAI_MODEL: z.string().default('gpt-4.1-mini'),
   LOCAL_LLM_BASE_URL: z.string().url().optional(),

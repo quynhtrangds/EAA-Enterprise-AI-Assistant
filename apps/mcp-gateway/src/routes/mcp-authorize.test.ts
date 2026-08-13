@@ -86,28 +86,15 @@ describe('routes/mcp.ts: authorizeAndPrepareToolRequest', () => {
     });
   });
 
-  it('fallback lấy apiUrl từ DB khi Vault rỗng/không có apiUrl', async () => {
-    query
-      .mockResolvedValueOnce({ rows: [{ is_active: true }] }) // check active
-      .mockResolvedValueOnce({ rows: [{ api_url: 'https://from-db.example.com' }] }); // fallback DB
-    readSecret.mockResolvedValue(null);
-
-    const request = { method: 'tools/call', params: { name: 'erpnext_get_invoice', arguments: {} } };
-    await authorizeAndPrepareToolRequest(baseUser, request);
-
-    expect(request.params.arguments).toMatchObject({
-      _integrationCredentials: { apiUrl: 'https://from-db.example.com' }
-    });
-  });
-
-  it('không gắn _integrationCredentials nếu không có cả Vault lẫn DB fallback', async () => {
-    query.mockResolvedValueOnce({ rows: [{ is_active: true }] }).mockResolvedValueOnce({ rows: [] });
+  it('từ chối nếu Vault không có đủ URL và API key', async () => {
+    query.mockResolvedValueOnce({ rows: [{ is_active: true }] });
     readSecret.mockResolvedValue(null);
 
     const request = { method: 'tools/call', params: { name: 'erpnext_get_invoice', arguments: { a: 1 } } };
-    await authorizeAndPrepareToolRequest(baseUser, request);
-
-    expect(request.params.arguments).toEqual({ a: 1 });
+    await expect(authorizeAndPrepareToolRequest(baseUser, request)).rejects.toMatchObject({
+      code: 'INTEGRATION_NOT_CONFIGURED',
+      statusCode: 400
+    });
   });
 
   it('không tra cứu tenant integration nếu user không có tenantId', async () => {
