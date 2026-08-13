@@ -119,11 +119,11 @@ const Sidebar: React.FC<SidebarProps> = ({
           <button
             onClick={() => onSelectSession?.(session.id)}
             className={`w-full text-left px-3 py-2.5 rounded-xl transition-all duration-200 cursor-pointer mb-0.5 relative pr-10 text-[15px] ${isActive
-              ? 'bg-slate-800 text-white border-l-4 border-indigo-500 pl-2'
+              ? 'bg-slate-800 text-white border-l-4 border-emerald-500 pl-2'
               : 'text-slate-300 hover:bg-slate-800/60 hover:text-white'
               }`}
           >
-            <p className={`text-[15px] font-medium truncate ${isActive ? 'text-indigo-400' : 'group-hover:text-indigo-400'}`}>
+            <p className={`text-[15px] font-medium truncate ${isActive ? 'text-emerald-400 font-semibold' : 'group-hover:text-emerald-300'}`}>
               {session.title}
             </p>
           </button>
@@ -177,7 +177,7 @@ const Sidebar: React.FC<SidebarProps> = ({
           title={isOpen && activeSessionId !== 'new-chat-session' ? "Bắt đầu cuộc trò chuyện mới" : !isOpen ? "Mở rộng Sidebar" : undefined}
         >
           <div className="w-10 h-10 flex items-center justify-center shrink-0">
-            <div className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${!isOpen ? 'bg-indigo-500 group-hover:bg-slate-800 shadow-lg shadow-indigo-500/30 group-hover:shadow-none' : 'bg-indigo-500 shadow-lg shadow-indigo-500/30'}`}>
+            <div className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${!isOpen ? 'bg-emerald-600 group-hover:bg-slate-800 shadow-lg shadow-emerald-500/20 group-hover:shadow-none' : 'bg-emerald-600 shadow-lg shadow-emerald-500/20'}`}>
               {!isOpen ? (
                 <>
                   <svg className="w-5 h-5 text-white group-hover:hidden transition-all duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -196,7 +196,7 @@ const Sidebar: React.FC<SidebarProps> = ({
           </div>
           <div className={`flex flex-col whitespace-nowrap overflow-hidden transition-all duration-200 ${isOpen ? 'w-[120px] opacity-100' : 'w-0 opacity-0'}`}>
             <h1 className="text-[16px] font-bold text-white tracking-wide">Enterprise UI</h1>
-            <span className="text-[11px] text-indigo-400 font-bold uppercase tracking-wider">MCP GATEWAY</span>
+            <span className="text-[11px] text-emerald-400 font-bold uppercase tracking-wider">MCP GATEWAY</span>
           </div>
         </div>
         <button

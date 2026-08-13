@@ -342,7 +342,7 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
                   : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
                   }`}
               >
-                <svg className="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
                 </svg>
                 <span>Kết nối Tích hợp</span>
@@ -355,7 +355,7 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
                   : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
                   }`}
               >
-                <svg className="w-4 h-4 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
                 </svg>
                 <span>Phân quyền</span>
@@ -398,7 +398,7 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
                         key={item.code}
                         onClick={() => handleSelectIntegration(item.code)}
                         className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-sm font-medium transition-all text-left cursor-pointer ${isSelected
-                          ? 'bg-indigo-600/20 text-indigo-300 border border-indigo-500/40 shadow-sm'
+                          ? 'bg-emerald-600/20 text-emerald-300 border border-emerald-500/40 shadow-sm'
                           : 'text-slate-300 hover:bg-slate-800/60 hover:text-white'
                           }`}
                       >
@@ -412,7 +412,7 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
                 <div className="w-2/3 flex flex-col">
                   {loadingIntegrations ? (
                     <div className="py-12 flex justify-center">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500"></div>
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-500"></div>
                     </div>
                   ) : (
                     <form onSubmit={handleSaveIntegration} className="space-y-5">
@@ -422,7 +422,7 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
                         </h3>
                         <label className="relative inline-flex items-center cursor-pointer">
                           <input type="checkbox" className="sr-only peer" checked={isActive} onChange={(e) => handleToggleActive(e.target.checked)} />
-                          <div className="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                          <div className="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
                           <span className="ml-3 text-xs font-semibold text-slate-300 w-16 inline-block">
                             {isActive ? 'Đang bật' : 'Đã tắt'}
                           </span>
@@ -436,7 +436,7 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
                           value={apiUrl}
                           onChange={(e) => setApiUrl(e.target.value)}
                           placeholder="https://api.example.com..."
-                          className="w-full bg-[#121319] border border-slate-700/80 rounded-xl px-4 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all text-sm mb-4"
+                          className="w-full bg-[#121319] border border-slate-700/80 rounded-xl px-4 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all text-sm mb-4"
                         />
                         <label className="block text-xs font-semibold text-slate-400 mb-2">API Key / Token (Vault Security)</label>
                         <input
@@ -444,14 +444,14 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
                           value={apiKey}
                           onChange={(e) => setApiKey(e.target.value)}
                           placeholder="Bỏ trống nếu không muốn thay đổi..."
-                          className="w-full bg-[#121319] border border-slate-700/80 rounded-xl px-4 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all text-sm"
+                          className="w-full bg-[#121319] border border-slate-700/80 rounded-xl px-4 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all text-sm"
                         />
                         <p className="mt-2 text-xs text-slate-500">
                           Thông tin kết nối được bảo mật hai lớp bằng HashiCorp Vault.
                         </p>
                         {selectedIntegration === 'erpnext' && (
                           <p className="mt-2 text-xs text-amber-400 font-medium">
-                            💡 Đối với Frappe Cloud, bạn cần nhập kết hợp cả API Key và API Secret theo định dạng: <span className="bg-slate-800 px-1.5 py-0.5 rounded text-white font-mono">&lt;api_key&gt;:&lt;api_secret&gt;</span> (Ví dụ: <span className="bg-slate-800 px-1.5 py-0.5 rounded text-indigo-300 font-mono">93b68c02976a26e:a1b2c3d4e5f6</span>).
+                            💡 Đối với Frappe Cloud, bạn cần nhập kết hợp cả API Key và API Secret theo định dạng: <span className="bg-slate-800 px-1.5 py-0.5 rounded text-white font-mono">&lt;api_key&gt;:&lt;api_secret&gt;</span> (Ví dụ: <span className="bg-slate-800 px-1.5 py-0.5 rounded text-emerald-300 font-mono">93b68c02976a26e:a1b2c3d4e5f6</span>).
                           </p>
                         )}
                       </div>
@@ -460,7 +460,7 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
                         <button
                           type="submit"
                           disabled={savingIntegration}
-                          className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-semibold text-sm shadow-lg shadow-indigo-600/20 transition-all active:scale-95 disabled:opacity-50 flex items-center gap-2 cursor-pointer"
+                          className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-semibold text-sm shadow-lg shadow-emerald-600/20 transition-all active:scale-95 disabled:opacity-50 flex items-center gap-2 cursor-pointer"
                         >
                           {savingIntegration && <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>}
                           Lưu kết nối
@@ -482,7 +482,7 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
                       <button
                         type="button"
                         onClick={() => setShowToolMatrixInfo(!showToolMatrixInfo)}
-                        className="text-xs font-normal text-indigo-400 hover:text-indigo-300 bg-indigo-500/10 hover:bg-indigo-500/20 px-2 py-0.5 rounded-md border border-indigo-500/20 transition-all cursor-pointer"
+                        className="text-xs font-normal text-emerald-400 hover:text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 px-2 py-0.5 rounded-md border border-emerald-500/20 transition-all cursor-pointer"
                         title="Xem ma trận quyền hạn các vai trò"
                       >
                         ℹ️ Chi tiết quyền hạn
@@ -493,7 +493,7 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => setShowAddUserModal(true)}
-                      className="text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 px-3.5 py-2 rounded-xl shadow-md transition-all flex items-center gap-1.5 cursor-pointer"
+                      className="text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-500 px-3.5 py-2 rounded-xl shadow-md transition-all flex items-center gap-1.5 cursor-pointer"
                     >
                       ➕ Thêm Người dùng
                     </button>
