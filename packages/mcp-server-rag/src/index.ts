@@ -133,8 +133,6 @@ mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
       return titleNorm.includes(keyword) || contentNorm.includes(keyword) || categoryNorm.includes(keyword);
     });
 
-    const finalDocs = results.length > 0 ? results : COMPANY_DOCUMENTS.slice(0, 3);
-
     return {
       content: [
         {
@@ -143,7 +141,7 @@ mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
             {
               query: rawKeyword,
               total_found: results.length,
-              documents: finalDocs.map((d) => ({
+              documents: results.map((d) => ({
                 id: d.id,
                 title: d.title,
                 category: d.category,

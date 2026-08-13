@@ -204,9 +204,12 @@ toolsRouter.post('/auth/google', async (req, res, next) => {
     let sub = '';
 
     if (idToken) {
+      if (!env.GOOGLE_CLIENT_ID || env.GOOGLE_CLIENT_ID === 'dummy') {
+        throw new AppError('INTEGRATION_NOT_CONFIGURED', 'Hệ thống chưa được cấu hình biến môi trường GOOGLE_CLIENT_ID để xác thực Google SSO.', 500);
+      }
       const ticket = await googleClient.verifyIdToken({
         idToken,
-        audience: env.GOOGLE_CLIENT_ID || 'dummy',
+        audience: env.GOOGLE_CLIENT_ID,
       });
       const payload = ticket.getPayload();
       if (!payload || !payload.email) {
