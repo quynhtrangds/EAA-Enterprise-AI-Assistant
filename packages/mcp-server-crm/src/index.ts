@@ -153,13 +153,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           content: [{ type: "text", text: JSON.stringify({ total: combined.length, contacts: combined }, null, 2) }]
         };
       }
+      throw new Error(`Máy chủ CRM [${baseUrl}] không phản hồi dữ liệu hợp lệ (HTTP error hoặc chưa phân quyền API).`);
     } catch (err: any) {
-      console.error("Frappe CRM fetch failed:", err.message);
+      throw new Error(`Không thể kết nối tới máy chủ CRM [${baseUrl}]. Chi tiết: ${err.message}. Vui lòng kiểm tra lại URL và API Key trong Vault/Cấu hình tích hợp.`);
     }
-
-    return {
-      content: [{ type: "text", text: JSON.stringify({ total: 0, contacts: [] }) }]
-    };
   }
 
   if (toolName === "crm_get_opportunities") {
