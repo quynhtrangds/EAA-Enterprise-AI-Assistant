@@ -22,7 +22,7 @@ export interface SearchSession extends Session {
 }
 
 export const useChat = () => {
-  const { authToken, currentUser } = useAuth();
+  const { authToken, currentUser, logout } = useAuth();
   const [sessions, setSessions] = useState<Session[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string>('new-chat-session');
   const [messages, setMessages] = useState<Message[]>([]);
@@ -226,6 +226,10 @@ export const useChat = () => {
       });
 
       if (!response.ok) {
+        if (response.status === 401) {
+          logout();
+          throw new Error('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
+        }
         throw new Error('Không thể kết nối với AI Orchestrator');
       }
 
@@ -260,7 +264,7 @@ export const useChat = () => {
       const errorMsg: Message = {
         id: Date.now().toString(),
         sender: 'ai',
-        content: '⚠️ Lỗi: Không thể kết nối tới máy chủ AI Orchestrator. Vui lòng kiểm tra lại trạng thái các service.',
+        content: error?.message || '⚠️ Lỗi: Không thể kết nối tới máy chủ AI Orchestrator. Vui lòng kiểm tra lại trạng thái các service.',
         timestamp: formatTimestamp()
       };
       setMessages(prev => [...prev, errorMsg]);
@@ -295,6 +299,10 @@ export const useChat = () => {
       });
 
       if (!response.ok) {
+        if (response.status === 401) {
+          logout();
+          throw new Error('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
+        }
         throw new Error('Không thể kết nối với AI Orchestrator');
       }
 
@@ -329,7 +337,7 @@ export const useChat = () => {
       const errorMsg: Message = {
         id: Date.now().toString(),
         sender: 'ai',
-        content: '⚠️ Lỗi: Không thể kết nối tới máy chủ AI Orchestrator. Vui lòng kiểm tra lại trạng thái các service.',
+        content: error?.message || '⚠️ Lỗi: Không thể kết nối tới máy chủ AI Orchestrator. Vui lòng kiểm tra lại trạng thái các service.',
         timestamp: formatTimestamp()
       };
       setMessages(prev => [...prev, errorMsg]);

@@ -58,6 +58,9 @@ services:
     volumes:
       - ./apps/mcp-gateway:/app
       - ./packages:/packages
+    networks:
+      - default
+      - frappe_network
     depends_on:
       postgres:
         condition: service_healthy
@@ -149,3 +152,8 @@ volumes:
     name: enterprise_ai_vault_data
   gitea_data:
     name: enterprise_ai_gitea_data
+
+networks:
+  frappe_network:
+    external: true
+    name: frappe_docker_frappe_network

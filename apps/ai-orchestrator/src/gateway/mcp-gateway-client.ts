@@ -33,7 +33,12 @@ export class McpGatewayClient {
     });
 
     if (!response.ok) {
-      throw new AppError('GATEWAY_ERROR', `Gateway current user lookup failed: ${response.status}`, 502);
+      const isUnauthorized = response.status === 401;
+      throw new AppError(
+        isUnauthorized ? 'UNAUTHORIZED' : 'GATEWAY_ERROR',
+        isUnauthorized ? 'Phiên đăng nhập không hợp lệ hoặc đã hết hạn.' : `Gateway current user lookup failed: ${response.status}`,
+        isUnauthorized ? 401 : 502
+      );
     }
 
     const payload = (await response.json()) as GatewayCurrentUserResponse;
