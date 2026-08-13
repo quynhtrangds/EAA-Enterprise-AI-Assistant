@@ -30,7 +30,6 @@ const roleOptions = [
   { code: 'admin', label: 'Admin' },
   { code: 'manager', label: 'Quản lý' },
   { code: 'staff', label: 'Nhân viên' },
-  { code: 'viewer', label: 'Khách (Viewer)' },
 ];
 
 export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
@@ -552,7 +551,6 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
                       <option value="admin" className="bg-[#181920] text-slate-100">👑 Admin</option>
                       <option value="manager" className="bg-[#181920] text-slate-100">👔 Quản lý</option>
                       <option value="staff" className="bg-[#181920] text-slate-100">🧑‍💼 Nhân viên</option>
-                      <option value="viewer" className="bg-[#181920] text-slate-100">👁️ Khách (Viewer)</option>
                     </select>
                   </div>
                 </div>
