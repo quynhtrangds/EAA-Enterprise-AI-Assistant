@@ -38,7 +38,7 @@ const MainLayout: React.FC = () => {
   };
 
   return (
-    <div className="flex h-screen bg-gradient-to-br from-[#1c1d2e] via-[#0e101f] to-[#080914] font-sans overflow-hidden text-slate-100">
+    <div className="flex h-screen bg-[#0b132b] font-sans overflow-hidden text-slate-100">
       {/* Container của Sidebar */}
       <Sidebar
         isOpen={isSidebarOpen}
@@ -69,7 +69,7 @@ const MainLayout: React.FC = () => {
       {/* Guest New Chat Confirmation Modal */}
       {isGuestConfirmModalOpen && (
         <div className="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-[#1c1d27] border border-slate-700/60 rounded-3xl p-7 max-w-md w-full shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+          <div className="bg-[#1e293b] border border-slate-700/80 rounded-3xl p-7 max-w-md w-full shadow-2xl animate-in fade-in zoom-in-95 duration-150">
             <h3 className="text-xl font-bold text-white mb-3">
               Xóa cuộc trò chuyện hiện tại & tạo cuộc trò chuyện mới?
             </h3>
@@ -80,7 +80,7 @@ const MainLayout: React.FC = () => {
                   setIsGuestConfirmModalOpen(false);
                   logout();
                 }}
-                className="text-white underline font-semibold cursor-pointer hover:text-indigo-300"
+                className="text-emerald-400 underline font-semibold cursor-pointer hover:text-emerald-300"
               >
                 Đăng nhập
               </button>{' '}
@@ -98,7 +98,7 @@ const MainLayout: React.FC = () => {
                   setIsGuestConfirmModalOpen(false);
                   createNewSession();
                 }}
-                className="px-6 py-2.5 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-500 rounded-full shadow-lg shadow-blue-600/30 transition-all cursor-pointer"
+                className="px-6 py-2.5 text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-500 rounded-full shadow-lg shadow-emerald-600/20 transition-all cursor-pointer"
               >
                 Cuộc trò chuyện mới
               </button>

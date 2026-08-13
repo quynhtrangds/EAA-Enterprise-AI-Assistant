@@ -87,21 +87,21 @@ const LoginScreen: React.FC = () => {
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-[#0b0e1a] font-sans">
-      {/* Decorative background gradient */}
-      <div className="absolute inset-0 bg-gradient-to-br from-indigo-950/40 via-[#0b0e1a] to-purple-950/30 pointer-events-none" />
+    <div className="flex items-center justify-center min-h-screen bg-[#0f172a] font-sans">
+      {/* Subtle Corporate Deep Slate background */}
+      <div className="absolute inset-0 bg-gradient-to-b from-[#0f172a] via-[#1e293b]/40 to-[#0f172a] pointer-events-none" />
 
-      <div className="relative w-full max-w-md p-10 bg-[#111827]/90 backdrop-blur-xl rounded-3xl shadow-2xl shadow-indigo-950/30 border border-slate-800/60">
+      <div className="relative w-full max-w-md p-10 bg-[#1e293b]/90 backdrop-blur-xl rounded-3xl shadow-2xl shadow-black/40 border border-slate-700/80">
         <div className="text-center mb-10">
-          {/* Logo - matching sidebar style */}
-          <div className="w-14 h-14 rounded-xl bg-gradient-to-tr from-indigo-500 to-purple-600 shadow-lg shadow-indigo-500/25 flex items-center justify-center mx-auto mb-5">
+          {/* Logo - Emerald Corporate Style */}
+          <div className="w-14 h-14 rounded-2xl bg-emerald-600 shadow-lg shadow-emerald-500/20 flex items-center justify-center mx-auto mb-5">
             <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
             </svg>
           </div>
           <h2 className="text-2xl font-bold text-white tracking-wide">Enterprise UI</h2>
-          <p className="text-sm text-indigo-400 font-bold uppercase tracking-wider mt-1">MCP GATEWAY</p>
-          <p className="text-[15px] text-slate-400 mt-4">Đăng nhập để tiếp tục</p>
+          <p className="text-sm text-emerald-400 font-bold uppercase tracking-wider mt-1">MCP GATEWAY</p>
+          <p className="text-[15px] text-slate-300 mt-4">Đăng nhập để tiếp tục</p>
         </div>
 
         {error && (
@@ -119,7 +119,7 @@ const LoginScreen: React.FC = () => {
               type="text"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              className="w-full px-4 py-3 bg-[#1e2433] border border-slate-700/60 rounded-xl focus:ring-2 focus:ring-indigo-500/60 focus:border-indigo-500 outline-none transition-all text-white text-[15px] placeholder-slate-500"
+              className="w-full px-4 py-3 bg-[#0f172a] border border-slate-700/80 rounded-xl focus:ring-2 focus:ring-emerald-500/80 focus:border-emerald-500 outline-none transition-all text-white text-[15px] placeholder-slate-500"
               placeholder="Nhập tên đăng nhập"
               disabled={isLoading}
             />
@@ -134,14 +134,14 @@ const LoginScreen: React.FC = () => {
                 type={showPassword ? 'text' : 'password'}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-3 bg-[#1e2433] border border-slate-700/60 rounded-xl focus:ring-2 focus:ring-indigo-500/60 focus:border-indigo-500 outline-none transition-all text-white text-[15px] placeholder-slate-500 pr-12"
+                className="w-full px-4 py-3 bg-[#0f172a] border border-slate-700/80 rounded-xl focus:ring-2 focus:ring-emerald-500/80 focus:border-emerald-500 outline-none transition-all text-white text-[15px] placeholder-slate-500 pr-12"
                 placeholder="Nhập mật khẩu"
                 disabled={isLoading}
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 focus:outline-none transition-colors cursor-pointer"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 focus:outline-none transition-colors cursor-pointer"
               >
                 {showPassword ? (
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -160,7 +160,7 @@ const LoginScreen: React.FC = () => {
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full py-3 px-4 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-xl shadow-lg shadow-indigo-500/20 transition-all flex items-center justify-center disabled:opacity-70 text-[16px] mt-2 cursor-pointer"
+            className="w-full py-3 px-4 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-xl shadow-lg shadow-emerald-600/20 transition-all flex items-center justify-center disabled:opacity-70 text-[16px] mt-2 cursor-pointer"
           >
             {isLoading ? (
               <svg className="animate-spin h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
@@ -174,7 +174,7 @@ const LoginScreen: React.FC = () => {
 
           <div className="relative flex items-center justify-center my-6">
             <div className="w-full border-t border-slate-700/60"></div>
-            <span className="absolute px-3 bg-[#111827] text-slate-400 text-xs font-bold uppercase tracking-widest">
+            <span className="absolute px-3 bg-[#1e293b] text-slate-400 text-xs font-bold uppercase tracking-widest">
               HOẶC
             </span>
           </div>
@@ -185,7 +185,7 @@ const LoginScreen: React.FC = () => {
               type="button"
               onClick={() => googleCustomLogin()}
               title="Đăng nhập bằng Google"
-              className="w-10 h-10 rounded-full bg-slate-800 hover:bg-slate-700 hover:border-indigo-500/50 text-white border border-slate-600 shadow-lg flex items-center justify-center transition-colors cursor-pointer"
+              className="w-10 h-10 rounded-full bg-slate-800 hover:bg-slate-700 hover:border-emerald-500/50 text-white border border-slate-600 shadow-lg flex items-center justify-center transition-colors cursor-pointer"
             >
               <svg className="w-5 h-5" viewBox="0 0 24 24">
                 <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
@@ -201,9 +201,9 @@ const LoginScreen: React.FC = () => {
               onClick={handleGuestLogin}
               disabled={isLoading}
               title="Đăng nhập với tư cách Khách (Guest Mode)"
-              className="w-10 h-10 rounded-full bg-slate-800 hover:bg-slate-700 hover:border-indigo-500/50 text-white border border-slate-600 shadow-lg flex items-center justify-center transition-colors cursor-pointer"
+              className="w-10 h-10 rounded-full bg-slate-800 hover:bg-slate-700 hover:border-emerald-500/50 text-white border border-slate-600 shadow-lg flex items-center justify-center transition-colors cursor-pointer"
             >
-              <svg className="w-5 h-5 text-indigo-400" fill="currentColor" viewBox="0 0 20 20">
+              <svg className="w-5 h-5 text-emerald-400" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
               </svg>
             </button>

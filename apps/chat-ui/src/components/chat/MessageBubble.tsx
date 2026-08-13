@@ -70,7 +70,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, showTimestamp = 
                   <button
                     onClick={handleEditSubmit}
                     disabled={!editContent.trim()}
-                    className="px-4 py-1.5 rounded-full bg-[#a855f7] hover:bg-[#c084fc] text-white text-xs font-semibold transition-colors disabled:opacity-50 cursor-pointer"
+                    className="px-4 py-1.5 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold transition-colors disabled:opacity-50 cursor-pointer"
                   >
                     Send
                   </button>
@@ -79,7 +79,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, showTimestamp = 
             ) : (
               <div className={`transition-all ${isAI
                 ? 'w-full text-slate-200'
-                : 'bg-[#2b2c35]/90 border border-slate-800/50 text-white rounded-3xl rounded-tr-sm px-5 py-3 shadow-lg shadow-black/10 max-w-[80%] text-[15.5px] leading-relaxed'
+                : 'bg-[#1e293b] border border-slate-700/80 text-white rounded-3xl rounded-tr-sm px-5 py-3 shadow-lg shadow-black/20 max-w-[80%] text-[15.5px] leading-relaxed'
                 }`}>
                 {isAI ? (
                   <div className="prose prose-invert max-w-none text-[15.5px] leading-relaxed text-slate-200">

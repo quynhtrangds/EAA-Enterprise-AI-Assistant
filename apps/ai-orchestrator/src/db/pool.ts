@@ -8,7 +8,12 @@ export const pool = new pg.Pool({
   user: env.POSTGRES_USER,
   password: env.POSTGRES_PASSWORD,
   max: 10,
-  idleTimeoutMillis: 30000
+  idleTimeoutMillis: 30000,
+  client_encoding: 'UTF8'
+});
+
+pool.on('connect', (client) => {
+  client.query("SET client_encoding = 'UTF8'").catch(() => {});
 });
 
 export async function query<T extends pg.QueryResultRow = pg.QueryResultRow>(
