@@ -6,18 +6,8 @@ interface ChatInputProps {
   isCentered?: boolean;
 }
 
-// Khai báo mảng 5 quick prompts
-const QUICK_PROMPTS = [
-  { icon: '💰', text: 'Hôm nay doanh thu bao nhiêu?' },
-  { icon: '👑', text: 'Top 5 khách hàng mua nhiều nhất tháng này là ai?' },
-  { icon: '📦', text: 'Đơn hàng ORD-001 có trạng thái gì?' },
-  { icon: '📋', text: 'Khách hàng Nguyễn Văn A có những đơn hàng nào?' },
-  { icon: '📈', text: 'Sản phẩm nào bán chạy nhất tháng này?' }
-];
-
 const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage, isLoading, isCentered = false }) => {
   const [input, setInput] = useState('');
-  const [showPrompts, setShowPrompts] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -50,33 +40,6 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage, isLoading, isCente
 
   return (
     <div className={`p-4 ${isCentered ? 'w-full' : 'w-full sticky bottom-0 z-10'} bg-transparent`}>
-
-      {/* Vùng render Quick Prompts bằng map() */}
-      <div className="max-w-4xl mx-auto mb-3 px-2">
-        <button
-          onClick={() => setShowPrompts(!showPrompts)}
-          className="text-[13px] text-purple-400 font-semibold mb-2 flex items-center gap-1 hover:underline hover:text-purple-300 focus:outline-none transition-colors cursor-pointer"
-        >
-          <svg className={`w-4 h-4 transition-transform duration-300 ${showPrompts ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
-          </svg>
-          {showPrompts ? 'Thu gọn gợi ý' : 'Hiển thị gợi ý câu hỏi'}
-        </button>
-
-        <div className={`flex flex-wrap gap-2 transition-all duration-300 overflow-hidden ${showPrompts ? 'max-h-40 opacity-100' : 'max-h-0 opacity-0'}`}>
-          {QUICK_PROMPTS.map((prompt, index) => (
-            <button
-              key={index}
-              onClick={() => onSendMessage(prompt.text)}
-              disabled={isLoading}
-              className="text-[13px] font-semibold bg-[#2b2c35]/80 border border-[#3c3e4a]/60 text-slate-300 px-4 py-2.5 rounded-full hover:border-[#a855f7]/85 hover:text-white shadow-sm transition-all disabled:opacity-50 cursor-pointer"
-            >
-              {prompt.icon} {prompt.text}
-            </button>
-          ))}
-        </div>
-      </div>
-
       {/* Khung nhập text */}
       <form onSubmit={handleSubmit} className="max-w-4xl mx-auto flex gap-3 relative">
         <input
