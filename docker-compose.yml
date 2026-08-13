@@ -99,6 +99,7 @@ services:
     environment:
       CHAT_UI_PORT: 3000
       AI_ORCHESTRATOR_URL: http://ai-orchestrator:8082
+      MCP_GATEWAY_URL: http://mcp-gateway:8081
     ports:
       - "${CHAT_UI_PORT:-3000}:3000"
     volumes:

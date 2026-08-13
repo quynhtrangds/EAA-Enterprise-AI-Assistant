@@ -20,26 +20,6 @@ export function createApp(): express.Express {
     res.json({ status: 'ok', service: 'ai-orchestrator' });
   });
 
-  // Fallback forwarding for auth endpoints to MCP Gateway
-  app.all(['/api/login', '/api/auth/*', '/api/admin/*'], async (req, res, next) => {
-    try {
-      const targetUrl = `${env.MCP_GATEWAY_URL}${req.originalUrl}`;
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (req.headers.authorization) {
-        headers['Authorization'] = req.headers.authorization;
-      }
-      const resp = await fetch(targetUrl, {
-        method: req.method,
-        headers,
-        body: ['POST', 'PUT', 'PATCH'].includes(req.method) ? JSON.stringify(req.body) : undefined
-      });
-      const data = await resp.json().catch(() => ({}));
-      res.status(resp.status).json(data);
-    } catch (err) {
-      next(err);
-    }
-  });
-
   app.use('/api', chatRouter);
   app.use(errorHandler);
 
