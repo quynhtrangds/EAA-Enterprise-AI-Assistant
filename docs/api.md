@@ -3,46 +3,69 @@
 Base URL local:
 
 ```text
-MCP Gateway: http://127.0.0.1:8081
+MCP Gateway:     http://127.0.0.1:8081
 AI Orchestrator: http://127.0.0.1:8082
 ```
 
-Auth MVP dung header:
+Xác thực dùng Bearer token (lấy qua `/api/auth/login`):
 
 ```http
-x-user: admin | manager | staff | viewer
+Authorization: Bearer <token>
 ```
 
-Neu khong truyen `x-user`, gateway tam thoi dung `admin` de tien demo local.
+---
 
-## GET /health
+## Auth (AI Orchestrator)
+
+### POST /api/auth/login
+
+```json
+{
+  "username": "admin",
+  "password": "admin123"
+}
+```
 
 Response:
 
 ```json
 {
-  "status": "ok",
-  "service": "mcp-gateway"
+  "token": "...",
+  "user": { "username": "admin", "displayName": "...", "roles": ["admin"] }
 }
 ```
 
-## GET /api/tools
+### POST /api/auth/logout
 
-Tra danh sach tool user hien tai co quyen goi. Moi tool gom metadata va `inputSchema` dang JSON Schema de AI Orchestrator co the nap truc tiep lam OpenAI Function Tool `parameters`.
+Huỷ session hiện tại. Header: `Authorization: Bearer <token>`.
 
-```powershell
-Invoke-RestMethod -Headers @{ 'x-user'='manager' } http://127.0.0.1:8081/api/tools
+---
+
+## MCP Gateway
+
+### GET /health
+
+```json
+{ "status": "ok", "service": "mcp-gateway" }
 ```
 
-Response mau:
+### GET /api/tools
+
+Trả danh sách tools user hiện tại có quyền gọi. Mỗi tool gồm metadata và `inputSchema` (JSON Schema) để AI Orchestrator chuyển thành Function Tool.
+
+```powershell
+Invoke-RestMethod -Headers @{ 'Authorization'='Bearer <token>' } http://127.0.0.1:8081/api/tools
+```
+
+Response mẫu:
 
 ```json
 {
   "tools": [
     {
       "name": "search_customer",
-      "title": "Search Customer",
-      "description": "Find customer by name, phone, email or customer code.",
+      "title": "Tìm khách hàng",
+      "description": "Tìm khách hàng theo tên, SĐT, email hoặc mã khách hàng.",
       "riskLevel": "low",
       "readOnly": true,
       "requiresConfirmation": false,
@@ -60,75 +83,63 @@ Response mau:
 }
 ```
 
-## POST /api/tools/call
+### POST /api/tools/call
 
 Request:
 
 ```json
 {
   "toolName": "search_customer",
-  "arguments": {
-    "keyword": "Nguyen",
-    "limit": 5
-  },
+  "arguments": { "keyword": "Nguyễn", "limit": 5 },
   "sessionId": "session-001"
 }
 ```
 
-Success:
+Response thành công:
 
 ```json
 {
   "success": true,
   "toolName": "search_customer",
-  "data": {},
+  "data": { "customers": [...] },
   "durationMs": 35
 }
 ```
 
-Error:
+Response lỗi:
 
 ```json
 {
   "success": false,
   "errorCode": "PERMISSION_DENIED",
-  "message": "Ban khong co quyen goi tool nay."
+  "message": "Bạn không có quyền gọi tool này."
 }
 ```
 
-## GET /api/audit-logs
+### GET /api/audit-logs
 
-Chi role `admin` co permission `view_audit_logs` moi xem duoc.
+Chỉ role `admin` có permission `view_audit_logs` mới xem được.
 
-Query params:
+Query params: `fromDate`, `toDate`, `toolName`, `userId`, `status=success|failed`
 
-```text
-fromDate
-toDate
-toolName
-userId
-status=success|failed
+---
+
+## AI Orchestrator
+
+### GET /health
+
+```json
+{ "status": "ok", "service": "ai-orchestrator" }
 ```
 
-## POST /api/chat
-
-Service: AI Orchestrator.
-
-Provider mac dinh la `LLM_PROVIDER=mock`. Khi cau hinh `LLM_PROVIDER=openai`, Orchestrator se:
-
-1. Goi `GET /api/tools` de lay tool user duoc phep dung.
-2. Chuyen `inputSchema` thanh OpenAI Function Tool `parameters`.
-3. Xu ly `tool_calls` cua OpenAI bang `POST /api/tools/call`.
-4. Gui ket qua tool ve OpenAI de tao cau tra loi tieng Viet.
-
-Loi OpenAI/API key/mang duoc tra qua app error code `LLM_ERROR`.
+### POST /api/chat
 
 Request:
 
 ```json
 {
   "sessionId": "chat-001",
-  "message": "Hom nay doanh thu bao nhieu?"
+  "message": "Hôm nay doanh thu bao nhiêu?"
 }
 ```
 
@@ -137,18 +148,23 @@ Response:
 ```json
 {
   "sessionId": "chat-001",
-  "answer": "Tong doanh thu trong khoang da chon la 26.800.000 VND voi 1 don hang da thanh toan.",
+  "answer": "Tổng doanh thu hôm nay là 26.800.000 VND với 1 đơn hàng đã thanh toán.",
   "toolCalls": [
     {
       "toolName": "get_revenue_summary",
-      "arguments": {
-        "fromDate": "2026-07-06",
-        "toDate": "2026-07-06",
-        "groupBy": "day"
-      },
+      "arguments": { "fromDate": "2026-08-14", "toDate": "2026-08-14", "groupBy": "day" },
       "success": true,
       "durationMs": 81
     }
   ]
+}
+```
+
+Lỗi LLM (API key sai, hết quota, mạng...):
+
+```json
+{
+  "errorCode": "LLM_ERROR",
+  "message": "Không thể kết nối đến LLM provider."
 }
 ```

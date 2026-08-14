@@ -1,7 +1,11 @@
 import { vi, describe, it, expect, beforeEach, afterEach, afterAll } from 'vitest';
 import request from 'supertest';
+import * as chatHistoryRepo from '../repositories/chat-history-repository.js';
 import { createApp } from '../app.js';
 import { pool } from '../db/pool.js';
+
+vi.spyOn(chatHistoryRepo, 'appendChatTurn').mockResolvedValue(undefined as any);
+vi.spyOn(pool, 'query').mockResolvedValue({ rows: [] } as any);
 
 const app = createApp();
 

@@ -1,32 +1,54 @@
-# React + TypeScript + Vite
+# Chat UI
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Giao diện chat tiếng Việt cho Enterprise AI Assistant.  
+Xây dựng bằng **React 19 + TypeScript + Vite + Tailwind CSS v4**.
 
-Currently, two official plugins are available:
+## Tính năng
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- Đăng nhập với tài khoản doanh nghiệp (admin / manager / staff / viewer)
+- Gửi câu hỏi bằng tiếng Việt và nhận câu trả lời từ AI
+- Hiển thị danh sách tool calls AI đã thực hiện (minh bạch)
+- Hỗ trợ nhiều session chat
+- Dark mode sidebar, responsive layout
+- Render markdown trong câu trả lời (bảng, danh sách, in đậm...)
 
-## React Compiler
+## Chạy local
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```powershell
+npm install
+npm run dev      # http://localhost:3000
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+> AI Orchestrator phải đang chạy tại `http://localhost:8082`.
+
+## Scripts
+
+| Script           | Mô tả                                 |
+|------------------|---------------------------------------|
+| `npm run dev`    | Khởi động dev server (Vite HMR)       |
+| `npm run build`  | Build production                      |
+| `npm run lint`   | Kiểm tra code với Oxlint              |
+| `npm run test`   | Chạy unit tests (Vitest)              |
+| `npm run test:e2e` | Chạy E2E tests (Playwright)         |
+
+## Cấu trúc thư mục
+
+```
+src/
+  components/     Các React component (ChatWindow, Sidebar, LoginForm, ...)
+  contexts/       React context (AuthContext, ChatContext)
+  hooks/          Custom hooks (useChat, useAuth)
+  types/          TypeScript type definitions
+  App.tsx         Root component
+  main.tsx        Entry point
+e2e/              E2E tests bằng Playwright
+```
+
+## Tài khoản mặc định
+
+| Username | Mật khẩu   | Vai trò  |
+|----------|------------|----------|
+| admin    | admin123   | admin    |
+| manager  | manager123 | manager  |
+| staff    | staff123   | staff    |
+| viewer   | viewer123  | viewer   |

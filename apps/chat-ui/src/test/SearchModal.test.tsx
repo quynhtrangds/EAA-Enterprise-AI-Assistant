@@ -4,13 +4,13 @@ import SearchModal from '../components/chat/SearchModal';
 
 // Dữ liệu giả lập dùng chung
 const mockSessions = [
-  { id: 's1', title: 'Phân tích doanh thu Q1', session_code: 'SC001', updatedAt: '10:00', messages: [] },
-  { id: 's2', title: 'Báo cáo nhân sự tháng 6', session_code: 'SC002', updatedAt: '09:30', messages: [] },
-  { id: 's3', title: 'Top khách hàng VIP', session_code: 'SC003', updatedAt: '09:00', messages: [] },
+  { id: 's1', title: 'Phân tích doanh thu Q1', session_code: 'SC001', updatedAt: '10:00', isStarred: false },
+  { id: 's2', title: 'Báo cáo nhân sự tháng 6', session_code: 'SC002', updatedAt: '09:30', isStarred: false },
+  { id: 's3', title: 'Top khách hàng VIP', session_code: 'SC003', updatedAt: '09:00', isStarred: false },
 ];
 
 const mockSearchResults = [
-  { id: 's1', title: 'Phân tích doanh thu Q1', session_code: 'SC001', updatedAt: '10:00', matchedMessage: 'Doanh thu tháng 1 là 2 tỷ đồng' },
+  { id: 's1', title: 'Phân tích doanh thu Q1', session_code: 'SC001', updatedAt: '10:00', isStarred: false, matchedMessage: 'Doanh thu tháng 1 là 2 tỷ đồng' },
 ];
 
 const defaultProps = {
@@ -142,7 +142,7 @@ describe('Kiểm thử Component SearchModal', () => {
   it('TC12: Cắt ngắn matchedMessage khi dài hơn 80 ký tự', async () => {
     const longMessage = 'A'.repeat(100);
     const searchResults = [
-      { id: 's1', title: 'Test', session_code: 'SC001', updatedAt: '10:00', matchedMessage: longMessage }
+      { id: 's1', title: 'Test', session_code: 'SC001', updatedAt: '10:00', isStarred: false, matchedMessage: longMessage }
     ];
     const searchSessions = vi.fn().mockResolvedValue(searchResults);
     render(<SearchModal {...defaultProps} searchSessions={searchSessions} />);

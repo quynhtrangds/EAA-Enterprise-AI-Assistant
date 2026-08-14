@@ -1,5 +1,4 @@
 @import "tailwindcss";
-@plugin "@tailwindcss/typography";
 
 /* Custom Scrollbar - Mặc định cho khung sáng */
 ::-webkit-scrollbar {
@@ -12,25 +11,21 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  /* slate-300 */
+  background: #cbd5e1; /* slate-300 */
   border-radius: 10px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
-  /* slate-400 */
+  background: #94a3b8; /* slate-400 */
 }
 
 /* Scrollbar cho khung tối (Sidebar) */
 .dark-scrollbar::-webkit-scrollbar-thumb {
-  background: #475569;
-  /* slate-600 */
+  background: #475569; /* slate-600 */
 }
 
 .dark-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #64748b;
-  /* slate-500 */
+  background: #64748b; /* slate-500 */
 }
 
 /* For Firefox */

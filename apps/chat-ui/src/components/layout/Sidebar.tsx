@@ -159,7 +159,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   };
 
   return (
-    <div className={`bg-[#0f172a] relative z-50 text-slate-300 flex flex-col h-screen shadow-xl select-none transition-all duration-200 ease-in-out shrink-0 ${isOpen ? 'w-75' : 'w-[72px]'} border-r border-slate-800`}>
+    <div className={`bg-[#0f172a] relative z-50 text-slate-300 flex flex-col h-screen shadow-xl select-none transition-all duration-200 ease-in-out shrink-0 ${isOpen ? 'w-75' : 'w-18'} border-r border-slate-800`}>
       {/* Header */}
       <div className={`pt-4 pb-2 px-4 flex items-center justify-between overflow-hidden shrink-0`}>
         <div
@@ -185,7 +185,7 @@ const Sidebar: React.FC<SidebarProps> = ({
               )}
             </div>
           </div>
-          <div className={`flex flex-col whitespace-nowrap overflow-hidden transition-all duration-200 ${isOpen ? 'w-[120px] opacity-100' : 'w-0 opacity-0'}`}>
+          <div className={`flex flex-col whitespace-nowrap overflow-hidden transition-all duration-200 ${isOpen ? 'w-30 opacity-100' : 'w-0 opacity-0'}`}>
             <h1 className="text-[16px] font-bold text-white tracking-wide">Enterprise UI</h1>
             <span className="text-[11px] text-indigo-400 font-bold uppercase tracking-wider">MCP GATEWAY</span>
           </div>

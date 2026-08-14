@@ -10,7 +10,7 @@ vi.mock('../contexts/AuthContext', () => ({
 
 // Mock fetch globally
 const mockFetch = vi.fn();
-global.fetch = mockFetch;
+globalThis.fetch = mockFetch;
 
 describe('useChat', () => {
   const mockAuthToken = 'mock-jwt-token';

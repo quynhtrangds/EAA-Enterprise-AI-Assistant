@@ -1,11 +1,11 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import Sidebar from '../components/layout/Sidebar';
 import type { Session } from '../hooks/useChat';
 
 const mockSessions: Session[] = [
-  { id: 's1', title: 'Session 1', session_code: 'SC001', isStarred: true, updatedAt: '10:00', messages: [] },
-  { id: 's2', title: 'Session 2', session_code: 'SC002', isStarred: false, updatedAt: '10:05', messages: [] },
+  { id: 's1', title: 'Session 1', session_code: 'SC001', isStarred: true, updatedAt: '10:00' },
+  { id: 's2', title: 'Session 2', session_code: 'SC002', isStarred: false, updatedAt: '10:05' },
 ];
 
 const defaultProps = {

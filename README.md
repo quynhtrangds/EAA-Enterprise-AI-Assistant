@@ -4,7 +4,7 @@ Bản demo MVP cho Trợ lý AI doanh nghiệp bằng tiếng Việt. Mô hình 
 
 ---
 
-## 📋 Yêu cầu hệ thống trước khi cài đặt
+##  Yêu cầu hệ thống trước khi cài đặt
 
 Đảm bảo máy tính của bạn đã được cài đặt đầy đủ các công cụ sau:
 1. **Node.js 20+**
@@ -13,7 +13,7 @@ Bản demo MVP cho Trợ lý AI doanh nghiệp bằng tiếng Việt. Mô hình 
 
 ---
 
-## 🚀 Hướng dẫn chạy dự án từ đầu
+##  Hướng dẫn chạy dự án từ đầu
 
 Có hai cách để khởi chạy dự án: sử dụng **Docker Compose** để chạy nhanh toàn bộ các dịch vụ hoặc **chạy cục bộ (local)** từng ứng dụng để phục vụ mục đích phát triển và debug.
 
@@ -84,7 +84,7 @@ npm run dev
 
 ---
 
-## ⚙️ Cấu hình mô hình ngôn ngữ lớn (LLM)
+##  Cấu hình mô hình ngôn ngữ lớn (LLM)
 
 Mặc định, AI Orchestrator sử dụng **Mock Provider** để chạy demo offline không cần kết nối internet và không mất phí:
 ```env
@@ -104,7 +104,7 @@ Nếu muốn kết nối với mô hình **OpenAI** thực tế:
 
 ---
 
-## 🔌 Lệnh kiểm tra nhanh API (PowerShell)
+##  Lệnh kiểm tra nhanh API (PowerShell)
 
 ### 1. Lấy danh sách các công cụ theo quyền của từng User:
 ```powershell
@@ -147,7 +147,7 @@ Invoke-RestMethod -Method Post `
 
 ---
 
-## 🧪 Kiểm tra mã nguồn (Build & Test)
+##  Kiểm tra mã nguồn (Build & Test)
 
 Dự án sử dụng TypeScript và Vitest để thực hiện kiểm tra lỗi kiểu dữ liệu và chạy các test case tự động.
 
@@ -178,8 +178,4 @@ npm run test
 
 ---
 
-## 📌 Các bước phát triển tiếp theo
 
-1. Viết thêm các test case Vitest cho các tools và phân quyền trong file `gateway.spec.ts`.
-2. Tạo thêm các local LLM provider (như Llama, Ollama) phục vụ việc chạy mô hình ngôn ngữ hoàn toàn offline.
-3. Khi triển khai lên production, sử dụng các Dockerfile multi-stage được tối ưu hóa cho từng service thay vì sử dụng container dev như hiện tại.

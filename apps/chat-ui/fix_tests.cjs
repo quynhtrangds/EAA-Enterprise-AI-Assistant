@@ -1,1 +1,0 @@
-const fs = require('fs'); const file = 'src/test/ChatWindow.test.tsx'; let data = fs.readFileSync(file, 'utf8'); data = data.replace(/render\(<ChatWindow \/>\);/g, 'const props = (useChat as any)();\n    render(<ChatWindow {...props} />);'); fs.writeFileSync(file, data);

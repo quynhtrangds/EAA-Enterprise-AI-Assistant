@@ -42,12 +42,12 @@ const LoginScreen: React.FC = () => {
   return (
     <div className="flex items-center justify-center min-h-screen bg-[#0b0e1a] font-sans">
       {/* Decorative background gradient */}
-      <div className="absolute inset-0 bg-gradient-to-br from-indigo-950/40 via-[#0b0e1a] to-purple-950/30 pointer-events-none" />
+      <div className="absolute inset-0 bg-linear-to-br from-indigo-950/40 via-[#0b0e1a] to-purple-950/30 pointer-events-none" />
 
       <div className="relative w-full max-w-md p-10 bg-[#111827]/90 backdrop-blur-xl rounded-3xl shadow-2xl shadow-indigo-950/30 border border-slate-800/60">
         <div className="text-center mb-10">
           {/* Logo - matching sidebar style */}
-          <div className="w-14 h-14 rounded-xl bg-gradient-to-tr from-indigo-500 to-purple-600 shadow-lg shadow-indigo-500/25 flex items-center justify-center mx-auto mb-5">
+          <div className="w-14 h-14 rounded-xl bg-linear-to-tr from-indigo-500 to-purple-600 shadow-lg shadow-indigo-500/25 flex items-center justify-center mx-auto mb-5">
             <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
             </svg>
