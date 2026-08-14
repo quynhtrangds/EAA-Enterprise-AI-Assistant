@@ -10,9 +10,12 @@ const EnvSchema = z.object({
   POSTGRES_DB: z.string().default('enterprise_ai_demo'),
   POSTGRES_USER: z.string().default('postgres'),
   POSTGRES_PASSWORD: z.string().default('postgres'),
-  LLM_PROVIDER: z.enum(['mock', 'openai', 'local']).default('mock'),
+  LLM_PROVIDER: z.enum(['mock', 'openai', 'gemini', 'local']).default('mock'),
   OPENAI_API_KEY: z.string().optional(),
   OPENAI_MODEL: z.string().default('gpt-4.1-mini'),
+  OPENAI_BASE_URL: z.string().url().optional(),
+  GEMINI_API_KEY: z.string().optional(),
+  GEMINI_MODEL: z.string().default('gemini-2.0-flash'),
   LOCAL_LLM_BASE_URL: z.string().url().optional(),
   MAX_TOOL_CALL_ROUNDS: z.coerce.number().int().min(1).max(10).default(5)
 });

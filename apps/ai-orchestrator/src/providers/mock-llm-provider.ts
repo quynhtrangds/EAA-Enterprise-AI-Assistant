@@ -25,13 +25,15 @@ function normalizeVietnamese(value: string): string {
 
 function cleanCustomerKeyword(message: string): string {
   return message
-    .replace(/khách hàng/gi, '')
-    .replace(/khach hang/gi, '')
-    .replace(/có những đơn hàng nào/gi, '')
-    .replace(/co nhung don hang nao/gi, '')
-    .replace(/\bcủa\b/gi, '')
-    .replace(/\bcua\b/gi, '')
-    .replace(/[?.!]/g, '')
+    .replace(/cho tôi biết|cho toi biet|cho tôi|cho toi/gi, '')
+    .replace(/tra cứu|tra cuu|tìm kiếm|tim kiem|tìm|tim|kiểm tra|kiem tra|xem/gi, '')
+    .replace(/thông tin về|thong tin ve|thông tin|thong tin/gi, '')
+    .replace(/khách hàng|khach hang|người dùng|nguoi dung/gi, '')
+    .replace(/có những đơn hàng nào|co nhung don hang nao|có đơn hàng nào|co don hang nao/gi, '')
+    .replace(/địa chỉ|dia chi|số điện thoại|so dien thoai|\bsđt\b|\bsdt\b|\bemail\b/gi, '')
+    .replace(/\bcủa\b|\bcua\b|\bvề\b|\bve\b|\blà ai\b|\bla ai\b|\bở đâu\b|\bo dau\b/gi, '')
+    .replace(/[?.!,;:]/g, '')
+    .replace(/\s+/g, ' ')
     .trim();
 }
 
@@ -67,12 +69,14 @@ export class MockLLMProvider implements LLMProvider {
       };
     }
 
-    if (normalized.includes('dia chi')) {
-      const keyword = cleanCustomerKeyword(message.replace(/địa chỉ/gi, '').replace(/dia chi/gi, ''));
-      return { toolName: 'search_customer', arguments: { keyword: keyword.trim() || 'Nguyễn', limit: 5 } };
-    }
-
-    if (normalized.includes('khach hang')) {
+    if (
+      normalized.includes('dia chi') ||
+      normalized.includes('so dien thoai') ||
+      normalized.includes('sdt') ||
+      normalized.includes('email') ||
+      normalized.includes('khach hang') ||
+      normalized.includes('thong tin')
+    ) {
       const keyword = cleanCustomerKeyword(message);
       return { toolName: 'search_customer', arguments: { keyword: keyword || 'Nguyễn', limit: 5 } };
     }
@@ -111,14 +115,20 @@ export class MockLLMProvider implements LLMProvider {
 
     if (toolCall.toolName === 'get_top_customers') {
       const customers = Array.isArray(data.customers) ? data.customers : [];
-      return `Top kh\u00e1ch h\u00e0ng: ${customers.map((customer: any) => `${customer.fullName} (${formatMoney(customer.totalRevenue)})`).join('; ')}.`;
+      if (customers.length === 0) {
+        return 'Không có dữ liệu mua hàng trong khoảng thời gian đã chọn.';
+      }
+      return `Top khách hàng: ${customers.map((customer: any) => `${customer.fullName} (${formatMoney(customer.totalRevenue)})`).join('; ')}.`;
     }
 
     if (toolCall.toolName === 'get_product_sales_summary') {
       const products = Array.isArray(data.products) ? data.products : [];
-      return `S\u1ea3n ph\u1ea9m b\u00e1n ch\u1ea1y: ${products.map((product: any) => `${product.productName} (${product.quantitySold})`).join('; ')}.`;
+      if (products.length === 0) {
+        return 'Không có dữ liệu sản phẩm bán ra trong khoảng thời gian đã chọn.';
+      }
+      return `Sản phẩm bán chạy: ${products.map((product: any) => `${product.productName} (${product.quantitySold} sản phẩm, doanh thu: ${formatMoney(product.revenue)})`).join('; ')}.`;
     }
 
-    return '\u0110\u00e3 l\u1ea5y d\u1eef li\u1ec7u t\u1eeb tool th\u00e0nh c\u00f4ng.';
+    return 'Đã lấy dữ liệu từ tool thành công.';
   }
 }

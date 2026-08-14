@@ -91,7 +91,7 @@ export class ChatService {
   private readonly llm = new MockLLMProvider();
 
   async chat(input: ChatInput): Promise<ChatOutput> {
-    if (env.LLM_PROVIDER === 'openai' || env.LLM_PROVIDER === 'local') {
+    if (env.LLM_PROVIDER === 'openai' || env.LLM_PROVIDER === 'gemini' || env.LLM_PROVIDER === 'local') {
       return this.chatWithLLM(input);
     }
 
@@ -177,16 +177,30 @@ export class ChatService {
 
   private async chatWithLLM(input: ChatInput): Promise<ChatOutput> {
     try {
-      const isLocal = env.LLM_PROVIDER === 'local';
-      const apiKey = isLocal ? (env.OPENAI_API_KEY || 'local-key') : env.OPENAI_API_KEY;
+      let apiKey = env.OPENAI_API_KEY;
+      let baseURL: string | undefined = env.OPENAI_BASE_URL;
+      let model = env.OPENAI_MODEL || 'gpt-4.1-mini';
 
-      if (!isLocal && !apiKey) {
-        throw new AppError('LLM_ERROR', 'OPENAI_API_KEY is required when LLM_PROVIDER=openai.', 500);
+      if (env.LLM_PROVIDER === 'gemini') {
+        apiKey = env.GEMINI_API_KEY || env.OPENAI_API_KEY;
+        if (!apiKey) {
+          throw new AppError('LLM_ERROR', 'GEMINI_API_KEY hoặc OPENAI_API_KEY là bắt buộc khi LLM_PROVIDER=gemini.', 500);
+        }
+        baseURL = 'https://generativelanguage.googleapis.com/v1beta/openai/';
+        model = env.GEMINI_MODEL || 'gemini-2.0-flash';
+      } else if (env.LLM_PROVIDER === 'local') {
+        apiKey = env.OPENAI_API_KEY || 'local-key';
+        baseURL = env.LOCAL_LLM_BASE_URL;
+        model = env.OPENAI_MODEL || 'local-model';
+      } else if (env.LLM_PROVIDER === 'openai') {
+        if (!apiKey) {
+          throw new AppError('LLM_ERROR', 'OPENAI_API_KEY is required when LLM_PROVIDER=openai.', 500);
+        }
       }
 
       const client = new OpenAI({
         apiKey,
-        ...(isLocal && env.LOCAL_LLM_BASE_URL ? { baseURL: env.LOCAL_LLM_BASE_URL } : {})
+        ...(baseURL ? { baseURL } : {})
       });
 
       const gatewayTools = (await this.gateway.listTools(input.authToken)) as GatewayTool[];
@@ -233,7 +247,7 @@ export class ChatService {
       while (round < MAX_ROUNDS) {
         round++;
         const completion = await client.chat.completions.create({
-          model: env.OPENAI_MODEL || 'local-model',
+          model,
           messages,
           ...(tools.length > 0 ? { tools, tool_choice: 'auto' as const } : {})
         });
@@ -290,7 +304,7 @@ export class ChatService {
 
       // Fallback if max rounds reached
       const fallback = await client.chat.completions.create({
-        model: env.OPENAI_MODEL || 'local-model',
+        model,
         messages
       });
       const answer = fallback.choices[0]?.message?.content;

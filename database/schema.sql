@@ -62,6 +62,7 @@ CREATE TABLE IF NOT EXISTS order_items (
     REFERENCES products(id)
     ON UPDATE CASCADE
     ON DELETE RESTRICT,
+  CONSTRAINT uq_order_items_order_product UNIQUE (order_id, product_id),
   CONSTRAINT chk_order_items_quantity CHECK (quantity > 0),
   CONSTRAINT chk_order_items_unit_price CHECK (unit_price >= 0),
   CONSTRAINT chk_order_items_total_price CHECK (total_price >= 0)

@@ -77,9 +77,8 @@ SET
   order_date = EXCLUDED.order_date,
   status = EXCLUDED.status;
 
-INSERT INTO order_items (id, order_id, product_id, quantity, unit_price, total_price)
+INSERT INTO order_items (order_id, product_id, quantity, unit_price, total_price)
 SELECT
-  ('50000000-0000-0000-0000-' || lpad(gs::text, 12, '0'))::uuid AS id,
   ('40000000-0000-0000-0000-' || lpad((((gs - 1) % 300) + 1)::text, 12, '0'))::uuid AS order_id,
   p.id AS product_id,
   ((gs % 4) + 1)::int AS quantity,
@@ -87,10 +86,8 @@ SELECT
   (((gs % 4) + 1) * p.price)::numeric(18, 2) AS total_price
 FROM generate_series(29, 700) AS gs
 JOIN products p ON p.product_code = 'PRD-' || lpad((((gs * 7 - 1) % 30) + 1)::text, 3, '0')
-ON CONFLICT (id) DO UPDATE
+ON CONFLICT (order_id, product_id) DO UPDATE
 SET
-  order_id = EXCLUDED.order_id,
-  product_id = EXCLUDED.product_id,
   quantity = EXCLUDED.quantity,
   unit_price = EXCLUDED.unit_price,
   total_price = EXCLUDED.total_price;
