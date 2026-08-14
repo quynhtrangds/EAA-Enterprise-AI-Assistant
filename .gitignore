@@ -9,6 +9,14 @@ out/
 .next/
 .nuxt/
 
+# Test coverage & reports
+coverage/
+*.lcov
+playwright-report/
+test-results/
+blob-report/
+.nyc_output/
+
 # Environment variables & secrets
 .env
 .env.local

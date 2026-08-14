@@ -1,9 +1,7 @@
-import OpenAI from 'openai';
-import type { ChatCompletionMessageParam, ChatCompletionTool } from 'openai/resources/chat/completions';
 import { env } from '../config/env.js';
 import { AppError } from '../errors/app-error.js';
 import { McpGatewayClient } from '../gateway/mcp-gateway-client.js';
-import { MockLLMProvider } from '../providers/mock-llm-provider.js';
+import { createLLMProvider, type LLMProvider, type LLMMessage, type LLMToolDefinition } from '../providers/index.js';
 import type { ChatInput, ChatOutput, PlannedToolCall, ToolCallTrace } from '../types/chat.js';
 
 interface GatewayTool {
@@ -24,24 +22,6 @@ function daysAgo(days: number): string {
   return date.toISOString().slice(0, 10);
 }
 
-function formatMoney(value: unknown): string {
-  return `${Number(value ?? 0).toLocaleString('vi-VN')} VND`;
-}
-
-function normalizeVietnamese(value: string): string {
-  return value
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/\u0111/g, 'd')
-    .replace(/\u0110/g, 'D')
-    .toLowerCase();
-}
-
-function isCustomerOrdersQuestion(message: string): boolean {
-  const normalized = normalizeVietnamese(message);
-  return normalized.includes('khach hang') && normalized.includes('don hang');
-}
-
 function toTrace(plannedToolCall: PlannedToolCall, gatewayResult: Awaited<ReturnType<McpGatewayClient['callTool']>>): ToolCallTrace {
   return {
     ...plannedToolCall,
@@ -53,7 +33,7 @@ function toTrace(plannedToolCall: PlannedToolCall, gatewayResult: Awaited<Return
   };
 }
 
-function toOpenAITool(tool: GatewayTool): ChatCompletionTool {
+function toLLMTool(tool: GatewayTool): LLMToolDefinition {
   return {
     type: 'function',
     function: {
@@ -64,147 +44,18 @@ function toOpenAITool(tool: GatewayTool): ChatCompletionTool {
   };
 }
 
-function parseToolArguments(rawArguments: string | undefined): Record<string, unknown> {
-  if (!rawArguments) {
-    return {};
-  }
-
-  const parsed = JSON.parse(rawArguments) as unknown;
-  return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? (parsed as Record<string, unknown>) : {};
-}
-
-function buildCustomerOrdersAnswer(customer: any, orders: any[]): string {
-  if (orders.length === 0) {
-    return `Kh\u00e1ch h\u00e0ng ${customer.fullName} ch\u01b0a c\u00f3 \u0111\u01a1n h\u00e0ng n\u00e0o trong 90 ng\u00e0y g\u1ea7n nh\u1ea5t.`;
-  }
-
-  const orderSummary = orders
-    .slice(0, 8)
-    .map((order) => `${order.orderCode} (${order.status}, ${formatMoney(order.totalAmount)})`)
-    .join('; ');
-
-  return `Kh\u00e1ch h\u00e0ng ${customer.fullName} c\u00f3 ${orders.length} \u0111\u01a1n h\u00e0ng trong 90 ng\u00e0y g\u1ea7n nh\u1ea5t: ${orderSummary}.`;
-}
-
 export class ChatService {
   private readonly gateway = new McpGatewayClient();
-  private readonly llm = new MockLLMProvider();
+  private readonly llm: LLMProvider;
+
+  constructor(llmProvider?: LLMProvider) {
+    this.llm = llmProvider ?? createLLMProvider();
+  }
 
   async chat(input: ChatInput): Promise<ChatOutput> {
-    if (env.LLM_PROVIDER === 'openai' || env.LLM_PROVIDER === 'gemini' || env.LLM_PROVIDER === 'local') {
-      return this.chatWithLLM(input);
-    }
-
-    return this.chatWithMock(input);
-  }
-
-  private async chatWithMock(input: ChatInput): Promise<ChatOutput> {
-    await this.gateway.listTools(input.authToken);
-    const plannedToolCall = this.llm.planToolCall(input.message);
-
-    if (!plannedToolCall) {
-      return {
-        sessionId: input.sessionId,
-        answer: this.llm.buildAnswer(input.message, null, null),
-        toolCalls: []
-      };
-    }
-
-    const gatewayResult = await this.gateway.callTool(
-      input.authToken,
-      input.sessionId,
-      plannedToolCall.toolName,
-      plannedToolCall.arguments
-    );
-
-    const trace = toTrace(plannedToolCall, gatewayResult);
-
-    if (!gatewayResult.success) {
-      return {
-        sessionId: input.sessionId,
-        answer: gatewayResult.message ?? 'Không thể gọi tool.',
-        toolCalls: [trace]
-      };
-    }
-
-    if (plannedToolCall.toolName === 'search_customer' && isCustomerOrdersQuestion(input.message)) {
-      const customers = Array.isArray((gatewayResult.data as any)?.customers) ? (gatewayResult.data as any).customers : [];
-      const customer = customers[0];
-
-      if (!customer) {
-        return {
-          sessionId: input.sessionId,
-          answer: 'Không tìm thấy khách hàng phù hợp.',
-          toolCalls: [trace]
-        };
-      }
-
-      const ordersCall: PlannedToolCall = {
-        toolName: 'get_customer_orders',
-        arguments: {
-          customerId: customer.customerId,
-          fromDate: daysAgo(90),
-          toDate: today(),
-          limit: 20
-        }
-      };
-
-      const ordersResult = await this.gateway.callTool(input.authToken, input.sessionId, ordersCall.toolName, ordersCall.arguments);
-      const ordersTrace = toTrace(ordersCall, ordersResult);
-
-      if (!ordersResult.success) {
-        return {
-          sessionId: input.sessionId,
-          answer: ordersResult.message ?? 'Không thể lấy danh sách đơn hàng.',
-          toolCalls: [trace, ordersTrace]
-        };
-      }
-
-      const orders = Array.isArray((ordersResult.data as any)?.orders) ? (ordersResult.data as any).orders : [];
-      return {
-        sessionId: input.sessionId,
-        answer: buildCustomerOrdersAnswer(customer, orders),
-        toolCalls: [trace, ordersTrace]
-      };
-    }
-
-    return {
-      sessionId: input.sessionId,
-      answer: this.llm.buildAnswer(input.message, plannedToolCall, gatewayResult.data),
-      toolCalls: [trace]
-    };
-  }
-
-  private async chatWithLLM(input: ChatInput): Promise<ChatOutput> {
     try {
-      let apiKey = env.OPENAI_API_KEY;
-      let baseURL: string | undefined = env.OPENAI_BASE_URL;
-      let model = env.OPENAI_MODEL || 'gpt-4.1-mini';
-
-      if (env.LLM_PROVIDER === 'gemini') {
-        apiKey = env.GEMINI_API_KEY || env.OPENAI_API_KEY;
-        if (!apiKey) {
-          throw new AppError('LLM_ERROR', 'GEMINI_API_KEY hoặc OPENAI_API_KEY là bắt buộc khi LLM_PROVIDER=gemini.', 500);
-        }
-        baseURL = 'https://generativelanguage.googleapis.com/v1beta/openai/';
-        model = env.GEMINI_MODEL || 'gemini-2.0-flash';
-      } else if (env.LLM_PROVIDER === 'local') {
-        apiKey = env.OPENAI_API_KEY || 'local-key';
-        baseURL = env.LOCAL_LLM_BASE_URL;
-        model = env.OPENAI_MODEL || 'local-model';
-      } else if (env.LLM_PROVIDER === 'openai') {
-        if (!apiKey) {
-          throw new AppError('LLM_ERROR', 'OPENAI_API_KEY is required when LLM_PROVIDER=openai.', 500);
-        }
-      }
-
-      const client = new OpenAI({
-        apiKey,
-        ...(baseURL ? { baseURL } : {})
-      });
-
       const gatewayTools = (await this.gateway.listTools(input.authToken)) as GatewayTool[];
-      const tools = gatewayTools.map(toOpenAITool);
+      const tools = gatewayTools.map(toLLMTool);
       const permittedTools = gatewayTools.filter(t => t.permitted !== false);
       const permittedToolTitles = permittedTools.map(t => t.title || t.name).join(', ');
 
@@ -229,7 +80,7 @@ export class ChatService {
         `- Hôm qua là ngày: ${daysAgo(1)}\n` +
         `Khi người dùng hỏi "hôm nay", "hôm qua", "tháng này", "năm nay", hãy sử dụng mốc thời gian trên để điền fromDate và toDate với định dạng YYYY-MM-DD.`;
 
-      const messages: ChatCompletionMessageParam[] = [
+      const messages: LLMMessage[] = [
         {
           role: 'system',
           content: systemPrompt
@@ -246,36 +97,29 @@ export class ChatService {
 
       while (round < MAX_ROUNDS) {
         round++;
-        const completion = await client.chat.completions.create({
-          model,
-          messages,
-          ...(tools.length > 0 ? { tools, tool_choice: 'auto' as const } : {})
-        });
-
-        const assistantMessage = completion.choices[0]?.message;
-        if (!assistantMessage) {
-          throw new AppError('LLM_ERROR', 'LLM did not return a chat message.', 502);
-        }
-
-        const toolCalls = assistantMessage.tool_calls ?? [];
+        const completion = await this.llm.generateCompletion(messages, tools);
+        const toolCalls = completion.toolCalls;
 
         // No more tool calls → LLM produced a final answer
         if (toolCalls.length === 0) {
           return {
             sessionId: input.sessionId,
-            answer: assistantMessage.content ?? '',
+            answer: completion.content ?? '',
             toolCalls: traces
           };
         }
 
-        // Execute all tool calls in this round
-        messages.push(assistantMessage);
-        for (const toolCall of toolCalls) {
-          if (toolCall.type !== 'function') continue;
+        // Add assistant message with tool calls to context
+        messages.push({
+          role: 'assistant',
+          content: completion.content
+        });
 
+        // Execute each planned tool call
+        for (const toolCall of toolCalls) {
           const plannedToolCall: PlannedToolCall = {
-            toolName: toolCall.function.name,
-            arguments: parseToolArguments(toolCall.function.arguments)
+            toolName: toolCall.name,
+            arguments: toolCall.arguments
           };
 
           const gatewayResult = await this.gateway.callTool(
@@ -299,22 +143,13 @@ export class ChatService {
             })
           });
         }
-        // Loop continues — LLM will decide next step
       }
 
       // Fallback if max rounds reached
-      const fallback = await client.chat.completions.create({
-        model,
-        messages
-      });
-      const answer = fallback.choices[0]?.message?.content;
-      if (!answer) {
-        throw new AppError('LLM_ERROR', 'LLM did not return a final answer.', 502);
-      }
-
+      const fallback = await this.llm.generateCompletion(messages, tools);
       return {
         sessionId: input.sessionId,
-        answer,
+        answer: fallback.content ?? '',
         toolCalls: traces
       };
     } catch (error) {
@@ -325,7 +160,6 @@ export class ChatService {
       const message = error instanceof Error ? error.message : 'Unknown LLM error';
       console.error('LLM Error Details:', (error as any).error || error);
 
-      // Trả về câu trả lời thân thiện thay vì ném lỗi 502 để UI không báo "Mất kết nối"
       return {
         sessionId: input.sessionId,
         answer: 'Xin lỗi, tôi đã gặp khó khăn khi xử lý yêu cầu này (có thể do thiếu thông tin cụ thể hoặc công cụ không hỗ trợ). Bạn vui lòng cung cấp thêm chi tiết hoặc thử đổi cách hỏi nhé.',

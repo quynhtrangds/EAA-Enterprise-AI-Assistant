@@ -1,4 +1,4 @@
-import type { LLMProvider } from './llm-provider.js';
+import type { LLMCompletionResult, LLMMessage, LLMProvider, LLMToolDefinition } from './llm-provider.js';
 import type { PlannedToolCall } from '../types/chat.js';
 
 function today(): string {
@@ -36,7 +36,6 @@ function cleanCustomerKeyword(message: string): string {
     .replace(/\s+/g, ' ')
     .trim();
 }
-
 
 export class MockLLMProvider implements LLMProvider {
   planToolCall(message: string): PlannedToolCall | null {
@@ -86,18 +85,18 @@ export class MockLLMProvider implements LLMProvider {
 
   buildAnswer(_message: string, toolCall: PlannedToolCall | null, toolResult: unknown): string {
     if (!toolCall) {
-      return 'MVP hi\u1ec7n t\u1ea1i h\u1ed7 tr\u1ee3 c\u00e1c c\u00e2u h\u1ecfi v\u1ec1 doanh thu, \u0111\u01a1n h\u00e0ng, kh\u00e1ch h\u00e0ng v\u00e0 s\u1ea3n ph\u1ea9m b\u00e1n ch\u1ea1y.';
+      return 'MVP hiện tại hỗ trợ các câu hỏi về doanh thu, đơn hàng, khách hàng và sản phẩm bán chạy.';
     }
 
-    const data = toolResult as Record<string, any>;
+    const data = (toolResult ?? {}) as Record<string, any>;
 
     if (toolCall.toolName === 'get_revenue_summary') {
-      return `T\u1ed5ng doanh thu trong kho\u1ea3ng \u0111\u00e3 ch\u1ecdn l\u00e0 ${formatMoney(data.totalRevenue)} v\u1edbi ${data.totalOrders ?? 0} \u0111\u01a1n h\u00e0ng \u0111\u00e3 thanh to\u00e1n.`;
+      return `Tổng doanh thu trong khoảng đã chọn là ${formatMoney(data.totalRevenue)} với ${data.totalOrders ?? 0} đơn hàng đã thanh toán.`;
     }
 
     if (toolCall.toolName === 'get_order_detail') {
       const order = data.order;
-      return `\u0110\u01a1n h\u00e0ng ${order?.orderCode} \u0111ang \u1edf tr\u1ea1ng th\u00e1i ${order?.status}, t\u1ed5ng gi\u00e1 tr\u1ecb ${formatMoney(order?.totalAmount)}.`;
+      return `Đơn hàng ${order?.orderCode} đang ở trạng thái ${order?.status}, tổng giá trị ${formatMoney(order?.totalAmount)}.`;
     }
 
     if (toolCall.toolName === 'search_customer') {
@@ -130,5 +129,50 @@ export class MockLLMProvider implements LLMProvider {
     }
 
     return 'Đã lấy dữ liệu từ tool thành công.';
+  }
+
+  async generateCompletion(
+    messages: LLMMessage[],
+    _tools: LLMToolDefinition[]
+  ): Promise<LLMCompletionResult> {
+    const lastMsg = messages[messages.length - 1];
+    const userMsg = [...messages].reverse().find((m) => m.role === 'user')?.content || '';
+
+    // If last message is a tool response, synthesize final answer
+    if (lastMsg && lastMsg.role === 'tool') {
+      let toolData: unknown = {};
+      try {
+        const parsed = JSON.parse(lastMsg.content || '{}');
+        toolData = parsed.data ?? parsed;
+      } catch {
+        toolData = lastMsg.content;
+      }
+      const planned = this.planToolCall(userMsg);
+      const answer = this.buildAnswer(userMsg, planned, toolData);
+      return {
+        content: answer,
+        toolCalls: []
+      };
+    }
+
+    // Otherwise, plan a tool call for the user message
+    const planned = this.planToolCall(userMsg);
+    if (planned) {
+      return {
+        content: null,
+        toolCalls: [
+          {
+            id: `call_${Date.now()}`,
+            name: planned.toolName,
+            arguments: planned.arguments
+          }
+        ]
+      };
+    }
+
+    return {
+      content: this.buildAnswer(userMsg, null, null),
+      toolCalls: []
+    };
   }
 }
