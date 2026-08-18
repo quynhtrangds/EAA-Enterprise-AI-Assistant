@@ -1,0 +1,19 @@
+﻿# docker-compose.frappe.yml
+# Override file de ket noi mcp-gateway vao mang Frappe/ERPNext khi chay local.
+#
+# Su dung:
+#   docker compose -f docker-compose.yml -f docker-compose.frappe.yml up -d
+#
+# Yeu cau: frappe_docker stack phai dang chay truoc (network frappe_docker_frappe_network ton tai).
+# CI KHONG su dung file nay - chi dung docker-compose.yml thuan tuy.
+
+services:
+  mcp-gateway:
+    networks:
+      - default
+      - frappe_network
+
+networks:
+  frappe_network:
+    external: true
+    name: frappe_docker_frappe_network

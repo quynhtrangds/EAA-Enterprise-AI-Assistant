@@ -1,4 +1,4 @@
-name: enterprise_ai
+﻿name: enterprise_ai
 services:
   postgres:
     image: postgres:15
@@ -59,7 +59,6 @@ services:
       - ./packages:/packages
     networks:
       - default
-      - frappe_network
     depends_on:
       postgres:
         condition: service_healthy
@@ -153,8 +152,3 @@ volumes:
     name: enterprise_ai_vault_data
   gitea_data:
     name: enterprise_ai_gitea_data
-
-networks:
-  frappe_network:
-    external: true
-    name: frappe_docker_frappe_network
