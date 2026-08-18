@@ -87,19 +87,40 @@ export class ChatService {
 
   private async chatWithLLM(input: ChatInput, gateway: McpGatewayClient): Promise<ChatOutput> {
     try {
-      const isLocal = env.LLM_PROVIDER === 'local' || env.LLM_PROVIDER === 'mock';
-      const apiKey = isLocal ? (env.OPENAI_API_KEY || 'local-key') : env.OPENAI_API_KEY;
+      let apiKey = env.OPENAI_API_KEY;
+      let baseURL: string | undefined = undefined;
+      let model = env.OPENAI_MODEL;
 
-      if (!isLocal && !apiKey) {
-        throw new AppError('LLM_ERROR', 'OPENAI_API_KEY is required when LLM_PROVIDER=openai.', 500);
+      if (env.LLM_PROVIDER === 'gemini') {
+        apiKey = env.GEMINI_API_KEY || env.OPENAI_API_KEY;
+        baseURL = env.LOCAL_LLM_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta/openai/';
+        model = env.GEMINI_MODEL || env.OPENAI_MODEL || 'gemini-3.6-flash';
+        if (model.includes('gemini-3.5') || model.includes('gemini-2.0') || model.includes('gemini-2.5')) {
+          model = 'gemini-3.6-flash';
+        }
+      } else if (env.LLM_PROVIDER === 'local') {
+        apiKey = env.OPENAI_API_KEY || 'local-key';
+        baseURL = env.LOCAL_LLM_BASE_URL;
+        model = env.OPENAI_MODEL || 'local-model';
+      } else if (env.LLM_PROVIDER === 'mock') {
+        apiKey = env.OPENAI_API_KEY || 'mock-key';
+        baseURL = env.LOCAL_LLM_BASE_URL;
+        model = env.OPENAI_MODEL || 'mock-model';
+      } else if (env.LLM_PROVIDER === 'openai') {
+        apiKey = env.OPENAI_API_KEY;
+        baseURL = env.LOCAL_LLM_BASE_URL;
+        model = env.OPENAI_MODEL || 'gpt-4.1-mini';
+      }
+
+      if (!apiKey && env.LLM_PROVIDER !== 'mock' && env.LLM_PROVIDER !== 'local') {
+        throw new AppError('LLM_ERROR', `API Key is required for LLM_PROVIDER=${env.LLM_PROVIDER}.`, 500);
       }
 
       const client = new OpenAI({
-        apiKey,
+        apiKey: apiKey || 'dummy-key',
         timeout: 60000,
-        ...(isLocal && env.LOCAL_LLM_BASE_URL ? { baseURL: env.LOCAL_LLM_BASE_URL } : {})
+        ...(baseURL ? { baseURL } : {})
       });
-
       const gatewayTools = (await gateway.listTools(input.authToken)) as GatewayTool[];
       const permittedTools = gatewayTools.filter(t => t.permitted !== false);
       console.log('[chatWithLLM] permittedTools:', permittedTools.map(t => t.name));
@@ -149,7 +170,7 @@ export class ChatService {
         while (retryCount <= maxRetries) {
           try {
             completion = await client.chat.completions.create({
-              model: env.OPENAI_MODEL || 'local-model',
+              model,
               messages,
               ...(tools.length > 0 ? { tools, tool_choice: 'auto' as const, parallel_tool_calls: false } : {})
             });
@@ -280,7 +301,7 @@ export class ChatService {
 
       // Fallback if max rounds reached
       const fallback = await client.chat.completions.create({
-        model: env.OPENAI_MODEL || 'local-model',
+        model,
         messages
       });
       const answer = fallback.choices[0]?.message?.content;
