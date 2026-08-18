@@ -1,4 +1,4 @@
-import OpenAI from 'openai';
+﻿import OpenAI from 'openai';
 import type { ChatCompletionMessageParam, ChatCompletionTool } from 'openai/resources/chat/completions';
 import { env } from '../config/env.js';
 import { AppError } from '../errors/app-error.js';
@@ -87,7 +87,7 @@ export class ChatService {
 
   private async chatWithLLM(input: ChatInput, gateway: McpGatewayClient): Promise<ChatOutput> {
     try {
-      const isLocal = env.LLM_PROVIDER === 'local';
+      const isLocal = env.LLM_PROVIDER === 'local' || env.LLM_PROVIDER === 'mock';
       const apiKey = isLocal ? (env.OPENAI_API_KEY || 'local-key') : env.OPENAI_API_KEY;
 
       if (!isLocal && !apiKey) {

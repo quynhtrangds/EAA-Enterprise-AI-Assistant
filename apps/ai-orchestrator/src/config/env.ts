@@ -11,7 +11,7 @@ const EnvSchema = z.object({
   POSTGRES_DB: z.string().default('enterprise_ai_demo'),
   POSTGRES_USER: z.string().default('postgres'),
   POSTGRES_PASSWORD: z.string().default('postgres'),
-  LLM_PROVIDER: z.enum(['openai', 'local', 'gemini', 'anthropic']).default('local'),
+  LLM_PROVIDER: z.enum(['openai', 'local', 'gemini', 'anthropic', 'mock']).default('local'),
   GEMINI_API_KEY: z.string().optional(),
   GEMINI_MODEL: z.string().default('gemini-2.5-flash'),
   ANTHROPIC_API_KEY: z.string().optional(),
