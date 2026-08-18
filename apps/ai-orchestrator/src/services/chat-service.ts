@@ -124,7 +124,7 @@ export class ChatService {
       const gatewayTools = (await gateway.listTools(input.authToken)) as GatewayTool[];
       const permittedTools = gatewayTools.filter(t => t.permitted !== false);
       console.log('[chatWithLLM] permittedTools:', permittedTools.map(t => t.name));
-      const tools = permittedTools.map(toOpenAITool);
+      const tools = gatewayTools.map(toOpenAITool);
       const permittedToolList = permittedTools.map(t => `- **${t.name}**: ${t.description || t.title || t.name}`).join('\n');
 
       const systemPrompt =
