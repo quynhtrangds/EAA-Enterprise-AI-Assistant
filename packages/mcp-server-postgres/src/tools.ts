@@ -216,8 +216,28 @@ function toNumber(value: unknown): number {
   return Number(value ?? 0);
 }
 
-function getTenantId(input: any): string {
-  return input._tenantId || input.tenantId || '00000000-0000-0000-0000-000000000000';
+// Context riêng biệt khỏi input schema công khai (LLM-facing). tenantId LUÔN
+// phải do Gateway (nguồn tin cậy) cung cấp qua tham số thứ 2 của execute(),
+// KHÔNG được đưa vào cùng object arguments mà LLM/client có thể thấy hoặc
+// tự ý gửi lên — vì object đó sẽ đi qua tool.inputSchema.parse() ở index.ts,
+// và Zod mặc định strip mọi field không khai báo trong schema (bao gồm cả
+// field có tiền tố "_"). Nếu tenantId bị gộp chung, nó sẽ luôn bị loại bỏ
+// trước khi tới execute(), khiến cách ly dữ liệu đa-tenant không hoạt động
+// trên thực tế dù Gateway có cố gắng "inject" nó vào arguments.
+export interface ToolContext {
+  tenantId: string;
+}
+
+function requireTenantId(context: ToolContext | undefined): string {
+  if (!context?.tenantId) {
+    // Fail-closed: KHÔNG fallback về 1 tenant mặc định nào cả. Trước đây
+    // code fallback ngầm về '00000000-...' khi thiếu tenantId — nghĩa là
+    // một lỗi ở tầng Gateway (quên set tenantId) sẽ âm thầm trả về dữ liệu
+    // của tenant mặc định thay vì báo lỗi, có thể làm lộ dữ liệu giữa các
+    // tenant. Thà chặn hẳn request còn hơn trả nhầm dữ liệu.
+    throw new Error('Thiếu tenant context. Không thể xác định phạm vi dữ liệu để truy vấn.');
+  }
+  return context.tenantId;
 }
 
 export function createPostgresTools() {
@@ -228,9 +248,9 @@ export function createPostgresTools() {
       description: 'Tìm kiếm khách hàng bằng keyword (tên, sđt, email, mã KH). TRẢ VỀ THÔNG TIN CHI TIẾT cá nhân (địa chỉ, số điện thoại, email, trạng thái). Hãy DÙNG TOOL NÀY khi bạn cần lấy chi tiết thông tin của một hoặc nhiều khách hàng bằng mã ID/Code.',
       inputSchema: searchCustomerInput,
       outputSchema: searchCustomerOutputSchema,
-      async execute(parsedInput: any) {
+      async execute(parsedInput: any, context: ToolContext) {
         const { keyword, limit } = parsedInput;
-        const tenantId = getTenantId(parsedInput);
+        const tenantId = requireTenantId(context);
         let result;
         try {
           result = await query<SearchCustomerRow>(
@@ -285,9 +305,9 @@ export function createPostgresTools() {
       description: 'Lấy danh sách các đơn hàng gần đây của khách hàng (Cần customer UUID). TRẢ VỀ thông tin CƠ BẢN (Mã đơn, Ngày, Trạng thái, Tổng tiền) NHƯNG KHÔNG BAO GỒM chi tiết mặt hàng và thanh toán. Nếu cần biết chi tiết mặt hàng/thanh toán, hãy lấy orderCode từ đây và gọi tiếp get_order_detail.',
       inputSchema: getCustomerOrdersInput,
       outputSchema: getCustomerOrdersOutputSchema,
-      async execute(parsedInput: any) {
+      async execute(parsedInput: any, context: ToolContext) {
         const parsed = parsedInput;
-        const tenantId = getTenantId(parsed);
+        const tenantId = requireTenantId(context);
         const result = await query<CustomerOrderRow>(
           `
           SELECT id, order_code, order_date, status, total_amount
@@ -319,9 +339,9 @@ export function createPostgresTools() {
       description: 'Lấy THÔNG TIN CHI TIẾT của MỘT đơn hàng bằng orderCode. TRẢ VỀ danh sách các mặt hàng (sản phẩm, số lượng, giá) và lịch sử thanh toán. Hãy DÙNG TOOL NÀY khi bạn cần tra cứu chi tiết một hoặc nhiều đơn hàng cụ thể.',
       inputSchema: getOrderDetailInput,
       outputSchema: getOrderDetailOutputSchema,
-      async execute(parsedInput: any) {
+      async execute(parsedInput: any, context: ToolContext) {
         const { orderCode } = parsedInput;
-        const tenantId = getTenantId(parsedInput);
+        const tenantId = requireTenantId(context);
         const orderResult = await query<OrderDetailRow>(
           `
           SELECT
@@ -404,9 +424,9 @@ export function createPostgresTools() {
       description: 'Get revenue summary grouped by day, month, or payment_method.',
       inputSchema: getRevenueSummaryInput,
       outputSchema: getRevenueSummaryOutputSchema,
-      async execute(parsedInput: any) {
+      async execute(parsedInput: any, context: ToolContext) {
         const parsed = parsedInput;
-        const tenantId = getTenantId(parsed);
+        const tenantId = requireTenantId(context);
         assertDateRange(parsed.fromDate, parsed.toDate);
 
         const groupExpression =
@@ -454,9 +474,9 @@ export function createPostgresTools() {
       title: 'Get Top Customers',
       description: 'Xếp hạng khách hàng theo doanh thu đã thanh toán. TRẢ VỀ thông tin thống kê CƠ BẢN (Mã KH, Tên, Số đơn hàng, Tổng chi tiêu) NHƯNG KHÔNG BAO GỒM (SĐT, Email, Địa chỉ). Nếu cần SĐT/Email/Địa chỉ, hãy lấy kết quả mã KH từ đây rồi gọi tiếp search_customer.',
       inputSchema: getTopCustomersInput,
-      async execute(parsedInput: any) {
+      async execute(parsedInput: any, context: ToolContext) {
         const parsed = parsedInput;
-        const tenantId = getTenantId(parsed);
+        const tenantId = requireTenantId(context);
         assertDateRange(parsed.fromDate, parsed.toDate);
 
         const result = await query<TopCustomerRow>(
@@ -499,9 +519,9 @@ export function createPostgresTools() {
       title: 'Get Product Sales Summary',
       description: 'Rank products by paid order sales.',
       inputSchema: getProductSalesSummaryInput,
-      async execute(parsedInput: any) {
+      async execute(parsedInput: any, context: ToolContext) {
         const parsed = parsedInput;
-        const tenantId = getTenantId(parsed);
+        const tenantId = requireTenantId(context);
         assertDateRange(parsed.fromDate, parsed.toDate);
 
         const result = await query<ProductSalesRow>(

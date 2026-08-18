@@ -132,13 +132,24 @@ toolsRouter.post('/login', async (req, res, next) => {
       WHERE u.status = 'active'
         AND u.username = $1
       GROUP BY u.id, u.username, u.password_hash, u.display_name, u.email, u.tenant_id, u.role
-      LIMIT 1
       `,
       [credentials.username]
     );
 
-    const user = result.rows[0];
-    if (!user || !(await verifyPassword(credentials.password, user.password_hash))) {
+    // Username chỉ unique THEO TỪNG TENANT (xem migration 007), nên 2 tenant
+    // khác nhau có thể có user trùng username. Không được LIMIT 1 rồi mới
+    // verify password — thứ tự trả về không xác định nên có thể chọn nhầm
+    // user của tenant khác. Duyệt qua từng candidate và chỉ đăng nhập vào
+    // đúng người có password khớp.
+    let user: LoginUserRow | undefined;
+    for (const candidate of result.rows) {
+      if (await verifyPassword(credentials.password, candidate.password_hash)) {
+        user = candidate;
+        break;
+      }
+    }
+
+    if (!user) {
       throw new AppError('UNAUTHENTICATED', 'Username hoac password khong dung.', 401);
     }
 
@@ -259,19 +270,39 @@ toolsRouter.post('/auth/google', async (req, res, next) => {
         u.role,
         u.sso_provider,
         u.sso_id,
-        COALESCE(NULLIF(array_agg(r.role_code ORDER BY r.role_code) FILTER (WHERE r.role_code IS NOT NULL), '{}'), ARRAY[COALESCE(u.role, 'admin')]) AS roles
+        COALESCE(NULLIF(array_agg(r.role_code ORDER BY r.role_code) FILTER (WHERE r.role_code IS NOT NULL), '{}'), ARRAY[COALESCE(u.role, 'staff')]) AS roles
       FROM users u
       LEFT JOIN user_roles ur ON ur.user_id = u.id
       LEFT JOIN roles r ON r.id = ur.role_id
       WHERE u.status = 'active'
         AND u.email = $1
       GROUP BY u.id, u.username, u.password_hash, u.display_name, u.email, u.tenant_id, u.role, u.sso_provider, u.sso_id
-      LIMIT 1
       `,
       [email]
     );
 
-    const user = result.rows[0];
+    if (result.rows.length === 0) {
+      throw new AppError('UNAUTHORIZED', 'Google account is not authorized for this workspace.', 403);
+    }
+
+    // Email không bị ràng buộc unique trong schema hiện tại, nên về lý
+    // thuyết 2 tenant khác nhau có thể pre-provision user trùng email. Không
+    // có mật khẩu để phân biệt như /login, nhưng có sso_id (định danh Google
+    // ổn định) — nếu 1 candidate đã từng bind đúng sso_id này, chọn thẳng nó.
+    // Nếu còn mơ hồ (nhiều candidate, chưa ai bind khớp), từ chối thay vì
+    // chọn bừa 1 người — tránh bind nhầm tài khoản Google vào user tenant khác.
+    let user = result.rows.find((candidate) => candidate.sso_id === sub);
+    if (!user) {
+      if (result.rows.length > 1) {
+        throw new AppError(
+          'UNAUTHORIZED',
+          'Email nay ton tai o nhieu workspace. Vui long lien he quan tri vien de duoc ho tro dang nhap.',
+          403
+        );
+      }
+      user = result.rows[0];
+    }
+
     if (!user) {
       throw new AppError('UNAUTHORIZED', 'Google account is not authorized for this workspace.', 403);
     }
@@ -286,9 +317,6 @@ toolsRouter.post('/auth/google', async (req, res, next) => {
 
     if (!user.sso_provider) {
       await query(`UPDATE users SET sso_provider = 'google', sso_id = $1 WHERE id = $2`, [sub, user.id]);
-    }
-    if (user.role) {
-      user.roles = [user.role];
     }
 
     const session = await createAuthSession(user.id, user.roles);
@@ -397,7 +425,7 @@ toolsRouter.post('/tools/call', async (req, res, next) => {
       throw new AppError('PERMISSION_DENIED', 'Ban khong co quyen goi tool nay.', 403);
     }
 
-    checkToolRateLimit(user.id, parsed.toolName);
+    checkToolRateLimit(user.id, parsed.toolName, parsed.sessionId);
 
     await writeAuditLog({
       userId: user.id,

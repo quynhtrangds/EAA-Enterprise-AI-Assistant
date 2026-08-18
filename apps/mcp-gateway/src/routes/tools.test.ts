@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+﻿import { beforeEach, describe, expect, it, vi } from 'vitest';
 import request from 'supertest';
 
 // ─── Hoisted mocks ───────────────────────────────────────────────────────────
@@ -148,6 +148,62 @@ describe('Tools & Login Routes – mở rộng (routes/tools.ts)', () => {
 
       expect(res.body.errorCode).toBe('UNAUTHENTICATED');
     });
+
+    it('username trùng ở 2 tenant khác nhau – phải đăng nhập đúng candidate có password khớp, không chọn bừa candidate đầu tiên', async () => {
+      const candidateTenantA = {
+        id: 'user-tenant-a',
+        username: 'manager',
+        password_hash: 'hash-a',
+        display_name: 'Manager A',
+        email: 'manager@tenant-a.com',
+        tenant_id: 'tenant-a',
+        role: 'manager',
+        roles: ['manager']
+      };
+      const candidateTenantB = {
+        id: 'user-tenant-b',
+        username: 'manager',
+        password_hash: 'hash-b',
+        display_name: 'Manager B',
+        email: 'manager@tenant-b.com',
+        tenant_id: 'tenant-b',
+        role: 'manager',
+        roles: ['manager']
+      };
+      // Mật khẩu người dùng nhập chỉ khớp với candidate của tenant B
+      query.mockResolvedValueOnce({ rows: [candidateTenantA, candidateTenantB] });
+      verifyPassword.mockImplementation(async (_pw: string, hash: string) => hash === 'hash-b');
+      createAuthSession.mockResolvedValueOnce({ token: 'tok', expiresAt: '2026-08-02T00:00:00Z' });
+
+      const res = await request(app)
+        .post('/api/login')
+        .send({ username: 'manager', password: 'correct-for-b' })
+        .expect(200);
+
+      expect(res.body.user.username).toBe('manager');
+      expect(createAuthSession).toHaveBeenCalledWith('user-tenant-b', ['manager']);
+    });
+
+    it('username trùng ở 2 tenant nhưng password không khớp với bất kỳ ai – từ chối đăng nhập', async () => {
+      const candidateTenantA = {
+        id: 'user-tenant-a', username: 'manager', password_hash: 'hash-a',
+        display_name: 'Manager A', email: 'a@x.com', tenant_id: 'tenant-a', role: 'manager', roles: ['manager']
+      };
+      const candidateTenantB = {
+        id: 'user-tenant-b', username: 'manager', password_hash: 'hash-b',
+        display_name: 'Manager B', email: 'b@x.com', tenant_id: 'tenant-b', role: 'manager', roles: ['manager']
+      };
+      query.mockResolvedValueOnce({ rows: [candidateTenantA, candidateTenantB] });
+      verifyPassword.mockResolvedValue(false);
+
+      const res = await request(app)
+        .post('/api/login')
+        .send({ username: 'manager', password: 'wrong-for-both' })
+        .expect(401);
+
+      expect(res.body.errorCode).toBe('UNAUTHENTICATED');
+      expect(createAuthSession).not.toHaveBeenCalled();
+    });
   });
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -167,9 +223,10 @@ describe('Tools & Login Routes – mở rộng (routes/tools.ts)', () => {
     });
 
     it('trả 503 khi không có user guest trong hệ thống', async () => {
-      query.mockResolvedValueOnce({ rows: [] });
+      query.mockResolvedValueOnce({ rows: [] }); // SELECT
+      query.mockResolvedValueOnce({ rows: [] }); // INSERT RETURNING
 
-      const res = await request(app).post('/api/auth/guest').expect(503);
+      const res = await request(app).post('/api/auth/guest').expect(500);
       expect(res.body.errorCode).toBe('INTERNAL_ERROR');
     });
   });

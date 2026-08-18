@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import App from '../App';
@@ -90,7 +90,7 @@ describe('App Integration Tests', () => {
     render(<App />);
 
     // 1. Initial State: Should show Login Screen
-    expect(screen.getByText('Enterprise UI')).toBeInTheDocument();
+    expect(screen.getByText('Trợ lý AI Doanh nghiệp')).toBeInTheDocument();
 
     // 2. Perform Login
     fireEvent.change(screen.getByPlaceholderText('Nhập tên đăng nhập'), { target: { value: 'admin' } });
@@ -128,7 +128,7 @@ describe('App Integration Tests', () => {
     });
     fireEvent.click(screen.getByText('Đăng xuất'));
     await waitFor(() => {
-      expect(screen.getByText('Enterprise UI')).toBeInTheDocument();
+      expect(screen.getByText('Trợ lý AI Doanh nghiệp')).toBeInTheDocument();
     });
   });
 

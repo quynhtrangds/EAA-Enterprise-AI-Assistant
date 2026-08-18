@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+﻿﻿import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useChat } from '../hooks/useChat';
 import { useAuth } from '../contexts/AuthContext';
@@ -179,7 +179,7 @@ describe('useChat', () => {
 
     // An error message should be appended
     expect(result.current.messages[1].sender).toBe('ai');
-    expect(result.current.messages[1].content).toContain('Lỗi');
+    expect(result.current.messages[1].content).toContain('Network error');
   });
 
   it('TC09: Should edit a message successfully', async () => {
@@ -303,7 +303,7 @@ describe('useChat', () => {
     // Test !response.ok
     mockFetch.mockResolvedValueOnce({ ok: false });
     await act(async () => { await result.current.editMessage('m1', 'Edit fail'); });
-    expect(result.current.messages[result.current.messages.length - 1].content).toContain('Lỗi');
+    expect(result.current.messages[result.current.messages.length - 1].content).toContain('Không thể kết nối với AI Orchestrator');
 
     // Restore messages for next test
     mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ messages: [{ id: 'm1', content: 'Hello' }] }) });
@@ -313,7 +313,7 @@ describe('useChat', () => {
     // Test fetch rejection
     mockFetch.mockRejectedValueOnce(new Error('Edit failed'));
     await act(async () => { await result.current.editMessage('m1', 'Edit fail 2'); });
-    expect(result.current.messages[result.current.messages.length - 1].content).toContain('Lỗi');
+    expect(result.current.messages[result.current.messages.length - 1].content).toContain('Edit failed');
   });
 
   it('TC16: Should handle !response.ok in sendMessage', async () => {
@@ -323,7 +323,7 @@ describe('useChat', () => {
 
     mockFetch.mockResolvedValueOnce({ ok: false });
     await act(async () => { await result.current.sendMessage('Hello'); });
-    expect(result.current.messages[result.current.messages.length - 1].content).toContain('Lỗi');
+    expect(result.current.messages[result.current.messages.length - 1].content).toContain('Không thể kết nối với AI Orchestrator');
   });
 
   it('TC17: Should handle error in renameSession', async () => {
@@ -501,7 +501,7 @@ describe('useChat', () => {
     // The code catches the error and appends an error message
     expect(result.current.messages.length).toBeGreaterThan(0);
     const lastMsg = result.current.messages[result.current.messages.length - 1];
-    expect(lastMsg.content).toContain('Không thể kết nối tới máy chủ AI Orchestrator');
+    expect(lastMsg.content).toContain('Không thể kết nối với AI Orchestrator');
   });
 
   it('TC29: Should log error when renameSession API throws an error', async () => {

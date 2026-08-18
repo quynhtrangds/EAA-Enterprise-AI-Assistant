@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+﻿import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import MessageBubble from '../components/chat/MessageBubble';
 
@@ -125,7 +125,7 @@ describe('Kiểm thử Component MessageBubble', () => {
     const mockMsg = { id: '9', sender: 'ai' as const, content: '', timestamp: '10:00' };
     render(<MessageBubble message={mockMsg} />);
 
-    expect(screen.getByText('⚠️ Lỗi: Dữ liệu message.content bị rỗng (undefined)')).toBeInTheDocument();
+    expect(screen.getByText(/Lỗi: nội dung tin nhắn bị rỗng/i)).toBeInTheDocument();
   });
 
   it('TC10: Không gọi onResend nếu nội dung sửa giống hệt nội dung cũ', () => {

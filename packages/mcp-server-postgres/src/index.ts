@@ -43,8 +43,13 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   }
 
   try {
-    const args = tool.inputSchema.parse(request.params.arguments);
-    const result = await tool.execute(args);
+    const rawArgs = (request.params.arguments ?? {}) as Record<string, unknown>;
+    // Lấy tenantId TRƯỚC khi input đi qua Zod validate — vì inputSchema của
+    // từng tool chỉ khai báo field nghiệp vụ (business input) cho LLM, Zod
+    // sẽ strip mọi field lạ như _tenantId nếu nó bị gộp chung vào object này.
+    const tenantId = typeof rawArgs._tenantId === 'string' ? rawArgs._tenantId : '';
+    const args = tool.inputSchema.parse(rawArgs);
+    const result = await tool.execute(args, { tenantId });
     return {
       content: [{ type: "text", text: JSON.stringify(result) }],
     };
@@ -58,7 +63,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
 async function main() {
   const mode = process.env.MCP_TRANSPORT_MODE || "stdio";
-  
+
   if (mode === "stdio") {
     const transport = new StdioServerTransport();
     await server.connect(transport);
@@ -66,9 +71,9 @@ async function main() {
   } else if (mode === "http") {
     const app = express();
     const port = process.env.PORT ? parseInt(process.env.PORT) : 3001;
-    
+
     let sseTransport: SSEServerTransport;
-    
+
     app.get("/sse", async (req: express.Request, res: express.Response) => {
       sseTransport = new SSEServerTransport("/message", res);
       await server.connect(sseTransport);

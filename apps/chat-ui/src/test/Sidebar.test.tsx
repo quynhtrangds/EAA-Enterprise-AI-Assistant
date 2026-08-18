@@ -1,27 +1,18 @@
-import { describe, it, expect, vi } from 'vitest';
+﻿import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import Sidebar from '../components/layout/Sidebar';
 import type { Session } from '../hooks/useChat';
 
-vi.mock('../contexts/AuthContext', () => ({
-  useAuth: () => ({
-    authToken: 'mock-token',
-    currentUser: { id: '1', username: 'admin', display_name: 'Quản trị viên', roles: ['admin'] },
-    login: vi.fn(),
-    logout: vi.fn(),
-  }),
-}));
-
 const mockSessions: Session[] = [
-  { id: 's1', title: 'Session 1', session_code: 'SC001', isStarred: true, updatedAt: '10:00', messages: [] },
-  { id: 's2', title: 'Session 2', session_code: 'SC002', isStarred: false, updatedAt: '10:05', messages: [] },
+  { id: 's1', title: 'Session 1', session_code: 'SC001', isStarred: true, updatedAt: '10:00' },
+  { id: 's2', title: 'Session 2', session_code: 'SC002', isStarred: false, updatedAt: '10:05' },
 ];
 
 const defaultProps = {
   isOpen: true,
   sessions: mockSessions,
   activeSessionId: 's1',
-  currentUser: { id: '1', username: 'admin', displayName: 'Admin', roles: ['admin'] },
+  currentUser: { username: 'admin', role: 'admin', displayName: 'Admin' },
   onSelectSession: vi.fn(),
   onCreateSession: vi.fn(),
   onDeleteSession: vi.fn(),
@@ -41,7 +32,7 @@ describe('Kiểm thử Component Sidebar', () => {
     render(<Sidebar {...defaultProps} />);
     
     // Header
-    expect(screen.getByText('Enterprise UI')).toBeInTheDocument();
+    expect(screen.getByText('AI Assistant')).toBeInTheDocument();
     
     // Quick actions
     expect(screen.getByText('Cuộc trò chuyện mới')).toBeInTheDocument();
@@ -50,11 +41,11 @@ describe('Kiểm thử Component Sidebar', () => {
     // Sessions
     expect(screen.getByText('Đã ghim')).toBeInTheDocument();
     expect(screen.getByText('Session 1')).toBeInTheDocument();
-    expect(screen.getByText('LỊCH SỬ HỘI THOẠI')).toBeInTheDocument();
+    expect(screen.getByText('Lịch sử hội thoại')).toBeInTheDocument();
     expect(screen.getByText('Session 2')).toBeInTheDocument();
     
     // Profile
-    expect(screen.getByText('Admin')).toBeInTheDocument();
+    expect(screen.getByText('Quản trị viên')).toBeInTheDocument();
   });
 
   it('TC02: Gọi onToggleSidebar khi bấm nút thu gọn/mở rộng', () => {
@@ -67,7 +58,7 @@ describe('Kiểm thử Component Sidebar', () => {
     
     // Nút toggle ở logo khi sidebar đóng
     rerender(<Sidebar {...defaultProps} isOpen={false} />);
-    const logoArea = screen.getByText('Enterprise UI').closest('div')?.parentElement;
+    const logoArea = screen.getByText('AI Assistant').closest('div')?.parentElement;
     fireEvent.click(logoArea!);
     expect(defaultProps.onToggleSidebar).toHaveBeenCalledTimes(2);
   });
@@ -241,8 +232,8 @@ describe('Kiểm thử Component Sidebar', () => {
   });
 
   it('TC14: Role mặc định nếu currentUser không khớp', () => {
-    render(<Sidebar {...defaultProps} currentUser={{ id: '2', username: 'unknown', roles: ['admin'] }} />);
-    // Role admin là fallback đầu tiên với nhãn Quản trị viên
+    render(<Sidebar {...defaultProps} currentUser={{ username: 'john', role: 'admin' }} />);
+    // Role admin là fallback đầu tiên
     expect(screen.getByText('Quản trị viên')).toBeInTheDocument();
   });
 
@@ -291,7 +282,7 @@ describe('Kiểm thử Component Sidebar', () => {
 
   it('TC18: Click on logo starts new session under different conditions', () => {
     const { rerender } = render(<Sidebar {...defaultProps} activeSessionId="s1" isOpen={true} />);
-    const logoArea = screen.getByText('Enterprise UI').closest('div')?.parentElement;
+    const logoArea = screen.getByText('AI Assistant').closest('div')?.parentElement;
     expect(logoArea).toBeInTheDocument();
 
     // 1. Sidebar open, activeSessionId !== 'new-chat-session'
@@ -308,7 +299,7 @@ describe('Kiểm thử Component Sidebar', () => {
     // 3. Sidebar closed, activeSessionId !== 'new-chat-session'
     vi.clearAllMocks();
     rerender(<Sidebar {...defaultProps} activeSessionId="s1" isOpen={false} />);
-    const logoAreaClosed = screen.getByText('Enterprise UI').closest('div')?.parentElement;
+    const logoAreaClosed = screen.getByText('AI Assistant').closest('div')?.parentElement;
     fireEvent.click(logoAreaClosed!);
     expect(defaultProps.onToggleSidebar).toHaveBeenCalledTimes(1);
     expect(defaultProps.onCreateSession).not.toHaveBeenCalled();

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+﻿import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import ChatWindow from '../components/chat/ChatWindow';
 import { useChat } from '../hooks/useChat';
@@ -31,7 +31,7 @@ describe('Kiểm thử Component ChatWindow', () => {
     render(<ChatWindow {...props} />);
 
     // Kiểm tra hiển thị màn hình chào mừng
-    expect(screen.getByText('Enterprise AI Assistant')).toBeInTheDocument();
+    expect(screen.getByText('Trợ lý AI Doanh nghiệp')).toBeInTheDocument();
     expect(screen.getByText(/Trợ lý thông minh kết nối trực tiếp với hệ thống dữ liệu doanh nghiệp/i)).toBeInTheDocument();
 
     // Kiểm tra có ô nhập liệu
@@ -55,7 +55,7 @@ describe('Kiểm thử Component ChatWindow', () => {
     render(<ChatWindow {...props} />);
 
     // Welcome screen không được hiển thị
-    expect(screen.queryByText('Enterprise AI Assistant')).not.toBeInTheDocument();
+    expect(screen.queryByText('Trợ lý AI Doanh nghiệp')).not.toBeInTheDocument();
 
     // Kiểm tra nội dung tin nhắn được render
     expect(screen.getByText('Xin chào')).toBeInTheDocument();
@@ -345,6 +345,6 @@ describe('Kiểm thử Component ChatWindow', () => {
     render(<ChatWindow {...props} />);
 
     // Phải hiển thị dòng cảnh báo lỗi
-    expect(screen.getByText('⚠️ Lỗi: Dữ liệu message.content bị rỗng (undefined)')).toBeInTheDocument();
+    expect(screen.getByText(/Lỗi: nội dung tin nhắn bị rỗng/i)).toBeInTheDocument();
   });
 });

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+﻿import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createPostgresTools, assertDateRange } from './tools.js';
 
 vi.mock('./db/pool.js', () => ({
@@ -6,6 +6,9 @@ vi.mock('./db/pool.js', () => ({
 }));
 
 import { query } from './db/pool.js';
+
+const FAKE_TENANT_ID = '00000000-0000-0000-0000-000000000000';
+const FAKE_CONTEXT = { tenantId: FAKE_TENANT_ID };
 
 describe('Postgres MCP Server Tools Suite', () => {
   const tools = createPostgresTools();
@@ -54,11 +57,11 @@ describe('Postgres MCP Server Tools Suite', () => {
       (query as any).mockResolvedValueOnce({ rows: [mockCustomer] });
 
       const parsed = tool.inputSchema.parse({ keyword: 'Nguyễn', limit: 5 });
-      const result = await tool.execute(parsed);
+      const result = await tool.execute(parsed, FAKE_CONTEXT);
 
       expect(query).toHaveBeenCalledWith(
         expect.stringContaining('FROM customers'),
-        ['%Nguyễn%', 5]
+        [FAKE_TENANT_ID, '%Nguyễn%', 5]
       );
       expect(result.customers).toHaveLength(1);
       expect(result.customers[0]).toEqual({
@@ -70,6 +73,15 @@ describe('Postgres MCP Server Tools Suite', () => {
         address: 'Hà Nội',
         status: 'active'
       });
+    });
+
+    it('phải từ chối chạy (fail-closed) nếu thiếu tenantId trong context, không được âm thầm fallback về tenant mặc định', async () => {
+      const parsed = tool.inputSchema.parse({ keyword: 'Nguyễn', limit: 5 });
+
+      await expect(tool.execute(parsed, { tenantId: '' })).rejects.toThrow(/tenant/i);
+      await expect(tool.execute(parsed, undefined as any)).rejects.toThrow(/tenant/i);
+      // Không được gọi query() khi tenantId thiếu — phải chặn trước khi chạm DB
+      expect(query).not.toHaveBeenCalled();
     });
   });
 
@@ -89,11 +101,11 @@ describe('Postgres MCP Server Tools Suite', () => {
 
       const customerId = '10000000-0000-0000-0000-000000000001';
       const parsed = tool.inputSchema.parse({ customerId, limit: 10 });
-      const result = await tool.execute(parsed);
+      const result = await tool.execute(parsed, FAKE_CONTEXT);
 
       expect(query).toHaveBeenCalledWith(
         expect.stringContaining('FROM orders'),
-        [customerId, null, null, 10]
+        [FAKE_TENANT_ID, customerId, null, null, 10]
       );
       expect(result.orders).toHaveLength(1);
       expect(result.orders[0]).toEqual({
@@ -134,7 +146,7 @@ describe('Postgres MCP Server Tools Suite', () => {
         .mockResolvedValueOnce({ rows: mockPayments });
 
       const parsed = tool.inputSchema.parse({ orderCode: 'DH001' });
-      const result = await tool.execute(parsed);
+      const result = await tool.execute(parsed, FAKE_CONTEXT);
 
       expect(result.order.orderCode).toBe('DH001');
       expect(result.order.customerName).toBe('Nguyễn Văn A');
@@ -148,7 +160,7 @@ describe('Postgres MCP Server Tools Suite', () => {
       (query as any).mockResolvedValueOnce({ rows: [] });
 
       const parsed = tool.inputSchema.parse({ orderCode: 'DH999' });
-      await expect(tool.execute(parsed)).rejects.toThrow('Không tìm thấy đơn hàng DH999');
+      await expect(tool.execute(parsed, FAKE_CONTEXT)).rejects.toThrow('Không tìm thấy đơn hàng DH999');
     });
   });
 
@@ -163,7 +175,7 @@ describe('Postgres MCP Server Tools Suite', () => {
       (query as any).mockResolvedValueOnce({ rows: mockGroups });
 
       const parsed = tool.inputSchema.parse({ fromDate: '2026-07-01', toDate: '2026-07-10', groupBy: 'day' });
-      const result = await tool.execute(parsed);
+      const result = await tool.execute(parsed, FAKE_CONTEXT);
 
       expect(result.totalRevenue).toBe(5000000);
       expect(result.totalOrders).toBe(3);
@@ -187,7 +199,7 @@ describe('Postgres MCP Server Tools Suite', () => {
       (query as any).mockResolvedValueOnce({ rows: [mockTopCustomer] });
 
       const parsed = tool.inputSchema.parse({ fromDate: '2026-01-01', toDate: '2026-07-01', limit: 5 });
-      const result = (await tool.execute(parsed)) as any;
+      const result = (await tool.execute(parsed, FAKE_CONTEXT)) as any;
 
       expect(result.customers).toHaveLength(1);
       expect(result.customers[0].fullName).toBe('Nguyễn Văn A');
@@ -210,7 +222,7 @@ describe('Postgres MCP Server Tools Suite', () => {
       (query as any).mockResolvedValueOnce({ rows: [mockProduct] });
 
       const parsed = tool.inputSchema.parse({ fromDate: '2026-06-01', toDate: '2026-07-01', limit: 10 });
-      const result = (await tool.execute(parsed)) as any;
+      const result = (await tool.execute(parsed, FAKE_CONTEXT)) as any;
 
       expect(result.products).toHaveLength(1);
       expect(result.products[0].productCode).toBe('SP001');

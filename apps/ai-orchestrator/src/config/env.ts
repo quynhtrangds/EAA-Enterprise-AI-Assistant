@@ -1,4 +1,4 @@
-import 'dotenv/config';
+﻿import 'dotenv/config';
 import { z } from 'zod';
 
 const EnvSchema = z.object({
@@ -11,7 +11,11 @@ const EnvSchema = z.object({
   POSTGRES_DB: z.string().default('enterprise_ai_demo'),
   POSTGRES_USER: z.string().default('postgres'),
   POSTGRES_PASSWORD: z.string().default('postgres'),
-  LLM_PROVIDER: z.enum(['openai', 'local']).default('local'),
+  LLM_PROVIDER: z.enum(['openai', 'local', 'gemini', 'anthropic']).default('local'),
+  GEMINI_API_KEY: z.string().optional(),
+  GEMINI_MODEL: z.string().default('gemini-2.5-flash'),
+  ANTHROPIC_API_KEY: z.string().optional(),
+  ANTHROPIC_MODEL: z.string().optional(),
   OPENAI_API_KEY: z.string().optional(),
   OPENAI_MODEL: z.string().default('gpt-4.1-mini'),
   LOCAL_LLM_BASE_URL: z.string().url().optional(),

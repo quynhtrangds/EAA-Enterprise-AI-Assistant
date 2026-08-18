@@ -1,4 +1,4 @@
-import { vi, describe, it, expect, beforeEach, afterEach, afterAll } from 'vitest';
+﻿import { vi, describe, it, expect, beforeEach, afterEach, afterAll } from 'vitest';
 import request from 'supertest';
 
 // QUAN TRỌNG: phải set LLM_PROVIDER TRƯỚC khi bất kỳ module nội bộ nào được
@@ -22,6 +22,16 @@ describe('AI Orchestrator - Advanced Chat Service Tests', () => {
 
   beforeEach(() => {
     originalFetch = global.fetch;
+    let lastInsertedUserId = '10000000-0000-0000-0000-000000000002';
+    vi.spyOn(pool, 'query').mockImplementation(async (text: string, params: any[] = []) => {
+      if (text.includes('INSERT INTO chat_sessions')) {
+        lastInsertedUserId = params[1] || lastInsertedUserId;
+      }
+      if (text.includes('SELECT user_id')) {
+        return { rows: [{ user_id: lastInsertedUserId }], command: 'SELECT', rowCount: 1, oid: 0, fields: [] } as any;
+      }
+      return { rows: [], command: '', rowCount: 0, oid: 0, fields: [] } as any;
+    });
   });
 
   afterEach(() => {

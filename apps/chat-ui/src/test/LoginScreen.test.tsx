@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+﻿import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import LoginScreen from '../components/auth/LoginScreen';
 import { useAuth } from '../contexts/AuthContext';
@@ -27,7 +27,7 @@ describe('Kiểm thử Component LoginScreen', () => {
   it('TC01: Render giao diện đăng nhập ban đầu đúng chuẩn', () => {
     render(<LoginScreen />);
 
-    expect(screen.getByRole('heading', { name: 'Enterprise UI' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Trợ lý AI Doanh nghiệp' })).toBeInTheDocument();
     expect(screen.getByPlaceholderText('Nhập tên đăng nhập')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('Nhập mật khẩu')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Đăng nhập' })).toBeInTheDocument();

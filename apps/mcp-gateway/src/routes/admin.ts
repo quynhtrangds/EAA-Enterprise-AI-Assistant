@@ -17,6 +17,27 @@ function maskSecret(value: string | null | undefined): string {
   return `****${value.slice(-4)}`;
 }
 
+// Danh sách role trong bảng `roles` được thiết kế để mở rộng linh hoạt (thêm
+// role mới chỉ cần INSERT, không cần sửa code) — nhưng nếu chỉ validate bằng
+// z.enum(['admin','manager','staff','viewer']) cố định thì giá trị đó không
+// bao giờ phát huy tác dụng: muốn thêm role mới vẫn phải sửa code ở đây. Kiểm
+// tra động theo DB để 2 nguồn nhất quán với nhau.
+async function assertValidRoleCode(roleCode: string): Promise<void> {
+  const result = await query<{ role_code: string }>(
+    `SELECT role_code FROM roles WHERE role_code = $1 LIMIT 1`,
+    [roleCode]
+  );
+  if (result.rows.length === 0) {
+    throw new AppError('INVALID_TOOL_INPUT', `Role "${roleCode}" không tồn tại trong hệ thống.`, 400);
+  }
+}
+
+// GUEST_USER_ID: xem routes/tools.ts (POST /auth/guest) — mọi khách vãng lai
+// dùng chung 1 user_id cố định này. Không được để admin vô tình xóa/đổi role
+// của nó qua API quản trị, vì làm vậy sẽ phá luồng đăng nhập khách ngay lập
+// tức cho TOÀN BỘ người dùng, không chỉ 1 tài khoản.
+const GUEST_USER_ID = '10000000-0000-0000-0000-000000000004';
+
 // Middleware bảo mật RBAC - Chỉ Admin mới có quyền truy cập các API Quản trị hệ thống
 adminRouter.use(async (req, res, next) => {
   try {
@@ -98,7 +119,7 @@ adminRouter.post('/integrations', async (req, res, next) => {
         updated_at = CURRENT_TIMESTAMP
       RETURNING integration_code, is_active, api_url
     `;
-    
+
     const dbResult = await query(upsertQuery, [
       user.tenantId,
       integrationCode,
@@ -119,8 +140,8 @@ adminRouter.post('/integrations', async (req, res, next) => {
     }
 
     const savedIntegration = dbResult.rows[0] as any;
-    res.json({ 
-      success: true, 
+    res.json({
+      success: true,
       integration: savedIntegration ? {
         integration_code: savedIntegration.integration_code,
         is_active: savedIntegration.is_active,
@@ -161,7 +182,10 @@ adminRouter.get('/users', async (req, res, next) => {
     }
 
     const filteredRows = (rows.length > 0 ? rows : defaultUsers)
-      .filter(u => u.username !== 'viewer' && u.role !== 'viewer')
+      // Chỉ ẩn đúng identity guest dùng chung (xem GUEST_USER_ID ở trên) —
+      // KHÔNG ẩn theo role='viewer' nói chung, vì admin có thể tạo thêm user
+      // thật khác với role viewer và họ vẫn cần hiện trong danh sách quản trị.
+      .filter(u => u.id !== GUEST_USER_ID)
       .map(u => {
         if (u.username === 'manager' || u.role === 'manager') return { ...u, display_name: 'Quản lý' };
         if (u.username === 'staff' || u.role === 'staff') return { ...u, display_name: 'Nhân viên' };
@@ -178,7 +202,7 @@ const createUserSchema = z.object({
   username: z.string().min(2),
   email: z.string().email().optional(),
   displayName: z.string().optional(),
-  role: z.enum(['admin', 'manager', 'staff', 'viewer'])
+  role: z.string().min(1)
 });
 
 // Thêm người dùng mới
@@ -193,6 +217,7 @@ adminRouter.post('/users', async (req, res, next) => {
     }
 
     const { username, email, displayName, role } = createUserSchema.parse(req.body);
+    await assertValidRoleCode(role);
 
     const insertQuery = `
       INSERT INTO users (tenant_id, username, email, display_name, role)
@@ -210,6 +235,21 @@ adminRouter.post('/users', async (req, res, next) => {
       role
     ]);
 
+    const createdUser = dbResult.rows[0] as { id: string } | undefined;
+
+    // Đồng bộ vào bảng user_roles many-to-many — cột users.role (single) và
+    // bảng user_roles (nhiều-vai-trò) là 2 nguồn dữ liệu song song trong hệ
+    // thống này, phải giữ đồng bộ ở MỌI nơi ghi role, không chỉ ở PATCH
+    // /role. Thiếu bước này (như trước đây) khiến user mới tạo có user_roles
+    // rỗng dù cột role đã có giá trị.
+    if (createdUser) {
+      const roleRow = await query<{ id: string }>(`SELECT id FROM roles WHERE role_code = $1 LIMIT 1`, [role]);
+      if (roleRow.rows.length > 0 && roleRow.rows[0]) {
+        await query(`DELETE FROM user_roles WHERE user_id = $1`, [createdUser.id]);
+        await query(`INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2)`, [createdUser.id, roleRow.rows[0].id]);
+      }
+    }
+
     res.json({
       success: true,
       user: dbResult.rows[0],
@@ -221,7 +261,7 @@ adminRouter.post('/users', async (req, res, next) => {
 });
 
 const updateRoleSchema = z.object({
-  role: z.enum(['admin', 'manager', 'staff', 'viewer'])
+  role: z.string().min(1)
 });
 
 // Cập nhật phân quyền Role cho người dùng
@@ -237,6 +277,40 @@ adminRouter.patch('/users/:userId/role', async (req, res, next) => {
 
     const { userId } = req.params;
     const { role } = updateRoleSchema.parse(req.body);
+    await assertValidRoleCode(role);
+
+    if (userId === GUEST_USER_ID || userId === 'viewer') {
+      throw new AppError(
+        'PERMISSION_DENIED',
+        'Không thể đổi quyền của tài khoản khách vãng lai (guest) — mọi phiên khách trên hệ thống dùng chung tài khoản này.',
+        400
+      );
+    }
+
+    // Chống tự-khóa: không cho phép hạ quyền admin cuối cùng còn lại của
+    // tenant xuống role khác — nếu không, hệ thống sẽ mất sạch tài khoản có
+    // quyền quản trị mà không ai tự cứu lại được (phải can thiệp trực tiếp
+    // vào DB). Route DELETE /users/:userId đã có bảo vệ tương tự, PATCH role
+    // trước đây thì chưa.
+    const targetUserRes = await query<{ id: string; role: string | null }>(
+      `SELECT id, role FROM users WHERE (id::text = $1 OR username = $1) AND tenant_id = $2`,
+      [userId, currentUser.tenantId]
+    );
+    const targetUser = targetUserRes.rows[0];
+
+    if (targetUser?.role === 'admin' && role !== 'admin') {
+      const adminCountRes = await query<{ count: string }>(
+        `SELECT COUNT(*)::text AS count FROM users WHERE tenant_id = $1 AND role = 'admin' AND status = 'active'`,
+        [currentUser.tenantId]
+      );
+      if (Number(adminCountRes.rows[0]?.count ?? 0) <= 1) {
+        throw new AppError(
+          'PERMISSION_DENIED',
+          'Không thể hạ quyền admin cuối cùng của tổ chức. Hãy chỉ định một admin khác trước.',
+          400
+        );
+      }
+    }
 
     const updateQuery = `
       UPDATE users 
@@ -287,8 +361,16 @@ adminRouter.delete('/users/:userId', async (req, res, next) => {
       throw new AppError('PERMISSION_DENIED', 'Không thể xóa tài khoản Quản trị viên.', 400);
     }
 
+    if (userId === GUEST_USER_ID || userId === 'viewer') {
+      throw new AppError(
+        'PERMISSION_DENIED',
+        'Không thể xóa tài khoản khách vãng lai (guest) — mọi phiên khách trên hệ thống dùng chung tài khoản này.',
+        400
+      );
+    }
+
     try {
-      const targetUserRes = await query<{role: string}>(
+      const targetUserRes = await query<{ role: string }>(
         `SELECT role FROM users WHERE (id::text = $1 OR username = $1 OR email = $1) AND tenant_id = $2`,
         [userId, currentUser.tenantId]
       );

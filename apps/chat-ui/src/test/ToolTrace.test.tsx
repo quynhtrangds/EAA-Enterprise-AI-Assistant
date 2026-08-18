@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+﻿import { describe, it, expect } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import ToolTrace from '../components/chat/ToolTrace';
 
@@ -25,7 +25,7 @@ describe('Kiểm thử Component ToolTrace', () => {
     expect(screen.getByText(/120/)).toBeInTheDocument();
 
     // Nội dung chi tiết phải bị ẩn trước khi click
-    expect(screen.queryByText('Input:')).not.toBeInTheDocument();
+    expect(screen.queryByText('input:')).not.toBeInTheDocument();
   });
 
   it('TC02: Click vào header để mở rộng chi tiết', () => {
@@ -34,10 +34,10 @@ describe('Kiểm thử Component ToolTrace', () => {
     fireEvent.click(screen.getByText('query_database').closest('button')!);
 
     // Sau khi click: nội dung JSON và status xuất hiện
-    expect(screen.getByText('Input:')).toBeInTheDocument();
+    expect(screen.getByText('input:')).toBeInTheDocument();
     expect(screen.getByText(/"table": "users"/i)).toBeInTheDocument();
     expect(screen.getByText('success')).toBeInTheDocument();
-    expect(screen.getByText('Duration:')).toBeInTheDocument();
+    expect(screen.getByText(/duration:\s*120ms/i)).toBeInTheDocument();
   });
 
   it('TC03: Click lần 2 vào header để thu gọn lại', () => {
@@ -47,11 +47,11 @@ describe('Kiểm thử Component ToolTrace', () => {
 
     // Mở rộng
     fireEvent.click(headerBtn);
-    expect(screen.getByText('Input:')).toBeInTheDocument();
+    expect(screen.getByText('input:')).toBeInTheDocument();
 
     // Thu gọn lại
     fireEvent.click(headerBtn);
-    expect(screen.queryByText('Input:')).not.toBeInTheDocument();
+    expect(screen.queryByText('input:')).not.toBeInTheDocument();
   });
 
   it('TC04: Hiển thị trạng thái "failed" với màu đỏ khi tool thất bại', () => {
@@ -68,8 +68,8 @@ describe('Kiểm thử Component ToolTrace', () => {
   it('TC05: Badge duration có màu xanh khi tool thành công', () => {
     const { container } = render(<ToolTrace tool={mockToolSuccess} />);
 
-    // Badge duration dùng emerald cho success
-    const badge = container.querySelector('.bg-emerald-500\\/15.text-emerald-400');
+    // Badge duration dùng sage cho success
+    const badge = container.querySelector('.text-sage');
     expect(badge).toBeInTheDocument();
     expect(badge?.textContent).toContain('120');
   });
@@ -77,8 +77,8 @@ describe('Kiểm thử Component ToolTrace', () => {
   it('TC06: Badge duration có màu đỏ khi tool thất bại', () => {
     const { container } = render(<ToolTrace tool={mockToolFailed} />);
 
-    // Badge duration dùng rose cho failed
-    const badge = container.querySelector('.bg-rose-500\\/15.text-rose-400');
+    // Badge duration dùng clay cho failed
+    const badge = container.querySelector('.text-clay');
     expect(badge).toBeInTheDocument();
     expect(badge?.textContent).toContain('50');
   });
@@ -88,9 +88,9 @@ describe('Kiểm thử Component ToolTrace', () => {
 
     fireEvent.click(screen.getByText('query_database').closest('button')!);
 
-    // Vùng chi tiết phải hiển thị "Duration:" và "120ms"
-    const durationRow = screen.getByText('Duration:').closest('p');
-    expect(durationRow?.textContent).toContain('120ms');
+    // Vùng chi tiết phải hiển thị "duration:" và "120ms"
+    const durationRow = screen.getByText(/duration:\s*120ms/i);
+    expect(durationRow).toBeInTheDocument();
   });
 
   it('TC08: Render đúng JSON arguments với nhiều trường dữ liệu', () => {
@@ -118,4 +118,3 @@ describe('Kiểm thử Component ToolTrace', () => {
     expect(screen.queryByText(/query_database/i)).not.toBeInTheDocument();
   });
 });
-

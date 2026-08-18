@@ -46,4 +46,24 @@ describe('Rate Limiter', () => {
     // tool2 should be fine
     expect(() => checkToolRateLimit(userId, tool2)).not.toThrow();
   });
+
+  it('should track limits per session independently for the same userId (guest scenario)', () => {
+    // Guest login dùng chung 1 userId cố định cho mọi khách vãng lai
+    // (xem routes/tools.ts /auth/guest). Nếu không tách theo sessionId, một
+    // guest gọi nhiều sẽ khoá luôn các guest khác dùng chung userId đó.
+    const sharedGuestUserId = `guest-shared-${Date.now()}`;
+    const toolName = 'test_tool';
+    const sessionA = 'session-A';
+    const sessionB = 'session-B';
+
+    for (let i = 0; i < 20; i++) {
+      checkToolRateLimit(sharedGuestUserId, toolName, sessionA);
+    }
+
+    // Phiên A đã đạt hạn mức, phải bị chặn
+    expect(() => checkToolRateLimit(sharedGuestUserId, toolName, sessionA)).toThrowError(AppError);
+
+    // Phiên B của cùng userId nhưng khác sessionId phải KHÔNG bị ảnh hưởng
+    expect(() => checkToolRateLimit(sharedGuestUserId, toolName, sessionB)).not.toThrow();
+  });
 });
