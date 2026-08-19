@@ -17,6 +17,12 @@ function today(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+function ninetyDaysAgo(): string {
+  const d = new Date();
+  d.setDate(d.getDate() - 90);
+  return d.toISOString().slice(0, 10);
+}
+
 function toTrace(plannedToolCall: PlannedToolCall, gatewayResult: Awaited<ReturnType<McpGatewayClient['callTool']>>): ToolCallTrace {
   return {
     ...plannedToolCall,
@@ -72,7 +78,7 @@ function formatToolErrorMessage(message?: string): string {
 }
 
 const VIEWER_PERMISSION_DENIED_MESSAGE =
-  `⚠️ **Bạn không có quyền thực hiện thao tác này.**\n\n` +
+  `🚫 **Bạn không có quyền thực hiện thao tác này.**\n\n` +
   `Tài khoản hiện tại chưa được cấp quyền truy vấn dữ liệu này. Vui lòng liên hệ Quản trị viên để biết thêm chi tiết.`;
 
 export class ChatService {
@@ -83,6 +89,89 @@ export class ChatService {
     } finally {
       await gateway.disconnect();
     }
+  }
+
+  private async chatWithMock(input: ChatInput, gateway: McpGatewayClient): Promise<ChatOutput> {
+    const msg = (input.message || '').toLowerCase();
+    const traces: ToolCallTrace[] = [];
+
+    if (msg.includes('đơn hàng') || msg.includes('don hang') || msg.includes('orders') || msg.includes('nguyễn văn a') || msg.includes('nguyen van a')) {
+      const toolName = 'get_customer_orders';
+      const toDate = today();
+      const fromDate = ninetyDaysAgo();
+      const toolArgs = {
+        customerName: 'Nguyễn Văn A',
+        fromDate,
+        toDate
+      };
+
+      const plannedCall: PlannedToolCall = {
+        toolName,
+        arguments: toolArgs
+      };
+
+      const gatewayResult = await gateway.callTool(
+        input.authToken,
+        input.sessionId,
+        toolName,
+        toolArgs
+      );
+      traces.push(toTrace(plannedCall, gatewayResult));
+
+      if (!gatewayResult.success) {
+        return {
+          sessionId: input.sessionId,
+          answer: VIEWER_PERMISSION_DENIED_MESSAGE,
+          toolCalls: traces
+        };
+      }
+
+      return {
+        sessionId: input.sessionId,
+        answer: `Khách hàng Nguyễn Văn A có các đơn hàng trong hệ thống (tra cứu từ ${fromDate} đến ${toDate}). Dưới đây là danh sách chi tiết các đơn hàng đã được tìm thấy.`,
+        toolCalls: traces
+      };
+    }
+
+    if (msg.includes('doanh thu') || msg.includes('revenue')) {
+      const toolName = 'get_revenue_summary';
+      const toDate = today();
+      const fromDate = ninetyDaysAgo();
+      const toolArgs = { fromDate, toDate };
+
+      const plannedCall: PlannedToolCall = {
+        toolName,
+        arguments: toolArgs
+      };
+
+      const gatewayResult = await gateway.callTool(
+        input.authToken,
+        input.sessionId,
+        toolName,
+        toolArgs
+      );
+      traces.push(toTrace(plannedCall, gatewayResult));
+
+      if (!gatewayResult.success) {
+        return {
+          sessionId: input.sessionId,
+          answer: VIEWER_PERMISSION_DENIED_MESSAGE,
+          toolCalls: traces
+        };
+      }
+
+      return {
+        sessionId: input.sessionId,
+        answer: `Doanh thu hôm nay là 25.000.000 VND với 10 đơn hàng.`,
+        toolCalls: traces
+      };
+    }
+
+    return {
+      sessionId: input.sessionId,
+      answer: `Hệ thống đã tiếp nhận yêu cầu "${input.message}".`,
+      toolCalls: traces
+    };
   }
 
   private async chatWithLLM(input: ChatInput, gateway: McpGatewayClient): Promise<ChatOutput> {
@@ -141,10 +230,14 @@ export class ChatService {
         `7. QUY TẮC NGÔN NGỮ & THUẬT NGỮ (BẮT BUỘC):\n` +
         `   - Dùng 100% tiếng Việt thuần túy, tự nhiên và chuẩn nghiệp vụ doanh nghiệp.\n` +
         `   - KHÔNG in ra hoặc trích dẫn các từ khóa kỹ thuật, tên biến code, tên trường dữ liệu tiếng Anh như \`postingDate\`, \`Sales Invoice\`, \`Purchase Invoice\`, \`dueDate\`, \`grandTotal\`, \`status\` trong văn bản trả lời.\n` +
-        `   - Luôn tự động dịch sang thuật ngữ tiếng Việt chuẩn: "ngày ghi sổ" (thay cho postingDate), "hóa đơn bán hàng" (thay cho Sales Invoice), "hóa đơn mua hàng" (thay cho Purchase Invoice), "hạn thanh toán" (thay cho dueDate), "tổng tiền" (thay cho grandTotal).\n\n` +
+        `   - Luôn tự động dịch sang thuật ngữ tiếng Việt chuẩn: "ngày ghi sổ" (thay cho postingDate), "hóa đơn bán hàng" (thay cho Sales Invoice), "hóa đơn mua hàng" (thay cho Purchase Invoice), "hạn thanh toán" (thay cho dueDate), "tổng tiền" (thay cho grandTotal).\n` +
+        `8. QUY TẮC THỜI GIAN MẶC ĐỊNH (90 NGÀY - BẮT BUỘC):\n` +
+        `   - Đối với các công cụ tra cứu đơn hàng, doanh thu (get_customer_orders, get_revenue_summary, get_top_customers, get_product_sales_summary):\n` +
+        `     Nếu người dùng KHÔNG nêu rõ khoảng ngày cụ thể, BẮT BUỘC truyền fromDate="${ninetyDaysAgo()}" và toDate="${today()}".\n\n` +
         `THÔNG TIN HỆ THỐNG:\n` +
         `- Ngày giờ hiện tại: ${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}\n` +
-        `- Hôm nay: ${today()}`;
+        `- Hôm nay: ${today()}\n` +
+        `- 90 ngày trước là: ${ninetyDaysAgo()}`;
 
       const messages: ChatCompletionMessageParam[] = [
         {
@@ -196,7 +289,7 @@ export class ChatService {
                 if (!isPermitted) {
                   return {
                     sessionId: input.sessionId,
-                    answer: `⚠️ **Tính năng hoặc công cụ \`${requestedTool}\` hiện không thuộc phạm vi quyền hạn được cấp cho tài khoản của bạn.**`,
+                    answer: `🚫 **Tính năng hoặc công cụ \`${requestedTool}\` hiện không thuộc phạm vi quyền hạn được cấp cho tài khoản của bạn.**`,
                     toolCalls: traces
                   };
                 }
@@ -233,7 +326,7 @@ export class ChatService {
 
         const toolCalls = assistantMessage.tool_calls ?? [];
 
-        // No more tool calls → LLM produced a final answer
+        // No more tool calls => LLM produced a final answer
         if (toolCalls.length === 0) {
           return {
             sessionId: input.sessionId,
@@ -252,15 +345,6 @@ export class ChatService {
             arguments: parseToolArguments(toolCall.function.arguments)
           };
 
-          const isToolPermitted = permittedTools.some(pt => pt.name === plannedToolCall.toolName);
-          if (!isToolPermitted) {
-            return {
-              sessionId: input.sessionId,
-              answer: VIEWER_PERMISSION_DENIED_MESSAGE,
-              toolCalls: traces
-            };
-          }
-
           const gatewayResult = await gateway.callTool(
             input.authToken,
             input.sessionId,
@@ -270,6 +354,14 @@ export class ChatService {
           traces.push(toTrace(plannedToolCall, gatewayResult));
 
           if (!gatewayResult.success) {
+            if (gatewayResult.errorCode === 'PERMISSION_DENIED' || (gatewayResult.message && gatewayResult.message.toLowerCase().includes('khong co quyen'))) {
+              return {
+                sessionId: input.sessionId,
+                answer: VIEWER_PERMISSION_DENIED_MESSAGE,
+                toolCalls: traces
+              };
+            }
+
             const cleanErr = formatToolErrorMessage(gatewayResult.message);
             messages.push({
               role: 'tool',
@@ -317,6 +409,11 @@ export class ChatService {
     } catch (error) {
       if (error instanceof AppError) {
         throw error;
+      }
+
+      if (env.LLM_PROVIDER === 'mock') {
+        console.warn('[chatWithLLM] Mock fallback triggered in mock mode:', error instanceof Error ? error.message : error);
+        return this.chatWithMock(input, gateway);
       }
 
       const message = error instanceof Error ? error.message : 'Unknown LLM error';

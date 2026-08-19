@@ -1,11 +1,27 @@
 export class MaskingService {
-  // LƯU Ý: danh sách này phải đồng bộ với mọi alias PII (AS ...) được dùng trong
-  // packages/mcp-server-postgres/src/tools.ts. Thiếu 1 alias là dữ liệu cá nhân
-  // sẽ bị trả về KHÔNG che (xem bug đã phát hiện với `customer_address`).
-  private static piiFields = new Set([
-    'email', 'phone', 'address', 'full_name', 'customer_name',
-    'customer_email', 'customer_phone', 'customer_address'
+  // Field type được xác định qua chuẩn hoá tên (lowercase, bỏ "_") trước khi
+  // so khớp — KHÔNG so khớp tên field nguyên văn. Lý do: output thực tế của
+  // các tool nghiệp vụ (packages/mcp-server-postgres/src/tools.ts) dùng
+  // camelCase ('fullName', 'customerAddress', 'customerName'...) theo đúng
+  // outputSchema, nhưng danh sách field trước đây liệt kê bằng snake_case
+  // ('full_name', 'customer_address'...) — không bao giờ khớp, khiến tên
+  // khách hàng và địa chỉ bị lộ hoàn toàn cho staff/viewer dù hệ thống tưởng
+  // đã che. Chuẩn hoá tên trước khi so khớp giúp tự động khớp cả 2 kiểu viết
+  // và không lặp lại đúng lỗi này khi có tool mới/field mới trong tương lai.
+  private static fieldTypeByNormalizedKey = new Map<string, 'email' | 'phone' | 'address' | 'name'>([
+    ['email', 'email'],
+    ['customeremail', 'email'],
+    ['phone', 'phone'],
+    ['customerphone', 'phone'],
+    ['address', 'address'],
+    ['customeraddress', 'address'],
+    ['fullname', 'name'],
+    ['customername', 'name']
   ]);
+
+  private static normalizeKey(key: string): string {
+    return key.toLowerCase().replace(/_/g, '');
+  }
 
   /**
    * Deeply traverse an object and mask known PII fields.
@@ -22,8 +38,9 @@ export class MaskingService {
     if (typeof obj === 'object') {
       const maskedObj: any = {};
       for (const [key, value] of Object.entries(obj)) {
-        if (this.piiFields.has(key) && typeof value === 'string') {
-          maskedObj[key] = this.maskValue(key, value);
+        const fieldType = this.fieldTypeByNormalizedKey.get(this.normalizeKey(key));
+        if (fieldType && typeof value === 'string') {
+          maskedObj[key] = this.maskValue(fieldType, value);
         } else {
           maskedObj[key] = this.maskObject(value);
         }
@@ -35,23 +52,19 @@ export class MaskingService {
   }
 
   /**
-   * Apply specific masking rules based on field name.
+   * Apply specific masking rules based on field type.
    */
-  private static maskValue(field: string, value: string): string {
+  private static maskValue(fieldType: 'email' | 'phone' | 'address' | 'name', value: string): string {
     if (!value) return value;
-    
-    switch (field) {
+
+    switch (fieldType) {
       case 'email':
-      case 'customer_email':
         return this.maskEmail(value);
       case 'phone':
-      case 'customer_phone':
         return this.maskPhone(value);
       case 'address':
-      case 'customer_address':
         return '***';
-      case 'full_name':
-      case 'customer_name':
+      case 'name':
         return this.maskName(value);
       default:
         return '***';
@@ -63,11 +76,11 @@ export class MaskingService {
     if (parts.length !== 2) return '***';
     const name = parts[0] || '';
     const domain = parts[1] || '';
-    
-    const maskedName = name.length > 2 
-      ? name.substring(0, 2) + '***' 
+
+    const maskedName = name.length > 2
+      ? name.substring(0, 2) + '***'
       : '***';
-      
+
     return `${maskedName}@${domain}`;
   }
 

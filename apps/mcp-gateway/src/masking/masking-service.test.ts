@@ -21,14 +21,14 @@ describe('MaskingService', () => {
       expect(result.email).toBe('jo***@example.com');
     });
 
-    it('should mask full_name and customer_name', () => {
+    it('should mask fullName and customerName (camelCase, đúng field name thực tế do các tool trả về)', () => {
       const input = {
-        full_name: 'John Doe',
-        customer_name: 'Jane Smith'
+        fullName: 'John Doe',
+        customerName: 'Jane Smith'
       };
       const result = MaskingService.maskObject(input);
-      expect(result.full_name).toBe('J*** D***');
-      expect(result.customer_name).toBe('J*** S***');
+      expect(result.fullName).toBe('J*** D***');
+      expect(result.customerName).toBe('J*** S***');
     });
 
     it('should mask address with ***', () => {
@@ -39,17 +39,14 @@ describe('MaskingService', () => {
       expect(result.address).toBe('***');
     });
 
-    it('should mask customer_address / customer_email / customer_phone aliases (as returned by get_order_detail)', () => {
+    it('should mask customerAddress (camelCase, đúng field name mà get_order_detail thực tế trả về)', () => {
       const input = {
-        customer_name: 'Nguyen Van A',
-        customer_address: '123 Le Loi Street, District 1, HCMC',
-        customer_email: 'nguyenvana@gmail.com',
-        customer_phone: '0987654321'
+        customerName: 'Nguyen Van A',
+        customerAddress: '123 Le Loi Street, District 1, HCMC'
       };
       const result = MaskingService.maskObject(input);
-      expect(result.customer_address).toBe('***');
-      expect(result.customer_email).toContain('***@gmail.com');
-      expect(result.customer_phone).toBe('098***321');
+      expect(result.customerAddress).toBe('***');
+      expect(result.customerName).toBe('N*** V*** A***');
     });
 
     it('should handle nested objects and arrays', () => {
@@ -81,6 +78,57 @@ describe('MaskingService', () => {
       };
       const result = MaskingService.maskObject(input);
       expect(result.phone).toBe(1234567890); // unchanged
+    });
+
+    it('E2E: che đúng dữ liệu thật mà get_order_detail trả về (đúng cấu trúc outputSchema, không phải input tưởng tượng)', () => {
+      // Cấu trúc này copy nguyên văn từ getOrderDetailOutputSchema trong
+      // packages/mcp-server-postgres/src/tools.ts — đây chính là trường hợp
+      // đã phát hiện bug: field 'customerAddress'/'customerName' (camelCase)
+      // không khớp với danh sách piiFields cũ dùng snake_case, nên chưa bao
+      // giờ được che trên thực tế dù test cũ (input giả snake_case) vẫn pass.
+      const orderDetailResponse = {
+        order: {
+          orderId: '20000000-0000-0000-0000-000000000001',
+          orderCode: 'DH001',
+          customerName: 'Nguyễn Văn A',
+          customerAddress: '123 Lê Lợi, Quận 1, TP.HCM',
+          orderDate: '2026-07-01T10:00:00.000Z',
+          status: 'completed',
+          totalAmount: 2000000,
+          items: [{ productName: 'Laptop Dell', quantity: 1, unitPrice: 2000000, totalPrice: 2000000 }],
+          payments: []
+        }
+      };
+
+      const masked = MaskingService.maskObject(orderDetailResponse);
+
+      expect(masked.order.customerName).not.toBe('Nguyễn Văn A');
+      expect(masked.order.customerAddress).toBe('***');
+      // Các field không phải PII phải giữ nguyên
+      expect(masked.order.orderCode).toBe('DH001');
+      expect(masked.order.totalAmount).toBe(2000000);
+    });
+
+    it('E2E: che đúng dữ liệu thật mà search_customer / get_top_customers trả về', () => {
+      const searchCustomerResponse = {
+        customers: [
+          { customerId: 'x', customerCode: 'KH001', fullName: 'Trần Thị B', phone: '0901234567', email: 'b@x.com', address: 'Hà Nội', status: 'active' }
+        ]
+      };
+      const topCustomersResponse = {
+        customers: [
+          { customerId: 'x', customerCode: 'KH001', fullName: 'Trần Thị B', totalRevenue: 1000000, orderCount: 3 }
+        ]
+      };
+
+      const maskedSearch = MaskingService.maskObject(searchCustomerResponse);
+      const maskedTop = MaskingService.maskObject(topCustomersResponse);
+
+      expect(maskedSearch.customers[0].fullName).not.toBe('Trần Thị B');
+      expect(maskedSearch.customers[0].address).toBe('***');
+      expect(maskedTop.customers[0].fullName).not.toBe('Trần Thị B');
+      // customerCode không phải PII, phải giữ nguyên để vẫn tra cứu được
+      expect(maskedTop.customers[0].customerCode).toBe('KH001');
     });
   });
 });
