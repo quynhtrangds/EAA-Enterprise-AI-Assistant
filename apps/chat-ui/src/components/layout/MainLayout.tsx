@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import Sidebar from './Sidebar';
 import SearchModal from '../chat/SearchModal';
 import ChatWindow from '../chat/ChatWindow';
@@ -27,7 +27,12 @@ const MainLayout: React.FC = () => {
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
   const [isGuestConfirmModalOpen, setIsGuestConfirmModalOpen] = useState(false);
 
-  const isGuest = currentUser?.username === 'guest' || currentUser?.role === 'viewer';
+  const userRoles = currentUser?.roles || (currentUser?.role ? [currentUser.role] : []);
+  const isGuest =
+    currentUser?.username === 'guest' ||
+    currentUser?.username === 'viewer' ||
+    currentUser?.role === 'viewer' ||
+    userRoles.includes('viewer');
 
   const handleCreateSessionRequest = () => {
     if (isGuest && messages.length > 0) {
