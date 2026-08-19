@@ -175,7 +175,7 @@ describe('Kiểm thử Component Sidebar', () => {
     expect(screen.getByText('Session 1')).toBeInTheDocument();
   });
 
-  it('TC10: Gọi onDeleteSession khi click Xóa', () => {
+  it('TC10: Hien thi modal xac nhan va goi onDeleteSession khi click Xac nhan xoa', () => {
     const { container } = render(<Sidebar {...defaultProps} />);
     
     const dotBtn = container.querySelectorAll('.absolute.right-2.p-1\\.5')[0] as HTMLElement;
@@ -183,9 +183,36 @@ describe('Kiểm thử Component Sidebar', () => {
     
     const deleteBtn = screen.getByText('Xóa');
     fireEvent.click(deleteBtn);
+
+    // Modal xac nhan hien ra
+    expect(screen.getByText('Xóa cuộc trò chuyện?')).toBeInTheDocument();
+    expect(screen.getByText(/Thao tác này sẽ xóa vĩnh viễn/)).toBeInTheDocument();
+
+    // Click nut Xac nhan xoa
+    const confirmBtn = screen.getByRole('button', { name: 'Xác nhận xóa' });
+    fireEvent.click(confirmBtn);
+
     expect(defaultProps.onDeleteSession).toHaveBeenCalledWith('s1');
+    expect(screen.queryByText('Xóa cuộc trò chuyện?')).not.toBeInTheDocument();
   });
 
+  it('TC10b: Dong modal va khong goi onDeleteSession khi bam Huy trong modal xac nhan xoa', () => {
+    const { container } = render(<Sidebar {...defaultProps} />);
+    
+    const dotBtn = container.querySelectorAll('.absolute.right-2.p-1\\.5')[0] as HTMLElement;
+    fireEvent.click(dotBtn);
+    
+    const deleteBtn = screen.getByText('Xóa');
+    fireEvent.click(deleteBtn);
+
+    expect(screen.getByText('Xóa cuộc trò chuyện?')).toBeInTheDocument();
+
+    const cancelBtn = screen.getByRole('button', { name: 'Hủy' });
+    fireEvent.click(cancelBtn);
+
+    expect(defaultProps.onDeleteSession).not.toHaveBeenCalled();
+    expect(screen.queryByText('Xóa cuộc trò chuyện?')).not.toBeInTheDocument();
+  });
   it('TC11: Ẩn nút xóa nếu chỉ còn 1 session', () => {
     const { container } = render(<Sidebar {...defaultProps} sessions={[mockSessions[0]]} />);
     
@@ -305,4 +332,3 @@ describe('Kiểm thử Component Sidebar', () => {
     expect(defaultProps.onCreateSession).not.toHaveBeenCalled();
   });
 });
-

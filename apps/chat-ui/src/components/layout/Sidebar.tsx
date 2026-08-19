@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+﻿import React, { useState, useRef, useEffect } from 'react';
 import type { Session } from '../../hooks/useChat';
 import { IntegrationSettings } from '../admin/IntegrationSettings';
 
@@ -52,6 +52,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [isIntegrationModalOpen, setIsIntegrationModalOpen] = useState(false);
+  const [deletingSession, setDeletingSession] = useState<Session | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const profileMenuRef = useRef<HTMLDivElement>(null);
 
@@ -156,7 +157,15 @@ const Sidebar: React.FC<SidebarProps> = ({
               Đổi tên
             </button>
             {sessions.length > 1 && (
-              <button onClick={(e) => { e.stopPropagation(); onDeleteSession?.(session.id); setOpenMenuId(null); }} className="w-full text-left px-4 py-2 hover:bg-clay/10 text-clay hover:text-clay flex items-center gap-3 border-t border-hair mt-1 pt-2">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setDeletingSession(session);
+                  setOpenMenuId(null);
+                }}
+                className="w-full text-left px-4 py-2 hover:bg-clay/10 text-clay hover:text-clay flex items-center gap-3 border-t border-hair mt-1 pt-2 cursor-pointer"
+              >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                 Xóa
               </button>
@@ -348,6 +357,41 @@ const Sidebar: React.FC<SidebarProps> = ({
           </>
         )}
       </div>
+
+      {/* Delete Session Confirmation Modal */}
+      {deletingSession && (
+        <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4">
+          <div className="bg-surface border border-hair rounded-lg p-7 max-w-md w-full animate-in fade-in zoom-in-95 duration-150 shadow-2xl">
+            <h3 className="text-xl font-semibold text-ink-1 mb-3">
+              Xóa cuộc trò chuyện?
+            </h3>
+            <p className="text-[14.5px] text-ink-2 leading-relaxed mb-8">
+              Thao tác này sẽ xóa vĩnh viễn đoạn chat <span className="font-semibold text-ink-1">"{deletingSession.title || 'Cuộc trò chuyện mới'}"</span> và không thể khôi phục lại. Bạn có chắc chắn muốn xóa không?
+            </p>
+            <div className="flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setDeletingSession(null)}
+                className="px-5 py-2.5 text-sm font-semibold text-ink-2 hover:text-ink-1 transition-colors cursor-pointer rounded-full"
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (deletingSession) {
+                    onDeleteSession?.(deletingSession.id);
+                    setDeletingSession(null);
+                  }
+                }}
+                className="px-6 py-2.5 text-sm font-semibold text-white bg-clay hover:bg-clay/90 rounded-full transition-colors cursor-pointer"
+              >
+                Xác nhận xóa
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {isIntegrationModalOpen && (
         <IntegrationSettings onClose={() => setIsIntegrationModalOpen(false)} />
