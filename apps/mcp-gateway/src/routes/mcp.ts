@@ -184,7 +184,16 @@ export async function authorizeAndPrepareToolRequest(
     `SELECT is_active FROM tenant_integrations WHERE tenant_id = $1 AND integration_code = $2`,
     [user.tenantId, serverName]
   );
-  if (activeRes.rows.length > 0 && activeRes.rows[0]?.is_active === false) {
+
+  // Không có row nào trong tenant_integrations → integration này chưa được cấu
+  // hình tường minh cho tenant (vd. mcp-server-postgres là connector nội bộ
+  // dùng env DB, không cần Vault). Bỏ qua credential injection — tool tự
+  // xử lý kết nối bằng cấu hình riêng của nó.
+  if (activeRes.rows.length === 0) {
+    return;
+  }
+
+  if (activeRes.rows[0]?.is_active === false) {
     throw new AppError('PERMISSION_DENIED', `Hệ thống tích hợp ${serverName.toUpperCase()} hiện đang bị TẮT trong Cấu hình Tích hợp. Vui lòng BẬT lại để sử dụng.`, 400);
   }
 
