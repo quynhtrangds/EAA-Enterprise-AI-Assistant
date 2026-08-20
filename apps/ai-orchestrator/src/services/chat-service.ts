@@ -271,8 +271,15 @@ export class ChatService {
           } catch (error: any) {
             if (error.status === 429 && retryCount < maxRetries) {
               retryCount++;
-              const waitTime = retryCount * 10000; // 10s, 20s, 30s
-              console.warn(`Rate limit hit (429). Retrying ${retryCount}/${maxRetries} in ${waitTime/1000}s...`);
+              // Exponential backoff có cap (2s, 4s, 8s = tổng 14s) thay vì
+              // tuyến tính 10s/20s/30s (tổng 60s) trước đây. Mỗi lần gọi
+              // client.chat.completions.create() có thể tự treo tới 60s
+              // (timeout của OpenAI client ở trên) trước khi thực sự nhận
+              // lỗi — cộng dồn qua nhiều lần retry với backoff dài dễ áp sát
+              // giới hạn proxy_read_timeout (300s ở nginx.prod.conf), khiến
+              // Chat UI nhận lỗi timeout từ proxy thay vì câu trả lời thật.
+              const waitTime = Math.min(2000 * Math.pow(2, retryCount - 1), 8000); // 2s, 4s, 8s
+              console.warn(`Rate limit hit (429). Retrying ${retryCount}/${maxRetries} in ${waitTime / 1000}s...`);
               await new Promise(resolve => setTimeout(resolve, waitTime));
               continue;
             }
@@ -285,6 +292,9 @@ export class ChatService {
                 if (!rawArgsStr.startsWith('{')) {
                   rawArgsStr = '{}';
                 }
+                console.warn(
+                  `[chatWithLLM] failed_generation regex fallback kích hoạt: model "${model}" không trả về tool_calls đúng chuẩn OpenAI, đã tự parse được lời gọi tool "${requestedTool}" từ text thô.`
+                );
                 const isPermitted = permittedTools.some(pt => pt.name === requestedTool);
                 if (!isPermitted) {
                   return {
@@ -307,6 +317,9 @@ export class ChatService {
                   }]
                 };
               } else {
+                console.warn(
+                  `[chatWithLLM] failed_generation regex fallback: model "${model}" trả về lỗi sinh tool call nhưng không parse được tên tool từ text thô (không khớp pattern <function=NAME>...</function>).`
+                );
                 return {
                   sessionId: input.sessionId,
                   answer: 'Xin lỗi, tôi chưa thể hoàn thành yêu cầu này do công cụ tương ứng hiện không khả dụng với tài khoản của bạn.',

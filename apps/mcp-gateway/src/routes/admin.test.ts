@@ -1,12 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import request from 'supertest';
 
-const { query, getCurrentUser } = vi.hoisted(() => ({
+const { query, getCurrentUser, readSecret, writeSecret } = vi.hoisted(() => ({
   query: vi.fn(),
-  getCurrentUser: vi.fn()
+  getCurrentUser: vi.fn(),
+  readSecret: vi.fn(),
+  writeSecret: vi.fn()
 }));
 
 vi.mock('../db/pool.js', () => ({ query }));
+vi.mock('../services/vault.js', () => ({
+  VaultService: { readSecret, writeSecret }
+}));
 
 vi.mock('../auth/current-user.js', () => ({
   getCurrentUser
@@ -35,6 +40,8 @@ describe('Admin Routes Integration Suite', () => {
   beforeEach(() => {
     query.mockReset();
     getCurrentUser.mockReset();
+    readSecret.mockReset().mockResolvedValue(null);
+    writeSecret.mockReset().mockResolvedValue(undefined);
   });
 
   describe('GET /api/admin/users', () => {
@@ -267,6 +274,70 @@ describe('Admin Routes Integration Suite', () => {
       });
       // Không được chạm DB vì phải chặn trước khi query
       expect(query).not.toHaveBeenCalled();
+    });
+  });
+  describe('POST /api/admin/integrations - SSRF Protection', () => {
+    it('chặn cấu hình URL trỏ vào Cloud Metadata 169.254.169.254 (400)', async () => {
+      getCurrentUser.mockResolvedValue(adminUser);
+
+      const response = await request(createApp())
+        .post('/api/admin/integrations')
+        .set('Authorization', 'Bearer valid-admin-token')
+        .send({
+          integrationCode: 'erpnext',
+          apiUrl: 'http://169.254.169.254/latest/meta-data',
+          isActive: true
+        })
+        .expect(400);
+
+      expect(response.body).toMatchObject({
+        success: false,
+        errorCode: 'INVALID_TOOL_INPUT'
+      });
+      expect(query).not.toHaveBeenCalled();
+    });
+
+    it('chặn cấu hình URL trỏ vào dịch vụ nội bộ nhạy cảm Vault :8200 (400)', async () => {
+      getCurrentUser.mockResolvedValue(adminUser);
+
+      const response = await request(createApp())
+        .post('/api/admin/integrations')
+        .set('Authorization', 'Bearer valid-admin-token')
+        .send({
+          integrationCode: 'crm',
+          apiUrl: 'http://vault:8200/v1/sys/seal-status',
+          isActive: true
+        })
+        .expect(400);
+
+      expect(response.body).toMatchObject({
+        success: false,
+        errorCode: 'INVALID_TOOL_INPUT'
+      });
+      expect(query).not.toHaveBeenCalled();
+    });
+
+    it('chấp nhận URL hợp lệ và lưu vào database (200)', async () => {
+      getCurrentUser.mockResolvedValue(adminUser);
+      query.mockResolvedValueOnce({
+        rows: [{ integration_code: 'erpnext', is_active: true, api_url: 'https://mycompany.frappe.cloud' }]
+      });
+
+      const response = await request(createApp())
+        .post('/api/admin/integrations')
+        .set('Authorization', 'Bearer valid-admin-token')
+        .send({
+          integrationCode: 'erpnext',
+          apiUrl: 'https://mycompany.frappe.cloud',
+          isActive: true
+        })
+        .expect(200);
+
+      expect(response.body).toMatchObject({
+        success: true,
+        message: 'Đã lưu cấu hình và thông tin kết nối vào Vault'
+      });
+      expect(query).toHaveBeenCalled();
     });
   });
 });
