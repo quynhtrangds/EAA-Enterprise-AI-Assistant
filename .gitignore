@@ -45,3 +45,6 @@ Thumbs.db
 # Playwright test reports & artifacts
 playwright-report/
 test-results/
+
+.postman/
+postman/
