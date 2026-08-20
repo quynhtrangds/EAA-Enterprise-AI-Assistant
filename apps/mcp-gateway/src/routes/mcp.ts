@@ -33,6 +33,90 @@ const mcpServer = new Server({
   }
 });
 
+/**
+ * Gán mặc định 90 ngày (fromDate / toDate) tập trung cho các công cụ doanh thu & bán hàng.
+ */
+export function applySalesDateDefaults(toolName: string, args: Record<string, any> = {}): Record<string, any> {
+  if (['get_customer_orders', 'get_revenue_summary', 'get_top_customers', 'get_product_sales_summary'].includes(toolName)) {
+    if (!args.toDate) {
+      args.toDate = new Date().toISOString();
+    }
+    if (!args.fromDate) {
+      const d = new Date();
+      d.setDate(d.getDate() - 90);
+      args.fromDate = d.toISOString();
+    }
+  }
+  return args;
+}
+
+/**
+ * Hàm chuẩn bị & kiểm tra quyền tập trung cho MỌI lời gọi tool:
+ * 1. Kiểm tra phân quyền RBAC (canExecuteTool)
+ * 2. Kiểm tra Rate Limiting (checkToolRateLimit)
+ * 3. Gán khoảng thời gian mặc định 90 ngày (applySalesDateDefaults)
+ * 4. Inject _tenantId từ thông tin phiên người dùng
+ * 5. Inject thông tin xác thực _integrationCredentials từ HashiCorp Vault (nếu có cấu hình)
+ */
+export async function prepareToolExecution(
+  user: CurrentUser,
+  toolName: string,
+  rawArgs: Record<string, any> = {}
+): Promise<Record<string, any>> {
+  const args = { ...rawArgs };
+
+  // 1. Phân quyền RBAC
+  if (!(await canExecuteTool(user.roles, toolName))) {
+    await writeAuditLog({
+      userId: user.id,
+      sessionId: null,
+      toolName,
+      input: rawArgs,
+      output: null,
+      status: 'failed',
+      errorMessage: `Bạn không có quyền thực thi công cụ '${toolName}'.`,
+      durationMs: 0
+    }).catch(console.error);
+    throw new AppError('PERMISSION_DENIED', `Bạn không có quyền thực thi công cụ '${toolName}'.`, 403);
+  }
+
+  // 2. Rate Limiter
+  checkToolRateLimit(user.id, toolName);
+
+  // 3. Default date window
+  applySalesDateDefaults(toolName, args);
+
+  // 4. Inject _tenantId
+  if (user.tenantId) {
+    args._tenantId = user.tenantId;
+  }
+
+  // 5. Inject _integrationCredentials từ Vault
+  const serverName = mcpClientManager.toolToServerMap.get(toolName);
+  if (serverName && user.tenantId) {
+    const activeRes = await query<{ is_active: boolean }>(
+      `SELECT is_active FROM tenant_integrations WHERE tenant_id = $1 AND integration_code = $2`,
+      [user.tenantId, serverName]
+    );
+
+    if (activeRes.rows.length > 0) {
+      if (activeRes.rows[0]?.is_active === false) {
+        throw new AppError('PERMISSION_DENIED', `Hệ thống tích hợp ${serverName.toUpperCase()} hiện đang bị TẮT trong Cấu hình Tích hợp. Vui lòng BẬT lại để sử dụng.`, 400);
+      }
+
+      const vaultPath = `integrations/${user.tenantId}/${serverName}`;
+      const secrets = await VaultService.readSecret(vaultPath);
+      if (!secrets?.apiKey || !secrets.apiUrl) {
+        throw new AppError('INTEGRATION_NOT_CONFIGURED', `Tích hợp ${serverName.toUpperCase()} chưa có đầy đủ API URL và API key trong Vault.`, 400);
+      }
+
+      args._integrationCredentials = { apiKey: secrets.apiKey, apiUrl: secrets.apiUrl };
+    }
+  }
+
+  return args;
+}
+
 // Implement the tools handler
 mcpServer.setRequestHandler(ListToolsRequestSchema, async (request, extra) => {
   const result = await mcpClientManager.listTools();
@@ -56,28 +140,22 @@ mcpServer.setRequestHandler(ListToolsRequestSchema, async (request, extra) => {
 
 mcpServer.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
   const toolName = request.params.name;
-  let args = (request.params.arguments || {}) as any;
-
-  if (['get_customer_orders', 'get_revenue_summary', 'get_top_customers', 'get_product_sales_summary'].includes(toolName)) {
-    if (!args.toDate) {
-      args.toDate = new Date().toISOString();
-    }
-    if (!args.fromDate) {
-      const d = new Date();
-      d.setDate(d.getDate() - 90);
-      args.fromDate = d.toISOString();
-    }
-    request.params.arguments = args;
-  }
+  let args = (request.params.arguments || {}) as Record<string, any>;
 
   const sessionId = extra.sessionId;
   const user = sessionId ? sessionUsers.get(sessionId) : null;
-  if (user?.tenantId) {
-    args._tenantId = user.tenantId;
-  }
   const startedAt = Date.now();
 
   try {
+    if (user) {
+      // Permission check + Rate limit + Date window + TenantId + Vault credentials
+      args = await prepareToolExecution(user, toolName, args);
+      request.params.arguments = args;
+    } else {
+      applySalesDateDefaults(toolName, args);
+      request.params.arguments = args;
+    }
+
     const data = await mcpClientManager.callTool(toolName, args, user?.roles || []);
 
     if (user) {
@@ -127,14 +205,8 @@ interface McpJsonRpcRequest {
 
 /**
  * Kiểm tra quyền thực thi tool + rate limit + inject credential tích hợp
- * (Vault/DB) cho MỘT request JSON-RPC "tools/call". Được tách ra khỏi route
- * handler /mcp/message để có thể unit-test trực tiếp mà không cần dựng một
- * kết nối SSE thật (vốn rất khó mô phỏng trong test).
- *
- * Ném AppError nếu bị từ chối quyền hoặc tích hợp đang tắt. Nếu request
- * không phải 'tools/call' (vd 'tools/list'), hàm không làm gì cả.
- * Mutate trực tiếp `request.params.arguments` để gắn `_integrationCredentials`
- * khi tool thuộc 1 server có cấu hình tích hợp (giữ đúng hành vi cũ).
+ * (Vault/DB) cho MỘT request JSON-RPC "tools/call". Được giữ để tương thích
+ * và hỗ trợ unit-test trực tiếp mà không cần dựng kết nối SSE thật.
  */
 export async function authorizeAndPrepareToolRequest(
   user: CurrentUser,
@@ -145,68 +217,9 @@ export async function authorizeAndPrepareToolRequest(
   }
 
   const toolName = request.params.name;
-  if (['get_customer_orders', 'get_revenue_summary', 'get_top_customers', 'get_product_sales_summary'].includes(toolName)) {
-    const args = (request.params.arguments || {}) as any;
-    if (!args.toDate) {
-      args.toDate = new Date().toISOString();
-    }
-    if (!args.fromDate) {
-      const d = new Date();
-      d.setDate(d.getDate() - 90);
-      args.fromDate = d.toISOString();
-    }
-    request.params.arguments = args;
-  }
-
-  if (!(await canExecuteTool(user.roles, toolName))) {
-    await writeAuditLog({
-      userId: user.id,
-      sessionId: null,
-      toolName,
-      input: request.params.arguments,
-      output: null,
-      status: 'failed',
-      errorMessage: `Bạn không có quyền thực thi công cụ '${toolName}'.`,
-      durationMs: 0
-    }).catch(console.error);
-    throw new AppError('PERMISSION_DENIED', `Bạn không có quyền thực thi công cụ '${toolName}'.`, 403);
-  }
-
-  checkToolRateLimit(user.id, toolName);
-
-  const serverName = mcpClientManager.toolToServerMap.get(toolName);
-  if (!serverName || !user.tenantId) {
-    return;
-  }
-
-  // Check if integration is active in DB
-  const activeRes = await query<{ is_active: boolean }>(
-    `SELECT is_active FROM tenant_integrations WHERE tenant_id = $1 AND integration_code = $2`,
-    [user.tenantId, serverName]
-  );
-
-  // Không có row nào trong tenant_integrations → integration này chưa được cấu
-  // hình tường minh cho tenant (vd. mcp-server-postgres là connector nội bộ
-  // dùng env DB, không cần Vault). Bỏ qua credential injection — tool tự
-  // xử lý kết nối bằng cấu hình riêng của nó.
-  if (activeRes.rows.length === 0) {
-    return;
-  }
-
-  if (activeRes.rows[0]?.is_active === false) {
-    throw new AppError('PERMISSION_DENIED', `Hệ thống tích hợp ${serverName.toUpperCase()} hiện đang bị TẮT trong Cấu hình Tích hợp. Vui lòng BẬT lại để sử dụng.`, 400);
-  }
-
-  const vaultPath = `integrations/${user.tenantId}/${serverName}`;
-  const secrets = await VaultService.readSecret(vaultPath);
-  if (!secrets?.apiKey || !secrets.apiUrl) {
-    throw new AppError('INTEGRATION_NOT_CONFIGURED', `Tích hợp ${serverName.toUpperCase()} chưa có đầy đủ API URL và API key trong Vault.`, 400);
-  }
-
-  request.params.arguments = {
-    ...((request.params.arguments as object) || {}),
-    _integrationCredentials: { apiKey: secrets.apiKey, apiUrl: secrets.apiUrl }
-  };
+  const rawArgs = (request.params.arguments || {}) as Record<string, any>;
+  const preparedArgs = await prepareToolExecution(user, toolName, rawArgs);
+  request.params.arguments = preparedArgs;
 }
 
 mcpRouter.get('/mcp/sse', async (req, res, next) => {

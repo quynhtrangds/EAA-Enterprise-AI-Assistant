@@ -417,7 +417,14 @@ export class ChatService {
       }
 
       const message = error instanceof Error ? error.message : 'Unknown LLM error';
-      console.error('LLM Error Details:', (error as any).error || error);
+      const sanitizedError = {
+        name: error instanceof Error ? error.name : 'UnknownError',
+        status: (error as any).status,
+        code: (error as any).code,
+        type: (error as any).type,
+        message
+      };
+      console.error('LLM Error Details:', sanitizedError);
 
       return {
         sessionId: input.sessionId,
