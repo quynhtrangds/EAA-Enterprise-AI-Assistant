@@ -77,46 +77,10 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
   const [successMsg, setSuccessMsg] = useState('');
 
   const availableIntegrations = [
-    {
-      code: 'crm',
-      name: 'CRM (Salesforce / HubSpot)',
-      desc: 'Quản lý khách hàng & cơ hội',
-      icon: (
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.75" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-        </svg>
-      )
-    },
-    {
-      code: 'erpnext',
-      name: 'ERPNext',
-      desc: 'Frappe ERP (Tồn kho & Hóa đơn)',
-      icon: (
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.75" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-        </svg>
-      )
-    },
-    {
-      code: 'zammad',
-      name: 'Zammad Helpdesk',
-      desc: 'Phiếu hỗ trợ CSKH & Ticket',
-      icon: (
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.75" d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-5 0a4 4 0 11-8 0 4 4 0 018 0z" />
-        </svg>
-      )
-    },
-    {
-      code: 'gitea',
-      name: 'Gitea Code Server',
-      desc: 'Kho mã nguồn Git & Issues',
-      icon: (
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.75" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
-        </svg>
-      )
-    }
+    { code: 'crm', name: 'CRM (Salesforce / HubSpot)' },
+    { code: 'erpnext', name: 'ERPNext' },
+    { code: 'zammad', name: 'Zammad Helpdesk' },
+    { code: 'gitea', name: 'Gitea Code Server' }
   ];
 
   useEffect(() => {
@@ -420,101 +384,82 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
             )}
 
                           {/* TAB 1: INTEGRATIONS */}
-              {activeTab === 'integrations' && (
-                <div className="flex gap-6">
-                  <div className="w-1/3 border-r border-hair pr-4 space-y-2">
-                    <div className="flex items-center justify-between px-1 mb-3">
-                      <p className="text-[11px] font-bold uppercase tracking-wider text-ink-3">Hệ thống Doanh nghiệp</p>
-                      <span className="text-[10px] text-ink-3 font-mono">4 dịch vụ</span>
-                    </div>
-                    {availableIntegrations.map((item) => {
-                      const config = integrations.find(i => i.integration_code === item.code);
-                      const isConfigActive = config ? config.is_active : false;
-                      const isSelected = selectedIntegration === item.code;
-
-                      return (
-                        <button
-                          key={item.code}
-                          type="button"
-                          onClick={() => handleSelectIntegration(item.code)}
-                          className={`w-full flex items-center justify-between p-3 rounded-xl transition-all text-left cursor-pointer border ${
-                            isSelected
-                              ? 'bg-brass/10 border-brass/40 shadow-sm text-ink-1'
-                              : 'border-transparent text-ink-2 hover:bg-surface-raised hover:text-ink-1 hover:border-hair'
-                          }`}
-                        >
-                          <div className="flex items-center gap-3 min-w-0 flex-1 pr-2">
-                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border transition-colors ${
-                              isSelected
-                                ? 'bg-brass/20 border-brass/40 text-brass'
-                                : 'bg-surface-raised border-hair text-ink-3'
-                            }`}>
-                              {item.icon}
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <div className={`text-[13px] font-semibold leading-tight truncate ${isSelected ? 'text-brass' : 'text-ink-1'}`}>
-                                {item.name}
-                              </div>
-                              <div className="text-[11px] text-ink-3 leading-tight truncate mt-0.5">
-                                {item.desc}
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Status Badge - Fixed size, never deformed */}
-                          <div className="shrink-0 flex items-center pl-1">
-                            {isConfigActive ? (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-semibold bg-sage/15 text-sage border border-sage/30 tracking-wide shrink-0">
-                                <span className="w-1.5 h-1.5 rounded-full bg-sage shrink-0 animate-pulse" />
-                                BẬT
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-medium bg-surface-raised text-ink-3 border border-hair tracking-wide shrink-0">
-                                <span className="w-1.5 h-1.5 rounded-full bg-ink-3 shrink-0" />
-                                TẮT
-                              </span>
-                            )}
-                          </div>
-                        </button>
-                      );
-                    })}
+            {activeTab === 'integrations' && (
+              <div className="flex gap-6">
+                <div className="w-[310px] shrink-0 border-r border-hair pr-5 space-y-2">
+                  <div className="flex items-center justify-between px-1 mb-3">
+                    <p className="text-[11px] font-bold uppercase tracking-wider text-ink-3">Hệ thống Doanh nghiệp</p>
+                    <span className="text-[10px] text-ink-3 font-mono">4 dịch vụ</span>
                   </div>
+                  {availableIntegrations.map((item) => {
+                    const config = integrations.find(i => i.integration_code === item.code);
+                    const isConfigActive = config ? config.is_active : false;
+                    const isSelected = selectedIntegration === item.code;
 
-                  <div className="w-2/3 flex flex-col">
-                    {loadingIntegrations ? (
-                      <div className="py-12 flex justify-center">
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brass"></div>
-                      </div>
-                    ) : (
-                      <form onSubmit={handleSaveIntegration} className="space-y-5">
-                        <div className="flex items-center justify-between pb-4 border-b border-hair">
-                          <div className="flex items-center gap-3">
-                            <div className="w-9 h-9 rounded-xl bg-brass/15 border border-brass/30 flex items-center justify-center text-brass">
-                              {availableIntegrations.find(i => i.code === selectedIntegration)?.icon}
-                            </div>
-                            <div>
-                              <h3 className="text-base font-semibold text-ink-1 leading-tight">
-                                {availableIntegrations.find(i => i.code === selectedIntegration)?.name}
-                              </h3>
-                              <p className="text-xs text-ink-3">Cấu hình kết nối và khóa API</p>
-                            </div>
-                          </div>
+                    return (
+                      <button
+                        key={item.code}
+                        type="button"
+                        onClick={() => handleSelectIntegration(item.code)}
+                        className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all text-left cursor-pointer border ${
+                          isSelected
+                            ? 'bg-brass/10 border-brass/40 shadow-sm text-ink-1'
+                            : 'border-transparent text-ink-2 hover:bg-surface-raised hover:text-ink-1 hover:border-hair'
+                        }`}
+                      >
+                        <span className={`text-[13px] font-medium leading-none whitespace-nowrap mr-3 ${isSelected ? 'text-brass font-semibold' : 'text-ink-1'}`}>
+                          {item.name}
+                        </span>
 
-                          <div className="flex items-center gap-3 bg-surface-raised/60 border border-hair px-3 py-1.5 rounded-xl">
-                            <span className={`text-xs font-semibold ${isActive ? 'text-sage' : 'text-ink-3'}`}>
-                              {isActive ? 'Đang hoạt động' : 'Tạm tắt'}
+                        {/* Status Pill Badge - Fixed size, never deformed */}
+                        <div className="shrink-0 flex items-center">
+                          {isConfigActive ? (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10.5px] font-semibold bg-sage/15 text-sage border border-sage/30 tracking-wide shrink-0">
+                              <span className="w-1.5 h-1.5 rounded-full bg-sage shrink-0 animate-pulse" />
+                              BẬT
                             </span>
-                            <label className="relative inline-flex items-center cursor-pointer">
-                              <input
-                                type="checkbox"
-                                className="sr-only peer"
-                                checked={isActive}
-                                onChange={(e) => handleToggleActive(e.target.checked)}
-                              />
-                              <div className="w-11 h-6 bg-surface-raised peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-sage border border-hair"></div>
-                            </label>
-                          </div>
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10.5px] font-medium bg-surface-raised text-ink-3 border border-hair tracking-wide shrink-0">
+                              <span className="w-1.5 h-1.5 rounded-full bg-ink-3 shrink-0" />
+                              TẮT
+                            </span>
+                          )}
                         </div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="flex-1 min-w-0 flex flex-col">
+                  {loadingIntegrations ? (
+                    <div className="py-12 flex justify-center">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brass"></div>
+                    </div>
+                  ) : (
+                    <form onSubmit={handleSaveIntegration} className="space-y-5">
+                      <div className="flex items-center justify-between pb-4 border-b border-hair">
+                        <div>
+                          <h3 className="text-base font-semibold text-ink-1 leading-tight">
+                            {availableIntegrations.find(i => i.code === selectedIntegration)?.name}
+                          </h3>
+                          <p className="text-xs text-ink-3 mt-0.5">Cấu hình kết nối và khóa API</p>
+                        </div>
+
+                        <div className="flex items-center gap-3 bg-surface-raised/60 border border-hair px-3.5 py-1.5 rounded-xl">
+                          <span className={`text-xs font-semibold ${isActive ? 'text-sage' : 'text-ink-3'}`}>
+                            {isActive ? 'Đang hoạt động' : 'Tạm tắt'}
+                          </span>
+                          <label className="relative inline-flex items-center cursor-pointer">
+                            <input
+                              type="checkbox"
+                              className="sr-only peer"
+                              checked={isActive}
+                              onChange={(e) => handleToggleActive(e.target.checked)}
+                            />
+                            <div className="w-11 h-6 bg-surface-raised peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-sage border border-hair"></div>
+                          </label>
+                        </div>
+                      </div>
 
                       <div>
                         <label className="block text-xs font-semibold text-ink-2 mb-2">Endpoint URL (API Base URL)</label>
