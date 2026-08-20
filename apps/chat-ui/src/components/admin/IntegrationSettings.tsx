@@ -315,10 +315,10 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-md animate-in fade-in duration-200 p-4">
-      <div className="relative w-full max-w-4xl h-[620px] bg-surface border border-hair rounded-lg overflow-hidden flex animate-in zoom-in-95 duration-150">
+      <div className="relative w-full max-w-5xl h-[650px] bg-surface border border-hair rounded-lg overflow-hidden flex animate-in zoom-in-95 duration-150">
 
         {/* Left Navigation Sidebar (Matching Image 2 Layout) */}
-        <div className="w-64 bg-ink/90 border-r border-hair p-5 flex flex-col justify-between shrink-0">
+        <div className="w-56 bg-ink/90 border-r border-hair p-5 flex flex-col justify-between shrink-0">
           <div>
             {/* Top Close Button (x) */}
             <button
@@ -385,8 +385,9 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
 
                           {/* TAB 1: INTEGRATIONS */}
             {activeTab === 'integrations' && (
-              <div className="flex gap-6">
-                <div className="w-[310px] shrink-0 border-r border-hair pr-5 space-y-2">
+              <div className="flex gap-8">
+                {/* Left Service List */}
+                <div className="w-[280px] shrink-0 border-r border-hair pr-6 space-y-2.5">
                   <div className="flex items-center justify-between px-1 mb-3">
                     <p className="text-[11px] font-bold uppercase tracking-wider text-ink-3">Hệ thống Doanh nghiệp</p>
                     <span className="text-[10px] text-ink-3 font-mono">4 dịch vụ</span>
@@ -401,7 +402,7 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
                         key={item.code}
                         type="button"
                         onClick={() => handleSelectIntegration(item.code)}
-                        className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all text-left cursor-pointer border ${
+                        className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl transition-all text-left cursor-pointer border ${
                           isSelected
                             ? 'bg-brass/10 border-brass/40 shadow-sm text-ink-1'
                             : 'border-transparent text-ink-2 hover:bg-surface-raised hover:text-ink-1 hover:border-hair'
@@ -411,7 +412,7 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
                           {item.name}
                         </span>
 
-                        {/* Status Pill Badge - Fixed size, never deformed */}
+                        {/* Status Pill Badge - Fixed size */}
                         <div className="shrink-0 flex items-center">
                           {isConfigActive ? (
                             <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10.5px] font-semibold bg-sage/15 text-sage border border-sage/30 tracking-wide shrink-0">
@@ -430,69 +431,82 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
                   })}
                 </div>
 
+                {/* Right Configuration Form */}
                 <div className="flex-1 min-w-0 flex flex-col">
                   {loadingIntegrations ? (
-                    <div className="py-12 flex justify-center">
+                    <div className="py-16 flex justify-center">
                       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brass"></div>
                     </div>
                   ) : (
-                    <form onSubmit={handleSaveIntegration} className="space-y-5">
-                      <div className="flex items-center justify-between pb-4 border-b border-hair">
-                        <div>
-                          <h3 className="text-base font-semibold text-ink-1 leading-tight">
-                            {availableIntegrations.find(i => i.code === selectedIntegration)?.name}
-                          </h3>
-                          <p className="text-xs text-ink-3 mt-0.5">Cấu hình kết nối và khóa API</p>
-                        </div>
-
-                        <div className="flex items-center gap-3 bg-surface-raised/60 border border-hair px-3.5 py-1.5 rounded-xl">
-                          <span className={`text-xs font-semibold ${isActive ? 'text-sage' : 'text-ink-3'}`}>
-                            {isActive ? 'Đang hoạt động' : 'Tạm tắt'}
-                          </span>
-                          <label className="relative inline-flex items-center cursor-pointer">
-                            <input
-                              type="checkbox"
-                              className="sr-only peer"
-                              checked={isActive}
-                              onChange={(e) => handleToggleActive(e.target.checked)}
-                            />
-                            <div className="w-11 h-6 bg-surface-raised peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-sage border border-hair"></div>
-                          </label>
-                        </div>
-                      </div>
-
+                    <form onSubmit={handleSaveIntegration} className="space-y-6 flex flex-col justify-between h-full">
                       <div>
-                        <label className="block text-xs font-semibold text-ink-2 mb-2">Endpoint URL (API Base URL)</label>
-                        <input
-                          type="url"
-                          value={apiUrl}
-                          onChange={(e) => setApiUrl(e.target.value)}
-                          placeholder="https://api.example.com..."
-                          className="w-full bg-ink border border-hair rounded-xl px-4 py-2.5 text-ink-1 placeholder-ink-3 focus:outline-none focus:border-brass focus:ring-1 focus:ring-brass transition-all text-sm mb-4"
-                        />
-                        <label className="block text-xs font-semibold text-ink-2 mb-2">API Key / Token (Vault Security)</label>
-                        <input
-                          type="password"
-                          value={apiKey}
-                          onChange={(e) => setApiKey(e.target.value)}
-                          placeholder="Bỏ trống nếu không muốn thay đổi..."
-                          className="w-full bg-ink border border-hair rounded-xl px-4 py-2.5 text-ink-1 placeholder-ink-3 focus:outline-none focus:border-brass focus:ring-1 focus:ring-brass transition-all text-sm"
-                        />
-                        <p className="mt-2 text-xs text-ink-3">
-                          Thông tin kết nối được bảo mật hai lớp bằng HashiCorp Vault.
-                        </p>
-                        {selectedIntegration === 'erpnext' && (
-                          <p className="mt-2 text-xs text-brass font-medium">
-                            Đối với Frappe Cloud, bạn cần nhập kết hợp cả API Key và API Secret theo định dạng: <span className="bg-surface-raised px-1.5 py-0.5 rounded text-ink-1 font-mono">&lt;api_key&gt;:&lt;api_secret&gt;</span> (Ví dụ: <span className="bg-surface-raised px-1.5 py-0.5 rounded text-brass font-mono">93b68c02976a26e:a1b2c3d4e5f6</span>).
+                        <div className="flex items-center justify-between pb-4 border-b border-hair">
+                          <div>
+                            <h3 className="text-lg font-bold text-ink-1 leading-tight">
+                              {availableIntegrations.find(i => i.code === selectedIntegration)?.name}
+                            </h3>
+                            <p className="text-xs text-ink-3 mt-1">Cấu hình thông tin kết nối và khóa API bảo mật</p>
+                          </div>
+
+                          <div className="flex items-center gap-3.5 bg-surface-raised/80 border border-hair px-4 py-2 rounded-xl shrink-0">
+                            <span className={`text-xs font-semibold whitespace-nowrap ${isActive ? 'text-sage' : 'text-ink-3'}`}>
+                              {isActive ? 'Đang hoạt động' : 'Tạm tắt'}
+                            </span>
+                            <label className="relative inline-flex items-center cursor-pointer">
+                              <input
+                                type="checkbox"
+                                className="sr-only peer"
+                                checked={isActive}
+                                onChange={(e) => handleToggleActive(e.target.checked)}
+                              />
+                              <div className="w-11 h-6 bg-surface-raised peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-sage border border-hair"></div>
+                            </label>
+                          </div>
+                        </div>
+
+                        <div className="space-y-4 pt-5">
+                          <div>
+                            <label className="block text-xs font-semibold text-ink-2 mb-2">Endpoint URL (API Base URL)</label>
+                            <input
+                              type="url"
+                              value={apiUrl}
+                              onChange={(e) => setApiUrl(e.target.value)}
+                              placeholder="https://api.example.com..."
+                              className="w-full bg-ink border border-hair rounded-xl px-4 py-3 text-ink-1 placeholder-ink-3 focus:outline-none focus:border-brass focus:ring-1 focus:ring-brass transition-all text-sm"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-xs font-semibold text-ink-2 mb-2">API Key / Token (Vault Security)</label>
+                            <input
+                              type="password"
+                              value={apiKey}
+                              onChange={(e) => setApiKey(e.target.value)}
+                              placeholder="Để trống nếu không muốn thay đổi..."
+                              className="w-full bg-ink border border-hair rounded-xl px-4 py-3 text-ink-1 placeholder-ink-3 focus:outline-none focus:border-brass focus:ring-1 focus:ring-brass transition-all text-sm"
+                            />
+                          </div>
+
+                          <p className="text-xs text-ink-3 flex items-center gap-1.5">
+                            <svg className="w-3.5 h-3.5 text-brass shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                            </svg>
+                            Thông tin kết nối được mã hóa và bảo mật hai lớp bằng HashiCorp Vault.
                           </p>
-                        )}
+
+                          {selectedIntegration === 'erpnext' && (
+                            <div className="p-3 bg-brass/10 border border-brass/25 rounded-xl text-xs text-ink-2 leading-relaxed">
+                              <span className="font-semibold text-brass">Lưu ý Frappe Cloud:</span> Nhập kết hợp cả API Key và API Secret theo định dạng: <code className="bg-surface-raised px-1.5 py-0.5 rounded text-brass font-mono">&lt;api_key&gt;:&lt;api_secret&gt;</code> (Ví dụ: <code className="bg-surface-raised px-1.5 py-0.5 rounded text-brass font-mono">93b68c02976a26e:a1b2c3d4e5f6</code>).
+                            </div>
+                          )}
+                        </div>
                       </div>
 
-                      <div className="pt-4 flex justify-end">
+                      <div className="pt-4 flex justify-end border-t border-hair/50 mt-4">
                         <button
                           type="submit"
                           disabled={savingIntegration}
-                          className="px-6 py-2.5 bg-brass hover:bg-brass-hover text-ink-1 rounded-xl font-semibold text-sm shadow-lg transition-all active:scale-95 disabled:opacity-50 flex items-center gap-2 cursor-pointer"
+                          className="px-8 py-2.5 bg-brass hover:bg-brass-hover text-ink-1 rounded-xl font-semibold text-sm shadow-md transition-all active:scale-95 disabled:opacity-50 flex items-center gap-2 cursor-pointer"
                         >
                           {savingIntegration && <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-ink-1" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>}
                           Lưu kết nối
