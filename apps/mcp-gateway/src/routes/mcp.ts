@@ -10,7 +10,7 @@ import { checkToolRateLimit } from '../policies/rate-limiter.js';
 import { writeAuditLog } from '../audit/audit-log.js';
 
 import { VaultService } from '../services/vault.js';
-import { validateIntegrationUrl } from '../policies/url-validator.js';
+import { validateIntegrationUrl, validateIntegrationUrlAsync } from '../policies/url-validator.js';
 import { query } from '../db/pool.js';
 import type { CurrentUser } from '../auth/current-user.js';
 
@@ -111,7 +111,7 @@ export async function prepareToolExecution(
         throw new AppError('INTEGRATION_NOT_CONFIGURED', `Tích hợp ${serverName.toUpperCase()} chưa có đầy đủ API URL và API key trong Vault.`, 400);
       }
 
-      validateIntegrationUrl(secrets.apiUrl);
+      await validateIntegrationUrlAsync(secrets.apiUrl);
 
       args._integrationCredentials = { apiKey: secrets.apiKey, apiUrl: secrets.apiUrl };
     }

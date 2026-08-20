@@ -4,7 +4,7 @@ import { query } from '../db/pool.js';
 import { AppError } from '../errors/app-error.js';
 import { getCurrentUser } from '../auth/current-user.js';
 import { VaultService } from '../services/vault.js';
-import { validateIntegrationUrl } from '../policies/url-validator.js';
+import { validateIntegrationUrl, validateIntegrationUrlAsync } from '../policies/url-validator.js';
 
 export const adminRouter = Router();
 
@@ -107,7 +107,7 @@ adminRouter.post('/integrations', async (req, res, next) => {
     const { integrationCode, apiKey, apiUrl, isActive } = integrationSchema.parse(req.body);
 
     if (apiUrl) {
-      validateIntegrationUrl(apiUrl);
+      await validateIntegrationUrlAsync(apiUrl);
     }
 
     const vaultPath = `integrations/${user.tenantId}/${integrationCode}`;
