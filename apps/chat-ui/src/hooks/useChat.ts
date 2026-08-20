@@ -9,6 +9,14 @@ const formatTimestamp = (dateInput?: string) => {
   return `${datePart} at ${timePart}`;
 };
 
+// Date.now() chỉ chính xác tới mili-giây — 2 người dùng bấm "Chat mới" cùng
+// lúc (hoặc trùng do double-click/race condition) có xác suất (rất nhỏ
+// nhưng khác 0) sinh ra cùng 1 sessionId. Thêm phần ngẫu nhiên để giảm xác
+// suất này gần về 0. Backend (ensureSessionOwnedByUser) đã có sẵn lớp chặn
+// an toàn nếu trùng thật (409 SESSION_CONFLICT, không rò rỉ dữ liệu), đây là
+// lớp phòng ngừa bổ sung để tránh người dùng gặp lỗi không cần thiết.
+const generateSessionId = () => `session-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
 export interface Session {
   isStarred: boolean;
   id: string;
@@ -211,6 +219,8 @@ export const useChat = () => {
     setMessages(prev => [...prev.slice(0, index), newUserMsg]);
     setIsLoading(true);
 
+    const sessionIdToUse = activeSessionId === 'new-chat-session' ? generateSessionId() : activeSessionId;
+
     try {
       const response = await fetch('/api/chat/edit', {
         method: 'POST',
@@ -219,7 +229,7 @@ export const useChat = () => {
           'Authorization': `Bearer ${authToken}`
         },
         body: JSON.stringify({
-          sessionId: activeSessionId === 'new-chat-session' ? `session-${Date.now()}` : activeSessionId,
+          sessionId: sessionIdToUse,
           messageId,
           message: content
         })
@@ -230,12 +240,12 @@ export const useChat = () => {
           logout();
           throw new Error('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
         }
-        throw new Error('Không thể kết nối với AI Orchestrator');
+        throw new Error('Không thể kết nối tới máy chủ AI Orchestrator');
       }
 
       const data = response.json ? await response.json().catch(() => ({})) : {};
       const isGuest = currentUser?.username === 'guest' || currentUser?.role === 'viewer';
-      const targetSessionId = data.sessionId || data.session_id || (activeSessionId === 'new-chat-session' ? `session-${Date.now()}` : activeSessionId);
+      const targetSessionId = data.sessionId || data.session_id || sessionIdToUse;
       const hasDirectContent = Boolean(data.reply || data.answer || data.content || data.message || data.response || data.text);
 
       if (hasDirectContent || isGuest) {
@@ -261,10 +271,12 @@ export const useChat = () => {
       }
     } catch (error: any) {
       console.error('Lỗi API:', error);
+      const rawMsg = error?.message || 'Không thể kết nối tới máy chủ AI Orchestrator. Vui lòng kiểm tra lại trạng thái các service.';
+      const formattedMsg = rawMsg.includes('Lỗi') ? rawMsg : `⚠️ Lỗi: ${rawMsg}`;
       const errorMsg: Message = {
         id: Date.now().toString(),
         sender: 'ai',
-        content: error?.message || '⚠️ Lỗi: Không thể kết nối tới máy chủ AI Orchestrator. Vui lòng kiểm tra lại trạng thái các service.',
+        content: formattedMsg,
         timestamp: formatTimestamp()
       };
       setMessages(prev => [...prev, errorMsg]);
@@ -285,6 +297,8 @@ export const useChat = () => {
     setMessages(prev => [...prev, newUserMsg]);
     setIsLoading(true);
 
+    const sessionIdToUse = activeSessionId === 'new-chat-session' ? generateSessionId() : activeSessionId;
+
     try {
       const response = await fetch('/api/chat', {
         method: 'POST',
@@ -293,7 +307,7 @@ export const useChat = () => {
           'Authorization': `Bearer ${authToken}`
         },
         body: JSON.stringify({
-          sessionId: activeSessionId === 'new-chat-session' ? `session-${Date.now()}` : activeSessionId,
+          sessionId: sessionIdToUse,
           message: content
         })
       });
@@ -303,12 +317,12 @@ export const useChat = () => {
           logout();
           throw new Error('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
         }
-        throw new Error('Không thể kết nối với AI Orchestrator');
+        throw new Error('Không thể kết nối tới máy chủ AI Orchestrator');
       }
 
       const data = await response.json();
       const isGuest = currentUser?.username === 'guest' || currentUser?.role === 'viewer';
-      const targetSessionId = data.sessionId || data.session_id || (activeSessionId === 'new-chat-session' ? `session-${Date.now()}` : activeSessionId);
+      const targetSessionId = data.sessionId || data.session_id || sessionIdToUse;
       const hasDirectContent = Boolean(data.reply || data.answer || data.content || data.message || data.response || data.text);
 
       if (hasDirectContent || isGuest) {
@@ -334,10 +348,12 @@ export const useChat = () => {
       }
     } catch (error: any) {
       console.error('Lỗi API:', error);
+      const rawMsg = error?.message || 'Không thể kết nối tới máy chủ AI Orchestrator. Vui lòng kiểm tra lại trạng thái các service.';
+      const formattedMsg = rawMsg.includes('Lỗi') ? rawMsg : `⚠️ Lỗi: ${rawMsg}`;
       const errorMsg: Message = {
         id: Date.now().toString(),
         sender: 'ai',
-        content: error?.message || '⚠️ Lỗi: Không thể kết nối tới máy chủ AI Orchestrator. Vui lòng kiểm tra lại trạng thái các service.',
+        content: formattedMsg,
         timestamp: formatTimestamp()
       };
       setMessages(prev => [...prev, errorMsg]);

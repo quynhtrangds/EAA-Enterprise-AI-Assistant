@@ -12,7 +12,7 @@ const chatService = new ChatService();
 const gatewayClient = new McpGatewayClient();
 
 const chatSchema = z.object({
-  sessionId: z.string().trim().min(1).default('default-session'),
+  sessionId: z.string().trim().min(1, 'sessionId là bắt buộc.'),
   message: z.string().trim().min(1)
 });
 
@@ -139,7 +139,7 @@ chatRouter.get('/chat/sessions', async (req, res, next) => {
   try {
     const authToken = getBearerToken(req.header('authorization'));
     const user = await gatewayClient.getCurrentUser(authToken);
-    const sessions = await listChatSessions(user.id);
+    const sessions = await listChatSessions(user.id, user.tenantId);
     res.json({ sessions });
   } catch (error) {
     next(error);
@@ -157,7 +157,7 @@ chatRouter.get('/chat/search', async (req, res, next) => {
       return;
     }
 
-    const sessions = await searchChatSessions(user.id, q);
+    const sessions = await searchChatSessions(user.id, user.tenantId, q);
     res.json({ sessions });
   } catch (error) {
     next(error);
@@ -168,7 +168,7 @@ chatRouter.get('/chat/sessions/:sessionId', async (req, res, next) => {
   try {
     const authToken = getBearerToken(req.header('authorization'));
     const user = await gatewayClient.getCurrentUser(authToken);
-    const messages = await getChatMessages(user.id, req.params.sessionId);
+    const messages = await getChatMessages(user.id, user.tenantId, req.params.sessionId);
     res.json({
       sessionId: req.params.sessionId,
       messages
@@ -185,10 +185,10 @@ chatRouter.patch('/chat/sessions/:sessionId', async (req, res, next) => {
     const user = await gatewayClient.getCurrentUser(authToken);
     
     if (body.title !== undefined) {
-      await renameSession(req.params.sessionId, user.id, body.title);
+      await renameSession(req.params.sessionId, user.id, user.tenantId, body.title);
     }
     if (body.isStarred !== undefined) {
-      await toggleStarSession(req.params.sessionId, user.id, body.isStarred);
+      await toggleStarSession(req.params.sessionId, user.id, user.tenantId, body.isStarred);
     }
     res.json({ success: true });
   } catch (error) {
@@ -200,7 +200,7 @@ chatRouter.delete('/chat/sessions/:sessionId', async (req, res, next) => {
   try {
     const authToken = getBearerToken(req.header('authorization'));
     const user = await gatewayClient.getCurrentUser(authToken);
-    await deleteSession(req.params.sessionId, user.id);
+    await deleteSession(req.params.sessionId, user.id, user.tenantId);
     res.json({ success: true });
   } catch (error) {
     next(error);

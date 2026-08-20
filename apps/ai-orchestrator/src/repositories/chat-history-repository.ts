@@ -32,6 +32,7 @@ export interface SearchResultSummary extends StoredChatSessionSummary {
 
 interface ChatSessionOwnerRow {
   user_id: string;
+  tenant_id: string;
 }
 
 interface ChatSessionRow {
@@ -112,7 +113,7 @@ async function ensureSessionOwnedByUser(sessionId: string, userId: string, title
 
   const ownerResult = await query<ChatSessionOwnerRow>(
     `
-    SELECT user_id
+    SELECT user_id, tenant_id
     FROM chat_sessions
     WHERE session_id = $1
     LIMIT 1
@@ -121,7 +122,7 @@ async function ensureSessionOwnedByUser(sessionId: string, userId: string, title
   );
   const owner = ownerResult.rows[0];
 
-  if (!owner || owner.user_id !== userId) {
+  if (!owner || owner.user_id !== userId || (owner.tenant_id && tenantId && owner.tenant_id !== tenantId)) {
     throw new AppError('SESSION_CONFLICT', 'Session ID da ton tai cho user khac.', 409);
   }
 
@@ -129,11 +130,12 @@ async function ensureSessionOwnedByUser(sessionId: string, userId: string, title
     `
     UPDATE chat_sessions
     SET updated_at = now(),
-        title = COALESCE(title, $3)
+        title = COALESCE(title, $4)
     WHERE session_id = $1
       AND user_id = $2
+      AND tenant_id = $3
     `,
-    [sessionId, userId, title]
+    [sessionId, userId, tenantId, title]
   );
 }
 
@@ -170,10 +172,10 @@ export async function editChatTurn(input: {
 }): Promise<void> {
   await ensureChatHistoryTables();
 
-  // Verify session belongs to current user
+  // Verify session belongs to current user (and tenant)
   const sessionCheck = await query(
-    `SELECT id FROM chat_sessions WHERE session_id = $1 AND user_id = $2`,
-    [input.sessionId, input.userId]
+    `SELECT id FROM chat_sessions WHERE session_id = $1 AND user_id = $2 AND tenant_id = $3`,
+    [input.sessionId, input.userId, input.tenantId]
   );
   if (sessionCheck.rows.length === 0) {
     throw new AppError('FORBIDDEN', 'Bạn không có quyền sửa phiên trò chuyện này.', 403);
@@ -205,34 +207,34 @@ export async function editChatTurn(input: {
   });
 }
 
-export async function renameSession(sessionId: string, userId: string, title: string): Promise<void> {
+export async function renameSession(sessionId: string, userId: string, tenantId: string, title: string): Promise<void> {
   await ensureChatHistoryTables();
   const result = await query(
-    `UPDATE chat_sessions SET title = $3, updated_at = now() WHERE session_id = $1 AND user_id = $2`,
-    [sessionId, userId, title]
+    `UPDATE chat_sessions SET title = $4, updated_at = now() WHERE session_id = $1 AND user_id = $2 AND tenant_id = $3`,
+    [sessionId, userId, tenantId, title]
   );
   if (result.rowCount === 0) throw new AppError('NOT_FOUND', 'Session not found', 404);
 }
 
-export async function toggleStarSession(sessionId: string, userId: string, isStarred: boolean): Promise<void> {
+export async function toggleStarSession(sessionId: string, userId: string, tenantId: string, isStarred: boolean): Promise<void> {
   await ensureChatHistoryTables();
   const result = await query(
-    `UPDATE chat_sessions SET is_starred = $3, updated_at = now() WHERE session_id = $1 AND user_id = $2`,
-    [sessionId, userId, isStarred]
+    `UPDATE chat_sessions SET is_starred = $4, updated_at = now() WHERE session_id = $1 AND user_id = $2 AND tenant_id = $3`,
+    [sessionId, userId, tenantId, isStarred]
   );
   if (result.rowCount === 0) throw new AppError('NOT_FOUND', 'Session not found', 404);
 }
 
-export async function deleteSession(sessionId: string, userId: string): Promise<void> {
+export async function deleteSession(sessionId: string, userId: string, tenantId: string): Promise<void> {
   await ensureChatHistoryTables();
   const result = await query(
-    `DELETE FROM chat_sessions WHERE session_id = $1 AND user_id = $2`,
-    [sessionId, userId]
+    `DELETE FROM chat_sessions WHERE session_id = $1 AND user_id = $2 AND tenant_id = $3`,
+    [sessionId, userId, tenantId]
   );
   if (result.rowCount === 0) throw new AppError('NOT_FOUND', 'Session not found', 404);
 }
 
-export async function listChatSessions(userId: string): Promise<StoredChatSessionSummary[]> {
+export async function listChatSessions(userId: string, tenantId: string): Promise<StoredChatSessionSummary[]> {
   await ensureChatHistoryTables();
 
   const result = await query<ChatSessionRow>(
@@ -257,10 +259,11 @@ export async function listChatSessions(userId: string): Promise<StoredChatSessio
       LIMIT 1
     ) last_message ON true
     WHERE s.user_id = $1
+      AND s.tenant_id = $2
     GROUP BY s.session_id, s.title, s.created_at, s.updated_at, s.is_starred, last_message.role, last_message.content, last_message.created_at
     ORDER BY s.is_starred DESC, s.updated_at DESC
     `,
-    [userId]
+    [userId, tenantId]
   );
 
   return result.rows.map((session) => ({
@@ -281,7 +284,7 @@ export async function listChatSessions(userId: string): Promise<StoredChatSessio
   }));
 }
 
-export async function getChatMessages(userId: string, sessionId: string): Promise<StoredChatMessage[]> {
+export async function getChatMessages(userId: string, tenantId: string, sessionId: string): Promise<StoredChatMessage[]> {
   await ensureChatHistoryTables();
 
   const result = await query<ChatMessageRow>(
@@ -290,12 +293,13 @@ export async function getChatMessages(userId: string, sessionId: string): Promis
     FROM chat_messages m
     JOIN chat_sessions s ON s.session_id = m.session_id
     WHERE s.user_id = $1
-      AND s.session_id = $2
+      AND s.tenant_id = $2
+      AND s.session_id = $3
     ORDER BY m.created_at ASC, 
              CASE WHEN m.role = 'user' THEN 1 ELSE 2 END ASC, 
              m.message_id ASC
     `,
-    [userId, sessionId]
+    [userId, tenantId, sessionId]
   );
 
   return result.rows.map((message) => ({
@@ -307,7 +311,7 @@ export async function getChatMessages(userId: string, sessionId: string): Promis
   }));
 }
 
-export async function searchChatSessions(userId: string, searchTerm: string): Promise<SearchResultSummary[]> {
+export async function searchChatSessions(userId: string, tenantId: string, searchTerm: string): Promise<SearchResultSummary[]> {
   await ensureChatHistoryTables();
 
   const searchPattern = `%${searchTerm}%`;
@@ -319,7 +323,8 @@ export async function searchChatSessions(userId: string, searchTerm: string): Pr
       FROM chat_sessions s
       LEFT JOIN chat_messages m ON m.session_id = s.session_id
       WHERE s.user_id = $1
-        AND (s.title ILIKE $2 OR m.content ILIKE $2)
+        AND s.tenant_id = $2
+        AND (s.title ILIKE $3 OR m.content ILIKE $3)
     )
     SELECT
       s.session_id,
@@ -345,16 +350,17 @@ export async function searchChatSessions(userId: string, searchTerm: string): Pr
     LEFT JOIN LATERAL (
       SELECT content
       FROM chat_messages
-      WHERE session_id = s.session_id AND content ILIKE $2
+      WHERE session_id = s.session_id AND content ILIKE $3
       ORDER BY created_at DESC
       LIMIT 1
     ) match_message ON true
     WHERE s.user_id = $1
+      AND s.tenant_id = $2
     GROUP BY s.session_id, s.title, s.created_at, s.updated_at, s.is_starred, last_message.role, last_message.content, last_message.created_at, match_message.content
     ORDER BY s.updated_at DESC
     LIMIT 20
     `,
-    [userId, searchPattern]
+    [userId, tenantId, searchPattern]
   );
 
   return result.rows.map((session) => ({
