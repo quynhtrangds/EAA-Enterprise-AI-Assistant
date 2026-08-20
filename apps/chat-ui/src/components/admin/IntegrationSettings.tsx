@@ -482,7 +482,7 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
                               type="password"
                               value={apiKey}
                               onChange={(e) => setApiKey(e.target.value)}
-                              placeholder="Để trống nếu không muốn thay đổi..."
+                              placeholder="Bỏ trống nếu không muốn thay đổi..."
                               className="w-full bg-ink border border-hair rounded-xl px-4 py-3 text-ink-1 placeholder-ink-3 focus:outline-none focus:border-brass focus:ring-1 focus:ring-brass transition-all text-sm"
                             />
                           </div>
