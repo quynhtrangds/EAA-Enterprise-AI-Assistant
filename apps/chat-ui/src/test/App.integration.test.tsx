@@ -5,7 +5,7 @@ import App from '../App';
 
 // Setup global fetch mock
 const mockFetch = vi.fn();
-global.fetch = mockFetch;
+globalThis.fetch = mockFetch;
 // Mock scrollIntoView for jsdom
 Element.prototype.scrollIntoView = vi.fn();
 process.env.DEBUG_PRINT_LIMIT = '1000000';

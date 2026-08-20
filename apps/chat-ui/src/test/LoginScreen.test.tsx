@@ -21,7 +21,7 @@ describe('Kiểm thử Component LoginScreen', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     (useAuth as any).mockReturnValue({ login: mockLogin });
-    global.fetch = vi.fn();
+    globalThis.fetch = vi.fn();
   });
 
   it('TC01: Render giao diện đăng nhập ban đầu đúng chuẩn', () => {
@@ -40,13 +40,13 @@ describe('Kiểm thử Component LoginScreen', () => {
     fireEvent.click(submitBtn);
 
     expect(await screen.findByText('Vui lòng nhập đầy đủ tên đăng nhập và mật khẩu.')).toBeInTheDocument();
-    expect(global.fetch).not.toHaveBeenCalled();
+    expect(globalThis.fetch).not.toHaveBeenCalled();
     expect(mockLogin).not.toHaveBeenCalled();
   });
 
   it('TC04: Gọi API đăng nhập thành công và thực thi hàm login()', async () => {
     const mockUser = { id: '1', username: 'admin', displayName: 'Quản trị viên' };
-    (global.fetch as any).mockResolvedValueOnce({
+    (globalThis.fetch as any).mockResolvedValueOnce({
       ok: true,
       json: async () => ({ success: true, token: 'mock-jwt-token', user: mockUser }),
     });
@@ -58,7 +58,7 @@ describe('Kiểm thử Component LoginScreen', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Đăng nhập' }));
 
     await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledWith('/api/login', expect.objectContaining({
+      expect(globalThis.fetch).toHaveBeenCalledWith('/api/login', expect.objectContaining({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: 'admin', password: 'password123' }),
@@ -68,7 +68,7 @@ describe('Kiểm thử Component LoginScreen', () => {
   });
 
   it('TC05: Hiển thị lỗi khi API báo sai thông tin (HTTP !ok)', async () => {
-    (global.fetch as any).mockResolvedValueOnce({
+    (globalThis.fetch as any).mockResolvedValueOnce({
       ok: false,
       json: async () => ({ error: 'Sai tên đăng nhập hoặc mật khẩu.' }),
     });

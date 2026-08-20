@@ -24,7 +24,7 @@ describe('IntegrationSettings Component', () => {
   });
 
   it('TC-UI-01: Render 4 tab ứng dụng tích hợp (CRM, ERPNext, Zammad, Gitea)', async () => {
-    global.fetch = vi.fn().mockResolvedValue({
+    globalThis.fetch = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({ integrations: [] })
     });
@@ -42,7 +42,7 @@ describe('IntegrationSettings Component', () => {
   });
 
   it('TC-UI-02: Cho phép nhập API URL & Key và submit lưu cấu hình thành công', async () => {
-    global.fetch = vi.fn().mockImplementation((url, options) => {
+    globalThis.fetch = vi.fn().mockImplementation((url, options) => {
       if (options?.method === 'POST') {
         return Promise.resolve({
           ok: true,
@@ -81,7 +81,7 @@ describe('IntegrationSettings Component', () => {
   });
 
   it('TC-UI-03: Báo lỗi khi cập nhật quyền người dùng thất bại (Không tạo ảo giác thành công)', async () => {
-    global.fetch = vi.fn().mockImplementation((url: string) => {
+    globalThis.fetch = vi.fn().mockImplementation((url: string) => {
       if (url.includes('/role')) {
         return Promise.resolve({
           ok: false,
