@@ -281,22 +281,22 @@ const Sidebar: React.FC<SidebarProps> = ({
         )}
       </div>
 
-            {/* Footer Profile / Guest Login Button */}
-      <div className="p-2 border-t border-hair bg-ink shrink-0 relative" ref={profileMenuRef}>
+                  {/* Footer Profile / Guest Login Button */}
+      <div className="p-2.5 border-t border-hair bg-ink shrink-0 relative" ref={profileMenuRef}>
         {isGuest ? (
           <button
             onClick={() => onLogout?.()}
             title={!isOpen ? "Đăng nhập" : undefined}
-            className={`flex items-center h-10 w-full rounded-lg bg-brass hover:bg-brass-hover text-ink font-medium text-sm transition-all duration-200 cursor-pointer overflow-hidden shadow-sm active:scale-98 ${
-              isOpen ? 'px-3 justify-start gap-2.5' : 'px-0 justify-center'
+            className={`flex items-center justify-center h-11 w-full rounded-xl bg-brass hover:bg-brass-hover text-ink-1 font-semibold text-[15px] tracking-wide transition-all duration-200 cursor-pointer overflow-hidden shadow-md shadow-brass/10 active:scale-98 ${
+              isOpen ? 'px-4 gap-2.5' : 'px-0 gap-0'
             }`}
           >
             <div className="w-6 h-6 flex items-center justify-center shrink-0">
-              <svg className="w-4.5 h-4.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
               </svg>
             </div>
-            <span className={`whitespace-nowrap transition-all duration-200 text-left ${isOpen ? 'opacity-100 max-w-[150px]' : 'opacity-0 max-w-0'}`}>
+            <span className={`whitespace-nowrap transition-all duration-200 ${isOpen ? 'opacity-100 max-w-[160px]' : 'opacity-0 max-w-0 overflow-hidden'}`}>
               Đăng nhập
             </span>
           </button>
