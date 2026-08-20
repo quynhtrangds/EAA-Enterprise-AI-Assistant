@@ -6,49 +6,61 @@ import { AppError } from '../errors/app-error.js';
  * Kiểm tra xem một địa chỉ IPv4 có thuộc các dải mạng Private, Loopback, Link-Local hoặc Reserved hay không
  */
 export function isPrivateIPv4(ip: string): boolean {
-  const parts = ip.split('.').map(Number);
-  if (parts.length !== 4 || parts.some(p => isNaN(p) || p < 0 || p > 255)) {
+  const rawParts = ip.split('.');
+  if (rawParts.length !== 4) {
+    return false;
+  }
+
+  const p0 = Number(rawParts[0]);
+  const p1 = Number(rawParts[1]);
+  const p2 = Number(rawParts[2]);
+  const p3 = Number(rawParts[3]);
+
+  if (
+    isNaN(p0) || isNaN(p1) || isNaN(p2) || isNaN(p3) ||
+    p0 < 0 || p0 > 255 || p1 < 0 || p1 > 255 || p2 < 0 || p2 > 255 || p3 < 0 || p3 > 255
+  ) {
     return false;
   }
 
   // 0.0.0.0/8 (Current network / default route)
-  if (parts[0] === 0) return true;
+  if (p0 === 0) return true;
 
   // 10.0.0.0/8 (Private network Class A)
-  if (parts[0] === 10) return true;
+  if (p0 === 10) return true;
 
   // 100.64.0.0/10 (Carrier-Grade NAT)
-  if (parts[0] === 100 && parts[1] >= 64 && parts[1] <= 127) return true;
+  if (p0 === 100 && p1 >= 64 && p1 <= 127) return true;
 
   // 127.0.0.0/8 (Loopback)
-  if (parts[0] === 127) return true;
+  if (p0 === 127) return true;
 
   // 169.254.0.0/16 (Link-Local / Cloud Metadata IMDS)
-  if (parts[0] === 169 && parts[1] === 254) return true;
+  if (p0 === 169 && p1 === 254) return true;
 
   // 172.16.0.0/12 (Private network Class B / Docker default bridges 172.17.x, 172.18.x, 172.20.x...)
-  if (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) return true;
+  if (p0 === 172 && p1 >= 16 && p1 <= 31) return true;
 
   // 192.0.0.0/24 (IETF Protocol Assignments)
-  if (parts[0] === 192 && parts[1] === 0 && parts[2] === 0) return true;
+  if (p0 === 192 && p1 === 0 && p2 === 0) return true;
 
   // 192.0.2.0/24 (TEST-NET-1)
-  if (parts[0] === 192 && parts[1] === 0 && parts[2] === 2) return true;
+  if (p0 === 192 && p1 === 0 && p2 === 2) return true;
 
   // 192.168.0.0/16 (Private network Class C)
-  if (parts[0] === 192 && parts[1] === 168) return true;
+  if (p0 === 192 && p1 === 168) return true;
 
   // 198.18.0.0/15 (Network Benchmark Testing)
-  if (parts[0] === 198 && (parts[1] === 18 || parts[1] === 19)) return true;
+  if (p0 === 198 && (p1 === 18 || p1 === 19)) return true;
 
   // 198.51.100.0/24 (TEST-NET-2)
-  if (parts[0] === 198 && parts[1] === 51 && parts[2] === 100) return true;
+  if (p0 === 198 && p1 === 51 && p2 === 100) return true;
 
   // 203.0.113.0/24 (TEST-NET-3)
-  if (parts[0] === 203 && parts[1] === 0 && parts[2] === 113) return true;
+  if (p0 === 203 && p1 === 0 && p2 === 113) return true;
 
   // 224.0.0.0/4 (Multicast) & 240.0.0.0/4 (Reserved / Broadcast)
-  if (parts[0] >= 224) return true;
+  if (p0 >= 224) return true;
 
   return false;
 }
@@ -76,7 +88,7 @@ export function isPrivateIPv6(ip: string): boolean {
 
   // IPv4-mapped IPv6 (::ffff:127.0.0.1 hoặc ::ffff:10.0.0.1...)
   const mappedMatch = clean.match(/::ffff:(\d+\.\d+\.\d+\.\d+)$/);
-  if (mappedMatch) {
+  if (mappedMatch && mappedMatch[1]) {
     return isPrivateIPv4(mappedMatch[1]);
   }
 
