@@ -1,10 +1,36 @@
 ﻿import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 
+export interface ProbeStepResult {
+  step: string;
+  status: 'passed' | 'failed' | 'skipped';
+  latencyMs?: number;
+  detail?: Record<string, any>;
+  error?: {
+    code: string;
+    message: string;
+    hint?: string;
+  };
+  skipReason?: string;
+}
+
+export interface TestConnectionResult {
+  integrationCode: string;
+  overallStatus: 'passed' | 'degraded' | 'failed';
+  testedAt: string;
+  durationMs: number;
+  steps: ProbeStepResult[];
+}
+
 interface Integration {
   integration_code: string;
   is_active: boolean;
   apiUrl?: string;
+  hasApiKey?: boolean;
+  apiKeyMasked?: string;
+  last_tested_at?: string | null;
+  last_test_status?: 'passed' | 'degraded' | 'failed' | null;
+  last_test_detail?: ProbeStepResult[] | null;
 }
 
 interface User {
@@ -26,6 +52,17 @@ const defaultUsers: User[] = [
   { id: '10000000-0000-0000-0000-000000000003', username: 'staff', display_name: 'Nhân viên', email: 'staff@company.com', role: 'staff', created_at: new Date().toISOString() },
 ];
 
+const stepLabels: Record<string, string> = {
+  'config': '1. Cấu hình thông số đầu vào',
+  'vault': '2. Truy xuất Secret từ Vault',
+  'mcp-server': '3. Kiểm tra tiến trình MCP Server',
+  'dns': '4. Phân giải tên miền (DNS Lookup)',
+  'tcp': '5. Mở cổng kết nối mạng (TCP Socket)',
+  'tls': '6. Bắt tay chứng chỉ bảo mật (TLS/SSL)',
+  'http': '7. Xác thực & Phản hồi HTTP (Auth)',
+  'business': '8. Xác thực dữ liệu nghiệp vụ'
+};
+
 const roleOptions = [
   { code: 'admin', label: 'Admin' },
   { code: 'manager', label: 'Quản lý' },
@@ -44,6 +81,10 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
   const [apiUrl, setApiUrl] = useState('');
   const [isActive, setIsActive] = useState(false);
   const [savingIntegration, setSavingIntegration] = useState(false);
+
+  // Test Connection State
+  const [testingConnection, setTestingConnection] = useState(false);
+  const [testResult, setTestResult] = useState<TestConnectionResult | null>(null);
 
   // Users State
   const [users, setUsers] = useState<User[]>(defaultUsers);
@@ -137,14 +178,80 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
     setError(null);
     setSuccessMsg('');
     setApiKey('');
+    setTestResult(null);
 
     const existing = integrations.find(i => i.integration_code === code);
     if (existing) {
       setIsActive(Boolean(existing.is_active));
       setApiUrl(existing.apiUrl || '');
+      if (existing.last_test_detail) {
+        setTestResult({
+          integrationCode: code,
+          overallStatus: existing.last_test_status || 'passed',
+          testedAt: existing.last_tested_at || new Date().toISOString(),
+          durationMs: 0,
+          steps: existing.last_test_detail
+        });
+      }
     } else {
       setIsActive(false);
       setApiUrl('');
+    }
+  };
+
+  const handleTestConnection = async () => {
+    setTestingConnection(true);
+    setError(null);
+    setSuccessMsg('');
+
+    try {
+      const token = authToken || localStorage.getItem('auth_token');
+      const isDraft = Boolean(apiKey || (apiUrl && apiUrl !== integrations.find(i => i.integration_code === selectedIntegration)?.apiUrl));
+      
+      let res: Response;
+      if (isDraft) {
+        res = await fetch('/api/admin/integrations/test', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            integrationCode: selectedIntegration,
+            apiUrl: apiUrl || undefined,
+            apiKey: apiKey || undefined
+          })
+        });
+      } else {
+        res = await fetch(`/api/admin/integrations/${selectedIntegration}/test`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+      }
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.message || `Lỗi kiểm tra kết nối (HTTP ${res.status})`);
+      }
+
+      const data: TestConnectionResult = await res.json();
+      setTestResult(data);
+
+      if (data.overallStatus === 'passed') {
+        setSuccessMsg(`Kiểm tra kết nối "${selectedIntegration.toUpperCase()}" thành công toàn bộ các bước!`);
+      } else if (data.overallStatus === 'degraded') {
+        setSuccessMsg(`Kết nối "${selectedIntegration.toUpperCase()}" khả dụng nhưng có cảnh báo.`);
+      } else {
+        setError(`Kiểm tra kết nối "${selectedIntegration.toUpperCase()}" thất bại. Vui lòng xem chi tiết từng bước bên dưới.`);
+      }
+
+      await fetchIntegrations();
+    } catch (err: any) {
+      setError(err.message || 'Đã xảy ra lỗi khi kiểm tra kết nối.');
+    } finally {
+      setTestingConnection(false);
     }
   };
 
@@ -394,7 +501,7 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
                   </div>
                   {availableIntegrations.map((item) => {
                     const config = integrations.find(i => i.integration_code === item.code);
-                    const isConfigActive = config ? config.is_active : false;
+                    
                     const isSelected = selectedIntegration === item.code;
 
                     return (
@@ -413,16 +520,21 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
                         </span>
 
                         {/* Status Pill Badge - Fixed size */}
-                        <div className="shrink-0 flex items-center">
-                          {isConfigActive ? (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10.5px] font-semibold bg-sage/15 text-sage border border-sage/30 tracking-wide shrink-0">
-                              <span className="w-1.5 h-1.5 rounded-full bg-sage shrink-0 animate-pulse" />
-                              BẬT
+                        <div className="shrink-0 flex items-center gap-1.5">
+                          {config?.last_test_status === 'passed' ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-sage/15 text-sage border border-sage/30" title="Kiểm tra kết nối gần nhất: Đạt">
+                              <span className="w-1.5 h-1.5 rounded-full bg-sage shrink-0" />
+                              Đã kết nối
+                            </span>
+                          ) : config?.last_test_status === 'failed' ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-clay/15 text-clay border border-clay/30" title="Kiểm tra kết nối gần nhất: Thất bại">
+                              <span className="w-1.5 h-1.5 rounded-full bg-clay shrink-0" />
+                              Lỗi kết nối
                             </span>
                           ) : (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10.5px] font-medium bg-surface-raised text-ink-3 border border-hair tracking-wide shrink-0">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-surface-raised text-ink-3 border border-hair" title="Chưa kiểm tra kết nối">
                               <span className="w-1.5 h-1.5 rounded-full bg-ink-3 shrink-0" />
-                              TẮT
+                              Chưa test
                             </span>
                           )}
                         </div>
@@ -499,17 +611,102 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
                               <span className="font-semibold text-brass">Lưu ý Frappe Cloud:</span> Nhập kết hợp cả API Key và API Secret theo định dạng: <code className="bg-surface-raised px-1.5 py-0.5 rounded text-brass font-mono">&lt;api_key&gt;:&lt;api_secret&gt;</code> (Ví dụ: <code className="bg-surface-raised px-1.5 py-0.5 rounded text-brass font-mono">93b68c02976a26e:a1b2c3d4e5f6</code>).
                             </div>
                           )}
+
+                          {/* Probe Checklist Results Card */}
+                          {testResult && (
+                            <div className="mt-4 p-3.5 bg-surface-raised/40 border border-hair rounded-xl space-y-2">
+                              <div className="flex items-center justify-between pb-2 border-b border-hair">
+                                <div className="flex items-center gap-2">
+                                  <span className={`w-2.5 h-2.5 rounded-full ${
+                                    testResult.overallStatus === 'passed' ? 'bg-sage' : testResult.overallStatus === 'degraded' ? 'bg-amber-400' : 'bg-clay'
+                                  }`} />
+                                  <span className="text-xs font-bold text-ink-1">
+                                    Kết quả kiểm tra chuỗi Probe ({testResult.steps.filter(s => s.status === 'passed').length}/{testResult.steps.length} bước đạt)
+                                  </span>
+                                </div>
+                                <span className="text-[11px] font-mono text-ink-3">
+                                  Tổng thời gian: {testResult.durationMs}ms
+                                </span>
+                              </div>
+
+                              <div className="space-y-1.5 max-h-[180px] overflow-y-auto pr-1">
+                                {testResult.steps.map((st, idx) => {
+                                  const isPass = st.status === 'passed';
+                                  const isFail = st.status === 'failed';
+
+                                  return (
+                                    <div key={idx} className={`p-2 rounded-lg text-xs border ${
+                                      isPass ? 'bg-sage/5 border-sage/20 text-ink-1' :
+                                      isFail ? 'bg-clay/10 border-clay/30 text-ink-1' :
+                                      'bg-surface/60 border-hair text-ink-3'
+                                    }`}>
+                                      <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                          <span className={`font-bold ${isPass ? 'text-sage' : isFail ? 'text-clay' : 'text-ink-3'}`}>
+                                            {isPass ? '✓' : isFail ? '✗' : '—'}
+                                          </span>
+                                          <span className="font-semibold text-[11px]">
+                                            {stepLabels[st.step] || st.step}
+                                          </span>
+                                        </div>
+                                        <span className="text-[10px] font-mono text-ink-3">
+                                          {st.latencyMs !== undefined ? `${st.latencyMs}ms` : (st.skipReason ? 'Bỏ qua' : '')}
+                                        </span>
+                                      </div>
+
+                                      {isFail && st.error && (
+                                        <div className="mt-2 pt-1.5 border-t border-clay/20 text-[11px] space-y-1">
+                                          <div className="text-clay font-medium flex items-center gap-1">
+                                            <span>Lỗi [{st.error.code}]:</span> {st.error.message}
+                                          </div>
+                                          {st.error.hint && (
+                                            <div className="p-2 bg-clay/15 border border-clay/25 rounded text-ink-1 text-[11px] leading-relaxed">
+                                              💡 <strong className="text-clay">Hướng dẫn khắc phục:</strong> {st.error.hint}
+                                            </div>
+                                          )}
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </div>
 
-                      <div className="pt-4 flex justify-end border-t border-hair/50 mt-4">
+                      <div className="pt-4 flex items-center justify-between border-t border-hair/50 mt-4">
+                        <button
+                          type="button"
+                          onClick={handleTestConnection}
+                          disabled={testingConnection || savingIntegration}
+                          className="px-5 py-2.5 bg-surface-raised hover:bg-hair border border-hair text-ink-1 rounded-xl font-semibold text-xs transition-all active:scale-95 disabled:opacity-50 flex items-center gap-2 cursor-pointer"
+                        >
+                          {testingConnection ? (
+                            <>
+                              <svg className="animate-spin h-3.5 w-3.5 text-brass" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                              </svg>
+                              <span>Đang kiểm tra kết nối...</span>
+                            </>
+                          ) : (
+                            <>
+                              <svg className="w-3.5 h-3.5 text-brass" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                              </svg>
+                              <span>Kiểm tra kết nối</span>
+                            </>
+                          )}
+                        </button>
+
                         <button
                           type="submit"
-                          disabled={savingIntegration}
+                          disabled={savingIntegration || testingConnection}
                           className="px-8 py-2.5 bg-brass hover:bg-brass-hover text-ink-1 rounded-xl font-semibold text-sm shadow-md transition-all active:scale-95 disabled:opacity-50 flex items-center gap-2 cursor-pointer"
                         >
                           {savingIntegration && <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-ink-1" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>}
-                          Lưu kết nối
+                          Lưu cấu hình
                         </button>
                       </div>
                     </form>

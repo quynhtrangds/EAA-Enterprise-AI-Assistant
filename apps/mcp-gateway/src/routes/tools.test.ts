@@ -18,7 +18,8 @@ const mocks = vi.hoisted(() => ({
   VaultService: { readSecret: vi.fn() },
   checkToolRateLimit: vi.fn(),
   checkLoginRateLimit: vi.fn(),
-  loginIpRateLimiter: (_req: any, _res: any, next: any) => next()
+  loginIpRateLimiter: (_req: any, _res: any, next: any) => next(),
+  integrationTestRateLimiter: (_req: any, _res: any, next: any) => next()
 }));
 
 vi.mock('../db/pool.js', () => ({ query: mocks.query }));
@@ -33,6 +34,7 @@ vi.mock('../policies/rate-limiter.js', () => ({
   checkToolRateLimit: mocks.checkToolRateLimit,
   checkLoginRateLimit: mocks.checkLoginRateLimit,
   loginIpRateLimiter: mocks.loginIpRateLimiter,
+  integrationTestRateLimiter: mocks.integrationTestRateLimiter,
   resetLoginRateLimitForTesting: vi.fn()
 }));
 

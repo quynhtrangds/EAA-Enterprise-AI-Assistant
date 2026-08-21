@@ -13,6 +13,10 @@ vi.mock('../services/vault.js', () => ({
   VaultService: { readSecret, writeSecret }
 }));
 
+vi.mock('../audit/audit-log.js', () => ({
+  writeAuditLog: vi.fn().mockResolvedValue(undefined)
+}));
+
 vi.mock('../auth/current-user.js', () => ({
   getCurrentUser
 }));
@@ -340,4 +344,88 @@ describe('Admin Routes Integration Suite', () => {
       expect(query).toHaveBeenCalled();
     });
   });
+
+  describe('POST /api/admin/integrations/:code/test - Test Saved Integration', () => {
+    it('từ chối người dùng không có role admin (403)', async () => {
+      getCurrentUser.mockResolvedValue(staffUser);
+
+      const response = await request(createApp())
+        .post('/api/admin/integrations/gitea/test')
+        .set('Authorization', 'Bearer valid-staff-token')
+        .expect(403);
+
+      expect(response.body).toMatchObject({
+        success: false,
+        errorCode: 'PERMISSION_DENIED'
+      });
+    });
+
+    it('trả về kết quả test integration đã lưu (200)', async () => {
+      getCurrentUser.mockResolvedValue(adminUser);
+      query.mockResolvedValueOnce({
+        rows: [{
+          id: 'int-001',
+          tenant_id: adminUser.tenantId,
+          integration_code: 'postgres',
+          vault_path: null,
+          api_url: null,
+          is_active: true
+        }]
+      });
+      // Mock db query for postgres strategy ping and status update
+      query.mockResolvedValueOnce({ rows: [{ ping: 1 }] });
+      query.mockResolvedValueOnce({ rowCount: 1 });
+
+      const response = await request(createApp())
+        .post('/api/admin/integrations/postgres/test')
+        .set('Authorization', 'Bearer valid-admin-token')
+        .expect(200);
+
+      expect(response.body).toMatchObject({
+        integrationCode: 'postgres',
+        overallStatus: 'passed'
+      });
+      expect(response.body.steps).toBeInstanceOf(Array);
+    });
+  });
+
+  describe('POST /api/admin/integrations/test - Test Draft Integration', () => {
+    it('chặn SSRF khi test draft trỏ vào metadata service 169.254.169.254 (400)', async () => {
+      getCurrentUser.mockResolvedValue(adminUser);
+
+      const response = await request(createApp())
+        .post('/api/admin/integrations/test')
+        .set('Authorization', 'Bearer valid-admin-token')
+        .send({
+          integrationCode: 'gitea',
+          apiUrl: 'http://169.254.169.254/latest/meta-data',
+          apiKey: 'test-token'
+        })
+        .expect(400);
+
+      expect(response.body).toMatchObject({
+        success: false,
+        errorCode: 'INVALID_TOOL_INPUT'
+      });
+    });
+
+    it('chạy test draft thành công với URL hợp lệ (200)', async () => {
+      getCurrentUser.mockResolvedValue(adminUser);
+      query.mockResolvedValueOnce({ rows: [{ ping: 1 }] });
+
+      const response = await request(createApp())
+        .post('/api/admin/integrations/test')
+        .set('Authorization', 'Bearer valid-admin-token')
+        .send({
+          integrationCode: 'postgres'
+        })
+        .expect(200);
+
+      expect(response.body).toMatchObject({
+        integrationCode: 'postgres',
+        overallStatus: 'passed'
+      });
+    });
+  });
+
 });

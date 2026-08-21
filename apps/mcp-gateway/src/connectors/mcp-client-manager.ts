@@ -75,6 +75,23 @@ export class McpClientManager {
     }
   }
 
+  isConnected(serverName: string): boolean {
+    return this.clients.has(serverName);
+  }
+
+  async ping(serverName: string, timeoutMs = 3000): Promise<boolean> {
+    const client = this.clients.get(serverName);
+    if (!client) return false;
+    try {
+      return await Promise.race([
+        client.ping().then(() => true),
+        new Promise<boolean>((r) => setTimeout(() => r(false), timeoutMs))
+      ]);
+    } catch {
+      return false;
+    }
+  }
+
   async listTools(): Promise<ListToolsResult> {
     const allTools = [];
     for (const client of this.clients.values()) {

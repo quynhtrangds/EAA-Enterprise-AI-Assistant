@@ -23,6 +23,7 @@ services:
       - ./database/migrations/009_add_users_role_column.sql:/docker-entrypoint-initdb.d/09_add_users_role_column.sql:ro
       - ./database/migrations/010_tenant_isolation_indexes.sql:/docker-entrypoint-initdb.d/10_tenant_isolation_indexes.sql:ro
         - ./database/migrations/011_account_lockout.sql:/docker-entrypoint-initdb.d/11_account_lockout.sql:ro
+        - ./database/migrations/012_integration_test_status.sql:/docker-entrypoint-initdb.d/12_integration_test_status.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-enterprise_ai_demo}"]
       interval: 5s

@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { IntegrationSettings } from '../components/admin/IntegrationSettings';
 import { useAuth } from '../contexts/AuthContext';
@@ -35,10 +35,10 @@ describe('IntegrationSettings Component', () => {
       expect(screen.getAllByText(/Kết nối Tích hợp/i)[0]).toBeInTheDocument();
     });
 
-    expect(screen.getByRole('button', { name: /Zammad Helpdesk/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Zammad/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Gitea/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /ERPNext/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /CRM \(Salesforce \/ HubSpot\)/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /CRM/i })).toBeInTheDocument();
   });
 
   it('TC-UI-02: Cho phép nhập API URL & Key và submit lưu cấu hình thành công', async () => {
@@ -58,21 +58,21 @@ describe('IntegrationSettings Component', () => {
     render(<IntegrationSettings onClose={onClose} />);
 
     await waitFor(() => {
-      expect(screen.getAllByRole('button', { name: /Zammad Helpdesk/i })[0]).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Zammad/i })).toBeInTheDocument();
     });
 
     // Switch to Zammad tab
-    fireEvent.click(screen.getAllByRole('button', { name: /Zammad Helpdesk/i })[0]);
+    fireEvent.click(screen.getByRole('button', { name: /Zammad/i }));
 
     // Type URL & API Key
     const urlInput = screen.getByPlaceholderText('https://api.example.com...');
     fireEvent.change(urlInput, { target: { value: 'http://localhost:8080' } });
 
-    const keyInput = screen.getByPlaceholderText('Bỏ trống nếu không muốn thay đổi...');
+    const keyInput = screen.getByPlaceholderText(/Bỏ trống nếu không muốn thay đổi/i);
     fireEvent.change(keyInput, { target: { value: 'token_zammad_123' } });
 
     // Submit form
-    const saveBtn = screen.getByRole('button', { name: /Lưu kết nối/i });
+    const saveBtn = screen.getByRole('button', { name: /Lưu cấu hình/i });
     fireEvent.click(saveBtn);
 
     await waitFor(() => {
@@ -120,6 +120,59 @@ describe('IntegrationSettings Component', () => {
     await waitFor(() => {
       expect(screen.getByText(/Không đủ quyền thực hiện thao tác/i)).toBeInTheDocument();
       expect(screen.queryByText(/Đã đổi quyền thành công/i)).not.toBeInTheDocument();
+    });
+  });
+
+  it('TC-UI-04: Bấm nút Kiểm tra kết nối gửi test request và hiển thị checklist chuỗi Probe', async () => {
+    globalThis.fetch = vi.fn().mockImplementation((url: string, options: any) => {
+      if (url.includes('/test') && options?.method === 'POST') {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            integrationCode: 'gitea',
+            overallStatus: 'passed',
+            testedAt: new Date().toISOString(),
+            durationMs: 420,
+            steps: [
+              { step: 'config', status: 'passed', latencyMs: 2 },
+              { step: 'vault', status: 'passed', latencyMs: 15 },
+              { step: 'mcp-server', status: 'passed', latencyMs: 28 },
+              { step: 'dns', status: 'passed', latencyMs: 34 },
+              { step: 'tcp', status: 'passed', latencyMs: 45 },
+              { step: 'tls', status: 'passed', latencyMs: 90 },
+              { step: 'http', status: 'passed', latencyMs: 180 },
+              { step: 'business', status: 'passed', latencyMs: 26 }
+            ]
+          })
+        });
+      }
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({
+          integrations: [
+            { integration_code: 'gitea', is_active: true, apiUrl: 'https://gitea.example.com', last_test_status: 'passed' }
+          ]
+        })
+      });
+    });
+
+    render(<IntegrationSettings onClose={onClose} />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Gitea/i })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /Gitea/i }));
+
+    const testBtn = screen.getByRole('button', { name: /Kiểm tra kết nối/i });
+    expect(testBtn).toBeInTheDocument();
+
+    fireEvent.click(testBtn);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Kết quả kiểm tra chuỗi Probe/i)).toBeInTheDocument();
+      expect(screen.getByText(/4. Phân giải tên miền/i)).toBeInTheDocument();
+      expect(screen.getByText(/7. Xác thực & Phản hồi HTTP/i)).toBeInTheDocument();
     });
   });
 });

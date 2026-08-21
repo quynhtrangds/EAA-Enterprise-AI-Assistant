@@ -5,6 +5,8 @@ import { AppError } from '../errors/app-error.js';
 import { getCurrentUser } from '../auth/current-user.js';
 import { VaultService } from '../services/vault.js';
 import { validateIntegrationUrl, validateIntegrationUrlAsync } from '../policies/url-validator.js';
+import { integrationTestRateLimiter } from '../policies/rate-limiter.js';
+import { IntegrationTestService } from '../services/integration-test/integration-test.service.js';
 
 export const adminRouter = Router();
 
@@ -61,7 +63,7 @@ adminRouter.get('/integrations', async (req, res, next) => {
     }
 
     const result = await query<{ integration_code: string; is_active: boolean; vault_path: string; api_url: string; api_key: string }>(
-      `SELECT integration_code, is_active, vault_path, api_url, api_key FROM tenant_integrations WHERE tenant_id = $1`,
+      `SELECT integration_code, is_active, vault_path, api_url, api_key, last_tested_at, last_test_status, last_test_detail FROM tenant_integrations WHERE tenant_id = $1`,
       [user.tenantId]
     );
 
@@ -168,6 +170,39 @@ const defaultUsers = [
 ];
 
 // Lấy danh sách người dùng trong hệ thống
+
+// Test integration đã lưu của tenant hiện tại
+adminRouter.post('/integrations/:code/test', integrationTestRateLimiter, async (req, res, next) => {
+  try {
+    const user = await getCurrentUser(req);
+    if (!user || !user.tenantId) {
+      throw new AppError('UNAUTHORIZED', 'No tenant associated with user', 401);
+    }
+    const result = await IntegrationTestService.testSaved(user.tenantId, String(req.params.code), user.id);
+    res.json(result);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Test draft integration từ form (chưa lưu)
+adminRouter.post('/integrations/test', integrationTestRateLimiter, async (req, res, next) => {
+  try {
+    const user = await getCurrentUser(req);
+    if (!user || !user.tenantId) {
+      throw new AppError('UNAUTHORIZED', 'No tenant associated with user', 401);
+    }
+    const body = integrationSchema.parse(req.body);
+    if (body.apiUrl) {
+      await validateIntegrationUrlAsync(body.apiUrl);
+    }
+    const result = await IntegrationTestService.testDraft(user.tenantId, body, user.id);
+    res.json(result);
+  } catch (error) {
+    next(error);
+  }
+});
+
 adminRouter.get('/users', async (req, res, next) => {
   try {
     const user = await getCurrentUser(req);

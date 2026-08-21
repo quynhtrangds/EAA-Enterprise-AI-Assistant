@@ -22,6 +22,22 @@ export const loginIpRateLimiter = rateLimit({
   }
 });
 
+/**
+ * Rate Limiter cho các endpoint Test Connection
+ * Hạn mức: 10 requests / phút / IP
+ */
+export const integrationTestRateLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 10,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: {
+    success: false,
+    errorCode: 'RATE_LIMIT_EXCEEDED',
+    message: 'Quá nhiều yêu cầu kiểm tra kết nối. Vui lòng thử lại sau 1 phút.'
+  }
+});
+
 // Map key: `${userId}:${sessionId}:${toolName}`
 const rateLimitStore = new Map<string, RateLimitData>();
 
