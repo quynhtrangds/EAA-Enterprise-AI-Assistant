@@ -107,6 +107,29 @@ export function isPrivateOrRestrictedIP(ip: string): boolean {
 /**
  * Kiểm tra hostname có thuộc danh sách bị hạn chế hoặc định danh nội bộ hay không
  */
+/**
+ * Kiểm tra xem hostname/IP có nằm trong danh sách whitelist cho phép nội bộ hay không
+ * Đọc từ biến môi trường INTEGRATION_TEST_ALLOWED_PRIVATE_HOSTS (phân cách bằng dấu phẩy)
+ */
+export function isAllowedPrivateHost(rawHost: string): boolean {
+  const host = rawHost.toLowerCase().replace(/[\[\]]/g, '');
+
+  // 1. Tuyệt đối KHÔNG BAO GIỜ cho phép Cloud Metadata (169.254.169.254, metadata.google.internal, instance-data)
+  if (
+    host === '169.254.169.254' ||
+    host.startsWith('169.254.') ||
+    host === 'metadata.google.internal' ||
+    host === 'instance-data'
+  ) {
+    return false;
+  }
+
+  const envAllowed = process.env.INTEGRATION_TEST_ALLOWED_PRIVATE_HOSTS;
+  if (!envAllowed) return false;
+  const list = envAllowed.split(',').map(h => h.trim().toLowerCase()).filter(Boolean);
+  return list.includes('*') || list.includes(host);
+}
+
 export function isRestrictedHostname(rawHost: string): boolean {
   const host = rawHost.toLowerCase().replace(/[[\]]/g, '');
 
@@ -175,7 +198,7 @@ export function validateIntegrationUrl(rawUrl: string): string {
 
   // 3. Nếu hostname là địa chỉ IP trực tiếp -> Kiểm tra toàn bộ dải CIDR Private
   if (net.isIP(host)) {
-    if (isPrivateOrRestrictedIP(host)) {
+    if (!isAllowedPrivateHost(host) && isPrivateOrRestrictedIP(host)) {
       throw new AppError(
         'INVALID_TOOL_INPUT',
         `Địa chỉ IP '${host}' thuộc dải mạng nội bộ/riêng tư bị hạn chế (SSRF CIDR Protection).`,
@@ -185,7 +208,7 @@ export function validateIntegrationUrl(rawUrl: string): string {
   }
 
   // 4. Nếu hostname là tên miền/service nội bộ
-  if (isRestrictedHostname(host)) {
+  if (!isAllowedPrivateHost(host) && isRestrictedHostname(host)) {
     throw new AppError(
       'INVALID_TOOL_INPUT',
       `Hostname '${host}' trỏ tới dịch vụ nội bộ hoặc Cloud Metadata bị hạn chế (SSRF Protection).`,
@@ -216,7 +239,7 @@ export async function validateIntegrationUrlAsync(rawUrl: string): Promise<strin
   try {
     const addresses = await dns.promises.lookup(host, { all: true });
     for (const addr of addresses) {
-      if (isPrivateOrRestrictedIP(addr.address)) {
+      if (!isAllowedPrivateHost(addr.address) && isPrivateOrRestrictedIP(addr.address)) {
         throw new AppError(
           'INVALID_TOOL_INPUT',
           `Tên miền '${host}' đã phân giải về địa chỉ IP nội bộ '${addr.address}' bị hạn chế (DNS Rebinding / SSRF Protection).`,

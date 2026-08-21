@@ -171,20 +171,6 @@ const defaultUsers = [
 
 // Lấy danh sách người dùng trong hệ thống
 
-// Test integration đã lưu của tenant hiện tại
-adminRouter.post('/integrations/:code/test', integrationTestRateLimiter, async (req, res, next) => {
-  try {
-    const user = await getCurrentUser(req);
-    if (!user || !user.tenantId) {
-      throw new AppError('UNAUTHORIZED', 'No tenant associated with user', 401);
-    }
-    const result = await IntegrationTestService.testSaved(user.tenantId, String(req.params.code), user.id);
-    res.json(result);
-  } catch (error) {
-    next(error);
-  }
-});
-
 // Test draft integration từ form (chưa lưu)
 adminRouter.post('/integrations/test', integrationTestRateLimiter, async (req, res, next) => {
   try {
@@ -197,6 +183,21 @@ adminRouter.post('/integrations/test', integrationTestRateLimiter, async (req, r
       await validateIntegrationUrlAsync(body.apiUrl);
     }
     const result = await IntegrationTestService.testDraft(user.tenantId, body, user.id);
+    res.json(result);
+  } catch (error) {
+    next(error);
+  }
+});
+
+
+  // Test integration đã lưu của tenant hiện tại
+adminRouter.post('/integrations/:code/test', integrationTestRateLimiter, async (req, res, next) => {
+  try {
+    const user = await getCurrentUser(req);
+    if (!user || !user.tenantId) {
+      throw new AppError('UNAUTHORIZED', 'No tenant associated with user', 401);
+    }
+    const result = await IntegrationTestService.testSaved(user.tenantId, String(req.params.code), user.id);
     res.json(result);
   } catch (error) {
     next(error);
