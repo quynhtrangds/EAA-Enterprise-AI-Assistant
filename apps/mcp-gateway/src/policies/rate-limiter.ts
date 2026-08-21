@@ -1,3 +1,4 @@
+﻿import rateLimit from 'express-rate-limit';
 import { AppError } from '../errors/app-error.js';
 
 interface RateLimitData {
@@ -5,19 +6,23 @@ interface RateLimitData {
   resetAt: number;
 }
 
+/**
+ * IP-based Rate Limiter cho các route xác thực /login và /auth/google
+ * Hạn mức: 10 requests / phút / IP
+ */
+export const loginIpRateLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 10,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: {
+    success: false,
+    errorCode: 'RATE_LIMIT_EXCEEDED',
+    message: 'Quá nhiều yêu cầu đăng nhập từ địa chỉ IP này. Vui lòng thử lại sau 1 phút.'
+  }
+});
+
 // Map key: `${userId}:${sessionId}:${toolName}`
-//
-// sessionId được đưa vào key vì luồng guest (POST /api/auth/guest) cấp token
-// cho một user_id CỐ ĐỊNH DÙNG CHUNG cho mọi khách vãng lai (xem
-// auth/auth-sessions.ts + route /auth/guest). Nếu chỉ khoá theo userId, toàn
-// bộ khách vãng lai trên hệ thống sẽ chia sẻ chung 1 hạn mức 20 req/phút cho
-// mỗi tool — một khách gọi nhiều sẽ khiến các khách khác bị chặn dù họ chưa
-// gọi request nào. Thêm sessionId (mỗi phiên chat/token là một sessionId
-// khác nhau) tách hạn mức ra theo từng phiên, không còn bị "goá lây" giữa các
-// guest. Đánh đổi: một user thật (không phải guest) mở nhiều tab/phiên cũng
-// sẽ có nhiều hạn mức riêng thay vì dùng chung 1 hạn mức theo userId — chấp
-// nhận được ở quy mô MVP vì rate-limit ở đây chỉ nhằm chống lạm dụng vô tình,
-// không phải hàng rào bảo mật chính.
 const rateLimitStore = new Map<string, RateLimitData>();
 
 const MAX_REQUESTS_PER_TOOL_PER_MINUTE = 20;
@@ -44,4 +49,46 @@ export function checkToolRateLimit(userId: string, toolName: string, sessionId?:
   }
 
   data.count += 1;
+}
+
+/**
+ * Rate Limiter theo Username trong bộ nhớ
+ * Hạn mức: 5 requests / phút / username
+ * Chặn đứng các đợt tấn công brute-force phân tán (nhiều IP nhắm vào 1 username)
+ */
+const loginUsernameRateLimitStore = new Map<string, RateLimitData>();
+const MAX_LOGIN_ATTEMPTS_PER_USERNAME_PER_MINUTE = 5;
+const LOGIN_USERNAME_WINDOW_MS = 60 * 1000;
+
+export function checkLoginRateLimit(username: string) {
+  if (!username) return;
+  const normalized = username.trim().toLowerCase();
+  const key = `login:${normalized}`;
+  const now = Date.now();
+  const data = loginUsernameRateLimitStore.get(key);
+
+  if (!data) {
+    loginUsernameRateLimitStore.set(key, { count: 1, resetAt: now + LOGIN_USERNAME_WINDOW_MS });
+    return;
+  }
+
+  if (now > data.resetAt) {
+    loginUsernameRateLimitStore.set(key, { count: 1, resetAt: now + LOGIN_USERNAME_WINDOW_MS });
+    return;
+  }
+
+  if (data.count >= MAX_LOGIN_ATTEMPTS_PER_USERNAME_PER_MINUTE) {
+    throw new AppError(
+      'RATE_LIMIT_EXCEEDED',
+      `Tài khoản "${username}" đang nhận quá nhiều yêu cầu đăng nhập liên tiếp. Vui lòng thử lại sau 1 phút.`,
+      429
+    );
+  }
+
+  data.count += 1;
+}
+
+export function resetLoginRateLimitForTesting() {
+  loginUsernameRateLimitStore.clear();
+  rateLimitStore.clear();
 }

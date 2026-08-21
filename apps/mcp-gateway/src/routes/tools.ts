@@ -12,7 +12,7 @@ import { AppError } from '../errors/app-error.js';
 import { canExecuteTool } from '../policies/tool-permissions.js';
 import { getToolConfig } from '../config/tools-config.js';
 import { mcpClientManager } from '../connectors/mcp-client-manager.js';
-import { checkToolRateLimit } from '../policies/rate-limiter.js';
+import { checkToolRateLimit, checkLoginRateLimit } from '../policies/rate-limiter.js';
 
 export const toolsRouter = Router();
 

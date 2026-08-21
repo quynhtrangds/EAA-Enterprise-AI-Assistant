@@ -1,4 +1,4 @@
-import cors from 'cors';
+﻿import cors from 'cors';
 import express from 'express';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
@@ -7,6 +7,7 @@ import { toolsRouter } from './routes/tools.js';
 import { mcpRouter } from './routes/mcp.js';
 import { adminRouter } from './routes/admin.js';
 import { env } from './config/env.js';
+import { loginIpRateLimiter } from './policies/rate-limiter.js';
 
 const apiRateLimiter = rateLimit({
   windowMs: 60 * 1000,
@@ -37,6 +38,11 @@ export function createApp(): express.Express {
     res.json({ status: 'ok', service: 'mcp-gateway' });
   });
 
+  // Dedicated strict rate-limit for authentication endpoints (IP-based)
+  app.use('/api/login', loginIpRateLimiter);
+  app.use('/api/auth/google', loginIpRateLimiter);
+
+  // General API rate-limit
   app.use('/api', apiRateLimiter);
   app.use('/api', mcpRouter);
   app.use('/api', toolsRouter);

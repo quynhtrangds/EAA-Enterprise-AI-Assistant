@@ -1,8 +1,8 @@
-﻿import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import request from 'supertest';
 
-// ─── Hoisted mocks ───────────────────────────────────────────────────────────
-const { query, getCurrentUser, verifyPassword, createAuthSession, mcpClientManager, canExecuteTool, writeAuditLog, VaultService } = vi.hoisted(() => ({
+// ── Hoisted mocks ───────────────────────────────────────────────────────────
+const mocks = vi.hoisted(() => ({
   query: vi.fn(),
   getCurrentUser: vi.fn(),
   verifyPassword: vi.fn(),
@@ -15,18 +15,28 @@ const { query, getCurrentUser, verifyPassword, createAuthSession, mcpClientManag
   },
   canExecuteTool: vi.fn(),
   writeAuditLog: vi.fn().mockResolvedValue(undefined),
-  VaultService: { readSecret: vi.fn() }
+  VaultService: { readSecret: vi.fn() },
+  checkToolRateLimit: vi.fn(),
+  checkLoginRateLimit: vi.fn(),
+  loginIpRateLimiter: (_req: any, _res: any, next: any) => next()
 }));
 
-vi.mock('../db/pool.js', () => ({ query }));
-vi.mock('../auth/current-user.js', () => ({ getCurrentUser, createToolContext: vi.fn() }));
-vi.mock('../auth/passwords.js', () => ({ verifyPassword }));
-vi.mock('../auth/auth-sessions.js', () => ({ createAuthSession }));
-vi.mock('../connectors/mcp-client-manager.js', () => ({ mcpClientManager }));
-vi.mock('../policies/tool-permissions.js', () => ({ canExecuteTool }));
-vi.mock('../audit/audit-log.js', () => ({ writeAuditLog }));
-vi.mock('../services/vault.js', () => ({ VaultService }));
-vi.mock('../policies/rate-limiter.js', () => ({ checkToolRateLimit: vi.fn().mockResolvedValue(undefined) }));
+vi.mock('../db/pool.js', () => ({ query: mocks.query }));
+vi.mock('../auth/current-user.js', () => ({ getCurrentUser: mocks.getCurrentUser, createToolContext: vi.fn() }));
+vi.mock('../auth/passwords.js', () => ({ verifyPassword: mocks.verifyPassword }));
+vi.mock('../auth/auth-sessions.js', () => ({ createAuthSession: mocks.createAuthSession }));
+vi.mock('../connectors/mcp-client-manager.js', () => ({ mcpClientManager: mocks.mcpClientManager }));
+vi.mock('../policies/tool-permissions.js', () => ({ canExecuteTool: mocks.canExecuteTool }));
+vi.mock('../audit/audit-log.js', () => ({ writeAuditLog: mocks.writeAuditLog }));
+vi.mock('../services/vault.js', () => ({ VaultService: mocks.VaultService }));
+vi.mock('../policies/rate-limiter.js', () => ({
+  checkToolRateLimit: mocks.checkToolRateLimit,
+  checkLoginRateLimit: mocks.checkLoginRateLimit,
+  loginIpRateLimiter: mocks.loginIpRateLimiter,
+  resetLoginRateLimitForTesting: vi.fn()
+}));
+
+const { query, getCurrentUser, verifyPassword, createAuthSession, mcpClientManager, canExecuteTool, writeAuditLog, VaultService, checkToolRateLimit, checkLoginRateLimit } = mocks;
 
 import { createApp } from '../app.js';
 import { AppError } from '../errors/app-error.js';

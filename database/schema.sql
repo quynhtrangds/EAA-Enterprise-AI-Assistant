@@ -94,6 +94,8 @@ CREATE TABLE IF NOT EXISTS users (
   display_name VARCHAR(255) NOT NULL,
   email VARCHAR(255),
   role VARCHAR(50) NOT NULL DEFAULT 'staff',
+    failed_login_attempts INT NOT NULL DEFAULT 0,
+    locked_until TIMESTAMPTZ DEFAULT NULL,
   status VARCHAR(50) NOT NULL DEFAULT 'active',
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   CONSTRAINT chk_users_status CHECK (status IN ('active', 'inactive', 'blocked'))
