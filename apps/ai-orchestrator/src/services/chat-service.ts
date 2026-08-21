@@ -85,6 +85,9 @@ export class ChatService {
   async chat(input: ChatInput): Promise<ChatOutput> {
     const gateway = new McpGatewayClient();
     try {
+      if (env.LLM_PROVIDER === 'mock') {
+        return await this.chatWithMock(input, gateway);
+      }
       return await this.chatWithLLM(input, gateway);
     } finally {
       await gateway.disconnect();
@@ -96,11 +99,37 @@ export class ChatService {
     const traces: ToolCallTrace[] = [];
 
     if (msg.includes('đơn hàng') || msg.includes('don hang') || msg.includes('orders') || msg.includes('nguyễn văn a') || msg.includes('nguyen van a')) {
+      // get_customer_orders yêu cầu customerId (UUID) bắt buộc — không nhận
+      // customerName. Phải tra cứu UUID qua search_customer trước, đúng
+      // luồng nghiệp vụ 2 bước mà 1 LLM thật cũng sẽ thực hiện.
+      const searchToolName = 'search_customer';
+      const searchArgs = { keyword: 'Nguyễn Văn A', limit: 1 };
+      const searchPlannedCall: PlannedToolCall = { toolName: searchToolName, arguments: searchArgs };
+      const searchResult = await gateway.callTool(input.authToken, input.sessionId, searchToolName, searchArgs);
+      traces.push(toTrace(searchPlannedCall, searchResult));
+
+      if (!searchResult.success) {
+        return {
+          sessionId: input.sessionId,
+          answer: VIEWER_PERMISSION_DENIED_MESSAGE,
+          toolCalls: traces
+        };
+      }
+
+      const foundCustomer = (searchResult.data as any)?.customers?.[0];
+      if (!foundCustomer?.customerId) {
+        return {
+          sessionId: input.sessionId,
+          answer: 'Không tìm thấy khách hàng Nguyễn Văn A trong hệ thống.',
+          toolCalls: traces
+        };
+      }
+
       const toolName = 'get_customer_orders';
       const toDate = today();
       const fromDate = ninetyDaysAgo();
       const toolArgs = {
-        customerName: 'Nguyễn Văn A',
+        customerId: foundCustomer.customerId,
         fromDate,
         toDate
       };
