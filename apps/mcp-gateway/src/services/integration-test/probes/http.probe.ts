@@ -11,7 +11,11 @@ export class HttpProbe implements ProbeStep {
   async run(ctx: ProbeContext): Promise<StepResult> {
     const started = Date.now();
     const reqSpec = ctx.strategy.buildTestRequest(ctx);
-    const targetUrl = `${ctx.apiUrl!.origin}${reqSpec.path}`;
+    // Giữ nguyên pathname của apiUrl để hỗ trợ deploy dưới subpath
+    // (vd https://host/gitea → request test vào https://host/gitea/api/v1/user),
+    // khớp với cách mcp-server con ghép baseUrl khi gọi thật.
+    const basePath = ctx.apiUrl!.pathname.replace(/\/+$/, '');
+    const targetUrl = `${ctx.apiUrl!.origin}${basePath}${reqSpec.path}`;
 
     try {
       const response = await fetch(targetUrl, {

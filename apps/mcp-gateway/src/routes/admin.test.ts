@@ -21,6 +21,15 @@ vi.mock('../auth/current-user.js', () => ({
   getCurrentUser
 }));
 
+vi.mock('../connectors/mcp-client-manager.js', () => ({
+  mcpClientManager: {
+    initialize: vi.fn().mockResolvedValue(undefined),
+    isConnected: vi.fn().mockReturnValue(true),
+    getConfiguredServerNames: vi.fn().mockReturnValue(['gitea', 'erpnext', 'zammad', 'crm', 'rag', 'postgres']),
+    ping: vi.fn().mockResolvedValue(true)
+  }
+}));
+
 import { createApp } from '../app.js';
 import { AppError } from '../errors/app-error.js';
 

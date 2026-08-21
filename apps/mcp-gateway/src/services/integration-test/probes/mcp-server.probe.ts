@@ -5,8 +5,10 @@ export class McpServerProbe implements ProbeStep {
   readonly name = 'mcp-server';
 
   appliesTo(ctx: ProbeContext): boolean {
-    // Applicable if the connector is managed as an MCP server
-    return mcpClientManager.isConnected(ctx.integrationCode);
+    // Áp dụng khi integration code thuộc danh sách MCP server đã khai báo trong
+    // connector.json — kể cả khi tiến trình chưa kết nối được (trường hợp đó
+    // run() phải báo MCP_SERVER_NOT_CONNECTED thay vì bỏ qua bước này).
+    return mcpClientManager.getConfiguredServerNames().includes(ctx.integrationCode);
   }
 
   async run(ctx: ProbeContext): Promise<StepResult> {

@@ -29,9 +29,13 @@ export interface IntegrationDraftInput {
 export class IntegrationTestService {
   static readonly TOTAL_TIMEOUT_MS = 15_000;
 
+  // Vault chạy TRƯỚC config: với test đã lưu, secret trong Vault là nguồn chính
+  // (vault-sync cấp creds cho MCP server từ Vault) — config sẽ dùng giá trị từ
+  // Vault, chỉ fallback ra api_url trong DB khi Vault không có. Với draft test,
+  // vault bị skip nên config vẫn là bước hiệu lực đầu tiên.
   private static readonly PROBES: ProbeStep[] = [
-    new ConfigProbe(),
     new VaultProbe(),
+    new ConfigProbe(),
     new McpServerProbe(),
     new DnsProbe(),
     new TcpProbe(),
@@ -68,7 +72,8 @@ export class IntegrationTestService {
       integrationCode,
       strategy,
       vaultPath: row.vault_path || undefined,
-      apiUrlString: row.api_url || undefined,
+      // api_url trong DB chỉ là fallback — VaultProbe sẽ ưu tiên giá trị apiUrl trong Vault
+      fallbackApiUrl: row.api_url || undefined,
       userId,
       isDraft: false
     });
@@ -96,6 +101,7 @@ export class IntegrationTestService {
     integrationCode: string;
     strategy: IntegrationTestStrategy;
     vaultPath?: string;
+    fallbackApiUrl?: string;
     apiUrlString?: string;
     apiKey?: string;
     userId: string;
@@ -119,6 +125,7 @@ export class IntegrationTestService {
       integrationCode: params.integrationCode,
       strategy: params.strategy,
       vaultPath: params.vaultPath,
+      fallbackApiUrl: params.fallbackApiUrl,
       apiUrl,
       apiKey: params.apiKey,
       signal: abortController.signal,

@@ -22,6 +22,10 @@ interface ConnectorManifest {
 export class McpClientManager {
   private clients: Map<string, Client> = new Map();
   public toolToServerMap: Map<string, string> = new Map();
+  // Danh sách server được khai báo trong connector.json — dùng cho Test Connection
+  // để phân biệt "connector thuộc loại MCP nhưng tiến trình chưa sống" với
+  // "integration code ngoài danh sách" (không áp dụng probe MCP server).
+  private configuredServers: Set<string> = new Set();
 
   constructor() {}
 
@@ -31,10 +35,11 @@ export class McpClientManager {
       const manifestStr = await fs.readFile(manifestPath, "utf-8");
       const manifest: ConnectorManifest = JSON.parse(manifestStr);
 
+      this.configuredServers = new Set(Object.keys(manifest.mcpServers));
       for (const [serverName, config] of Object.entries(manifest.mcpServers)) {
         await this.connectServer(serverName, config);
       }
-      
+
       console.log(`Initialized ${this.clients.size} MCP servers.`);
     } catch (error) {
       console.error("Failed to initialize MCP Client Manager:", error);
@@ -77,6 +82,18 @@ export class McpClientManager {
 
   isConnected(serverName: string): boolean {
     return this.clients.has(serverName);
+  }
+
+  /**
+   * Các MCP server được khai báo trong connector.json (kể cả khi chưa kết nối được).
+   * Test Connection dùng hàm này để quyết định bước mcp-server có áp dụng hay không —
+   * KHÔNG dùng isConnected, vì server chết thì bước test phải báo failed chứ không skipped.
+   */
+  getConfiguredServerNames(): string[] {
+    if (this.configuredServers.size > 0) {
+      return Array.from(this.configuredServers);
+    }
+    return ['gitea', 'erpnext', 'zammad', 'crm', 'rag', 'postgres'];
   }
 
   async ping(serverName: string, timeoutMs = 3000): Promise<boolean> {

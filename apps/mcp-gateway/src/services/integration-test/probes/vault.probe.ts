@@ -35,11 +35,16 @@ export class VaultProbe implements ProbeStep {
         };
       }
 
-      // Populate ctx if not already set
-      if (secret.apiUrl && !ctx.apiUrl) {
-        ctx.apiUrl = new URL(secret.apiUrl);
+      // Vault là nguồn chính cho luồng chạy thật (vault-sync cấp creds cho MCP server
+      // từ Vault) — nên giá trị trong Vault luôn ghi đè fallback từ DB.
+      if (secret.apiUrl) {
+        try {
+          ctx.apiUrl = new URL(secret.apiUrl);
+        } catch {
+          // apiUrl trong Vault sai định dạng — giữ nguyên giá trị cũ (fallback DB),
+        }
       }
-      if (secret.apiKey && !ctx.apiKey) {
+      if (secret.apiKey) {
         ctx.apiKey = secret.apiKey;
       }
 

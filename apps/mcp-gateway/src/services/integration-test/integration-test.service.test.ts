@@ -7,7 +7,8 @@ const mocks = vi.hoisted(() => {
     VaultService: { readSecret: vi.fn(), writeSecret: vi.fn() },
     mcpClientManager: {
       isConnected: vi.fn().mockReturnValue(true),
-      ping: vi.fn().mockResolvedValue(true)
+      ping: vi.fn().mockResolvedValue(true),
+      getConfiguredServerNames: vi.fn().mockReturnValue(['gitea', 'erpnext', 'zammad', 'crm', 'rag', 'postgres'])
     },
     dnsLookup: vi.fn().mockResolvedValue([{ address: '93.184.216.34', family: 4 }])
   };
@@ -69,6 +70,7 @@ describe('IntegrationTestService', () => {
     mocks.VaultService.readSecret.mockReset();
     mocks.mcpClientManager.isConnected.mockReturnValue(true);
     mocks.mcpClientManager.ping.mockResolvedValue(true);
+    mocks.mcpClientManager.getConfiguredServerNames.mockReturnValue(['gitea', 'erpnext', 'zammad', 'crm', 'rag', 'postgres']);
     mocks.dnsLookup.mockResolvedValue([{ address: '93.184.216.34', family: 4 }]);
   });
 

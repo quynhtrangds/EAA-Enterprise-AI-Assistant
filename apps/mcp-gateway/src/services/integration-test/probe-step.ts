@@ -21,6 +21,9 @@ export interface ProbeContext {
   apiUrl?: URL;
   apiKey?: string;
   vaultPath?: string;
+  // api_url lưu trong DB (tenant_integrations) — chỉ dùng khi Vault không có apiUrl,
+  // vì nguồn chính của luồng chạy thật là Vault (xem GET /integrations: secrets?.apiUrl || row.api_url)
+  fallbackApiUrl?: string;
   strategy: IntegrationTestStrategy;
   signal: AbortSignal;
   resolvedIp?: string;

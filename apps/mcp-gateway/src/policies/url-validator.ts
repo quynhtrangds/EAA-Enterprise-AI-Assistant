@@ -235,11 +235,16 @@ export async function validateIntegrationUrlAsync(rawUrl: string): Promise<strin
     return validated;
   }
 
+  // Nếu host thuộc danh sách whitelist nội bộ (vd: frontend, gitea...) -> Bỏ qua kiểm tra DNS Rebinding
+  if (isAllowedPrivateHost(host)) {
+    return validated;
+  }
+
   // Phân giải DNS để chống DNS Rebinding
   try {
     const addresses = await dns.promises.lookup(host, { all: true });
     for (const addr of addresses) {
-      if (!isAllowedPrivateHost(addr.address) && isPrivateOrRestrictedIP(addr.address)) {
+      if (isPrivateOrRestrictedIP(addr.address)) {
         throw new AppError(
           'INVALID_TOOL_INPUT',
           `Tên miền '${host}' đã phân giải về địa chỉ IP nội bộ '${addr.address}' bị hạn chế (DNS Rebinding / SSRF Protection).`,

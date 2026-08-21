@@ -10,6 +10,16 @@ export class ConfigProbe implements ProbeStep {
   async run(ctx: ProbeContext): Promise<StepResult> {
     const started = Date.now();
 
+    // Fallback: Vault không có apiUrl (hoặc vault bị skip) thì dùng api_url trong DB.
+    // Lưu ý bước vault chạy TRƯỚC config nên nếu Vault có giá trị thì ctx.apiUrl đã là của Vault.
+    if (ctx.strategy.kind === 'remote' && !ctx.apiUrl && ctx.fallbackApiUrl) {
+      try {
+        ctx.apiUrl = new URL(ctx.fallbackApiUrl);
+      } catch {
+        // fallbackApiUrl sai định dạng — coi như chưa có URL, báo lỗi bên dưới
+      }
+    }
+
     // Check apiUrl for remote strategies
     if (ctx.strategy.kind === 'remote' && !ctx.apiUrl) {
       return {
