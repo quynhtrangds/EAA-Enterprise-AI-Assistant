@@ -1,4 +1,5 @@
 ﻿import type { ProbeStep, ProbeContext, StepResult } from '../probe-step.js';
+import { isRemoteStrategy } from '../strategies/strategy.js';
 
 export class BusinessProbe implements ProbeStep {
   readonly name = 'business';
@@ -10,7 +11,9 @@ export class BusinessProbe implements ProbeStep {
   async run(ctx: ProbeContext): Promise<StepResult> {
     const started = Date.now();
 
-    if (ctx.strategy.kind === 'internal' && ctx.strategy.runInternalProbe) {
+    // Chế độ nội bộ (không gọi API ngoài) → chạy internal probe của strategy
+    // (kiểm tra MCP server còn sống). Chế độ remote → HTTP probe đã xác minh rồi.
+    if (!isRemoteStrategy(ctx.strategy, ctx) && ctx.strategy.runInternalProbe) {
       return await ctx.strategy.runInternalProbe(ctx);
     }
 

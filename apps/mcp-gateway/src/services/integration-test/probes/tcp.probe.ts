@@ -1,12 +1,13 @@
 ﻿import type { ProbeStep, ProbeContext, StepResult } from '../probe-step.js';
 import net from 'node:net';
 import { mapNetworkError } from '../errors.js';
+import { isRemoteStrategy } from '../strategies/strategy.js';
 
 export class TcpProbe implements ProbeStep {
   readonly name = 'tcp';
 
   appliesTo(ctx: ProbeContext): boolean {
-    return ctx.strategy.kind === 'remote' && Boolean(ctx.apiUrl);
+    return isRemoteStrategy(ctx.strategy, ctx) && Boolean(ctx.apiUrl);
   }
 
   async run(ctx: ProbeContext): Promise<StepResult> {

@@ -1,4 +1,5 @@
 ﻿import type { ProbeStep, ProbeContext, StepResult } from '../probe-step.js';
+import { isRemoteStrategy } from '../strategies/strategy.js';
 
 export class ConfigProbe implements ProbeStep {
   readonly name = 'config';
@@ -9,10 +10,11 @@ export class ConfigProbe implements ProbeStep {
 
   async run(ctx: ProbeContext): Promise<StepResult> {
     const started = Date.now();
+    const remote = isRemoteStrategy(ctx.strategy, ctx);
 
     // Fallback: Vault không có apiUrl (hoặc vault bị skip) thì dùng api_url trong DB.
     // Lưu ý bước vault chạy TRƯỚC config nên nếu Vault có giá trị thì ctx.apiUrl đã là của Vault.
-    if (ctx.strategy.kind === 'remote' && !ctx.apiUrl && ctx.fallbackApiUrl) {
+    if (remote && !ctx.apiUrl && ctx.fallbackApiUrl) {
       try {
         ctx.apiUrl = new URL(ctx.fallbackApiUrl);
       } catch {
@@ -21,7 +23,7 @@ export class ConfigProbe implements ProbeStep {
     }
 
     // Check apiUrl for remote strategies
-    if (ctx.strategy.kind === 'remote' && !ctx.apiUrl) {
+    if (remote && !ctx.apiUrl) {
       return {
         step: this.name,
         status: 'failed',
@@ -47,7 +49,7 @@ export class ConfigProbe implements ProbeStep {
         integrationCode: ctx.integrationCode,
         apiUrl: maskedUrl,
         apiKey: maskedKey,
-        kind: ctx.strategy.kind
+        mode: remote ? 'remote' : 'internal'
       }
     };
   }

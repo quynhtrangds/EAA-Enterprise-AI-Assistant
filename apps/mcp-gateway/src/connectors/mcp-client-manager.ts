@@ -3,6 +3,7 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
 import fs from "fs/promises";
+import fsSync from "node:fs";
 import { ListToolsResult } from "@modelcontextprotocol/sdk/types.js";
 import { MaskingService } from "../masking/masking-service.js";
 
@@ -85,15 +86,37 @@ export class McpClientManager {
   }
 
   /**
+   * Đọc connector.json đồng bộ (dùng khi initialize() chưa chạy, vd: gọi Test
+   * Connection trước khi gateway kịp khởi tạo). Kết quả được cache vào
+   * configuredServers nên chỉ đọc file tối đa một lần.
+   */
+  private readManifestSync(): ConnectorManifest | null {
+    try {
+      const manifestPath = resolve(__dirname, "../../connector.json");
+      const raw = fsSync.readFileSync(manifestPath, "utf-8");
+      return JSON.parse(raw) as ConnectorManifest;
+    } catch (error) {
+      console.warn("Không đọc được connector.json:", (error as Error).message);
+      return null;
+    }
+  }
+
+  /**
    * Các MCP server được khai báo trong connector.json (kể cả khi chưa kết nối được).
    * Test Connection dùng hàm này để quyết định bước mcp-server có áp dụng hay không —
    * KHÔNG dùng isConnected, vì server chết thì bước test phải báo failed chứ không skipped.
+   *
+   * Luôn lấy nguồn sự thật từ connector.json (không giữ danh sách cứng để tránh
+   * lệch nhau khi thêm connector mới).
    */
   getConfiguredServerNames(): string[] {
-    if (this.configuredServers.size > 0) {
-      return Array.from(this.configuredServers);
+    if (this.configuredServers.size === 0) {
+      const manifest = this.readManifestSync();
+      if (manifest?.mcpServers) {
+        this.configuredServers = new Set(Object.keys(manifest.mcpServers));
+      }
     }
-    return ['gitea', 'erpnext', 'zammad', 'crm', 'rag', 'postgres'];
+    return Array.from(this.configuredServers);
   }
 
   async ping(serverName: string, timeoutMs = 3000): Promise<boolean> {

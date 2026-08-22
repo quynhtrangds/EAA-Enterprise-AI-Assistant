@@ -16,12 +16,28 @@ export interface TestRequestSpec {
 
 export interface IntegrationTestStrategy {
   readonly code: string;
+  /** Loại mặc định. Connector lai (vd RAG) nên đặt 'internal' và override isRemote(). */
   readonly kind: 'remote' | 'internal';
   readonly defaultPort?: number;
+  /**
+   * Quyết định tại thời điểm chạy: connector có gọi API bên ngoài theo cấu hình
+   * hiện tại không? Dùng cho connector lai — vd CRM/RAG có apiUrl thì test như
+   * dịch vụ remote, không có thì chỉ kiểm tra MCP server nội bộ.
+   * Không override → suy ra từ kind.
+   */
+  isRemote?(ctx: ProbeContext): boolean;
   buildTestRequest(ctx: ProbeContext): TestRequestSpec;
   validateResponse(status: number, body: unknown): string | null;
   interpretAuthFailure(statusCode: number): ProbeError;
   runInternalProbe?(ctx: ProbeContext): Promise<StepResult>;
+}
+
+/**
+ * Nguồn sự thật duy nhất để probe quyết định có chạy các bước mạng hay không.
+ */
+export function isRemoteStrategy(strategy: IntegrationTestStrategy, ctx: ProbeContext): boolean {
+  if (strategy.isRemote) return strategy.isRemote(ctx);
+  return strategy.kind === 'remote';
 }
 
 const strategyRegistry = new Map<string, IntegrationTestStrategy>();

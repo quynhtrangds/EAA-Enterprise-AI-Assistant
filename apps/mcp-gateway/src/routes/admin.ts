@@ -62,7 +62,16 @@ adminRouter.get('/integrations', async (req, res, next) => {
       throw new AppError('UNAUTHORIZED', 'No tenant associated with user', 401);
     }
 
-    const result = await query<{ integration_code: string; is_active: boolean; vault_path: string; api_url: string; api_key: string }>(
+    const result = await query<{
+      integration_code: string;
+      is_active: boolean;
+      vault_path: string;
+      api_url: string;
+      api_key: string;
+      last_tested_at: string | null;
+      last_test_status: 'passed' | 'degraded' | 'failed' | null;
+      last_test_detail: unknown;
+    }>(
       `SELECT integration_code, is_active, vault_path, api_url, api_key, last_tested_at, last_test_status, last_test_detail FROM tenant_integrations WHERE tenant_id = $1`,
       [user.tenantId]
     );
@@ -80,7 +89,12 @@ adminRouter.get('/integrations', async (req, res, next) => {
           is_active: row.is_active,
           apiUrl: secrets?.apiUrl || row.api_url || '',
           apiKeyMasked: maskSecret(secrets?.apiKey || row.api_key),
-          hasApiKey: Boolean(secrets?.apiKey || row.api_key)
+          hasApiKey: Boolean(secrets?.apiKey || row.api_key),
+          // Kết quả test connection gần nhất — UI dùng để hiển thị chấm trạng thái
+          // (snake_case khớp với interface Integration ở chat-ui)
+          last_tested_at: row.last_tested_at ?? null,
+          last_test_status: row.last_test_status ?? null,
+          last_test_detail: row.last_test_detail ?? null
         };
       })
     );

@@ -1,12 +1,13 @@
 ﻿import type { ProbeStep, ProbeContext, StepResult } from '../probe-step.js';
 import dns from 'node:dns/promises';
 import { mapNetworkError } from '../errors.js';
+import { isRemoteStrategy } from '../strategies/strategy.js';
 
 export class DnsProbe implements ProbeStep {
   readonly name = 'dns';
 
   appliesTo(ctx: ProbeContext): boolean {
-    return ctx.strategy.kind === 'remote' && Boolean(ctx.apiUrl);
+    return isRemoteStrategy(ctx.strategy, ctx) && Boolean(ctx.apiUrl);
   }
 
   async run(ctx: ProbeContext): Promise<StepResult> {
