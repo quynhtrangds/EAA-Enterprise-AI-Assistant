@@ -22,8 +22,8 @@ services:
       - ./database/migrations/008_chat_sessions_tenant_and_star.sql:/docker-entrypoint-initdb.d/08_chat_sessions_tenant_and_star.sql:ro
       - ./database/migrations/009_add_users_role_column.sql:/docker-entrypoint-initdb.d/09_add_users_role_column.sql:ro
       - ./database/migrations/010_tenant_isolation_indexes.sql:/docker-entrypoint-initdb.d/10_tenant_isolation_indexes.sql:ro
-        - ./database/migrations/011_account_lockout.sql:/docker-entrypoint-initdb.d/11_account_lockout.sql:ro
-        - ./database/migrations/012_integration_test_status.sql:/docker-entrypoint-initdb.d/12_integration_test_status.sql:ro
+      - ./database/migrations/011_account_lockout.sql:/docker-entrypoint-initdb.d/11_account_lockout.sql:ro
+      - ./database/migrations/012_integration_test_status.sql:/docker-entrypoint-initdb.d/12_integration_test_status.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-enterprise_ai_demo}"]
       interval: 5s
@@ -48,13 +48,13 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       # QUAN TRỌNG: .env.example đặt VAULT_ADDR=http://127.0.0.1:8200 (đúng
       # cho chạy local ngoài Docker), nhưng bên TRONG container,
-      # localhost/127.0.0.1 trềEvềEchính container mcp-gateway, không phải
-      # container vault. Phải dùng tên service Docker "vault". Khai báo ềE
-      # đây (environment:) đềEoverride giá trềEsai từ env_file (.env), vì
+      # localhost/127.0.0.1 trỏ về chính container mcp-gateway, không phải
+      # container vault. Phải dùng tên service Docker "vault". Khai báo ở
+      # đây (environment:) để override giá trị sai từ env_file (.env), vì
       # Docker Compose ưu tiên environment: cao hơn env_file: khi trùng key.
       VAULT_ADDR: http://vault:8200
       VAULT_TOKEN: root
-        INTEGRATION_TEST_ALLOWED_PRIVATE_HOSTS: "*"
+      INTEGRATION_TEST_ALLOWED_PRIVATE_HOSTS: "*"
     ports:
       - "${MCP_GATEWAY_PORT:-8081}:8081"
     volumes:
