@@ -63,6 +63,13 @@ const stepLabels: Record<string, string> = {
   'business': '8. Xác thực dữ liệu nghiệp vụ'
 };
 
+// Lý do một bước bị bỏ qua — hiển thị rõ để admin không tưởng nhầm là lỗi
+// (vd: connector nội bộ không gọi API ngoài nên các bước mạng không áp dụng)
+const skipLabels: Record<string, string> = {
+  'not_applicable': 'Không áp dụng',
+  'previous_step_failed': 'Bỏ qua — bước trước lỗi'
+};
+
 const roleOptions = [
   { code: 'admin', label: 'Admin' },
   { code: 'manager', label: 'Quản lý' },
@@ -677,7 +684,7 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
                                     testResult.overallStatus === 'passed' ? 'bg-sage' : testResult.overallStatus === 'degraded' ? 'bg-amber-400' : 'bg-clay'
                                   }`} />
                                   <span className="text-xs font-bold text-ink-1">
-                                    Kết quả kiểm tra chuỗi Probe ({testResult.steps.filter(s => s.status === 'passed').length}/{testResult.steps.length} bước đạt)
+                                    Kết quả kiểm tra chuỗi Probe ({testResult.steps.filter(s => s.status === 'passed').length}/{testResult.steps.filter(s => s.status !== 'skipped').length} bước áp dụng đạt)
                                   </span>
                                 </div>
                                 <span className="text-[11px] font-mono text-ink-3">
@@ -706,7 +713,7 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
                                           </span>
                                         </div>
                                         <span className="text-[10px] font-mono text-ink-3">
-                                          {st.latencyMs !== undefined ? `${st.latencyMs}ms` : (st.skipReason ? 'Bỏ qua' : '')}
+                                          {st.latencyMs !== undefined ? `${st.latencyMs}ms` : (st.skipReason ? (skipLabels[st.skipReason] || 'Bỏ qua') : '')}
                                         </span>
                                       </div>
 

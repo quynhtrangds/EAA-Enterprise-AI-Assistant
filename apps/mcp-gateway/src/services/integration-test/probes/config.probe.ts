@@ -37,8 +37,9 @@ export class ConfigProbe implements ProbeStep {
     }
 
     const maskedUrl = ctx.apiUrl ? `${ctx.apiUrl.protocol}//${ctx.apiUrl.host}${ctx.apiUrl.pathname}` : 'N/A (Nội bộ)';
+    // Mask nhất quán với maskSecret phía admin route: chỉ hiện 4 ký tự cuối
     const maskedKey = ctx.apiKey
-      ? (ctx.apiKey.length > 8 ? `${ctx.apiKey.slice(0, 3)}****${ctx.apiKey.slice(-4)}` : '****')
+      ? (ctx.apiKey.length > 4 ? `****${ctx.apiKey.slice(-4)}` : '****')
       : 'Không có / Bỏ trống';
 
     return {
