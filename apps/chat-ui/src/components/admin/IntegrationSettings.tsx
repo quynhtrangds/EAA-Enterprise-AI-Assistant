@@ -77,7 +77,12 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
   const [integrations, setIntegrations] = useState<Integration[]>([]);
   const [loadingIntegrations, setLoadingIntegrations] = useState(true);
   const [selectedIntegration, setSelectedIntegration] = useState<string>('crm');
+  // apiKey = giá trị đang hiển thị trong ô nhập (ban đầu là dạng mask từ server,
+  // vd "****abcd"); savedApiKeyMask = mask của khóa đã lưu để phân biệt user có
+  // nhập khóa MỚI hay không. Secret thật không bao giờ được server trả về.
   const [apiKey, setApiKey] = useState('');
+  const [savedApiKeyMask, setSavedApiKeyMask] = useState('');
+  const [showApiKey, setShowApiKey] = useState(false);
   const [apiUrl, setApiUrl] = useState('');
   const [isActive, setIsActive] = useState(false);
   const [savingIntegration, setSavingIntegration] = useState(false);
@@ -129,6 +134,19 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
     fetchUsers();
   }, []);
 
+  // Đồng bộ form từ dữ liệu server: apiKey hiển thị dạng mask nếu đã có khóa lưu
+  const syncFormFromConfig = (config?: Integration) => {
+    setIsActive(Boolean(config?.is_active));
+    setApiUrl(config?.apiUrl || '');
+    const mask = config?.hasApiKey ? (config?.apiKeyMasked || '') : '';
+    setSavedApiKeyMask(mask);
+    setApiKey(mask);
+    setShowApiKey(false);
+  };
+
+  // Khóa MỚI user thực sự nhập (khác mask đang lưu) — chỉ gửi đi khi có giá trị này
+  const newApiKey = apiKey && apiKey !== savedApiKeyMask ? apiKey : '';
+
   const fetchIntegrations = async () => {
     try {
       const token = authToken || localStorage.getItem('auth_token');
@@ -140,13 +158,7 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
       setIntegrations(data.integrations || []);
 
       const current = data.integrations?.find((i: any) => i.integration_code === selectedIntegration);
-      if (current) {
-        setIsActive(Boolean(current.is_active));
-        setApiUrl(current.apiUrl || '');
-      } else {
-        setIsActive(false);
-        setApiUrl('');
-      }
+      syncFormFromConfig(current);
     } catch (err: any) {
       console.warn('Load integrations warning:', err.message);
     } finally {
@@ -177,25 +189,18 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
     setSelectedIntegration(code);
     setError(null);
     setSuccessMsg('');
-    setApiKey('');
     setTestResult(null);
 
     const existing = integrations.find(i => i.integration_code === code);
-    if (existing) {
-      setIsActive(Boolean(existing.is_active));
-      setApiUrl(existing.apiUrl || '');
-      if (existing.last_test_detail) {
-        setTestResult({
-          integrationCode: code,
-          overallStatus: existing.last_test_status || 'passed',
-          testedAt: existing.last_tested_at || new Date().toISOString(),
-          durationMs: 0,
-          steps: existing.last_test_detail
-        });
-      }
-    } else {
-      setIsActive(false);
-      setApiUrl('');
+    syncFormFromConfig(existing);
+    if (existing?.last_test_detail) {
+      setTestResult({
+        integrationCode: code,
+        overallStatus: existing.last_test_status || 'passed',
+        testedAt: existing.last_tested_at || new Date().toISOString(),
+        durationMs: 0,
+        steps: existing.last_test_detail
+      });
     }
   };
 
@@ -206,8 +211,12 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
 
     try {
       const token = authToken || localStorage.getItem('auth_token');
-      const isDraft = Boolean(apiKey || (apiUrl && apiUrl !== integrations.find(i => i.integration_code === selectedIntegration)?.apiUrl));
-      
+      const savedConfig = integrations.find(i => i.integration_code === selectedIntegration);
+      // Chỉ tính là draft khi user nhập THÔNG TIN MỚI (khóa khác mask đang lưu,
+      // hoặc URL khác URL đã lưu) — giá trị mask trong ô nhập không phải secret thật
+      const urlChanged = Boolean(apiUrl && apiUrl !== savedConfig?.apiUrl);
+      const isDraft = Boolean(newApiKey || urlChanged);
+
       let res: Response;
       if (isDraft) {
         res = await fetch('/api/admin/integrations/test', {
@@ -219,7 +228,7 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
           body: JSON.stringify({
             integrationCode: selectedIntegration,
             apiUrl: apiUrl || undefined,
-            apiKey: apiKey || undefined
+            apiKey: newApiKey || undefined
           })
         });
       } else {
@@ -271,7 +280,9 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
         },
         body: JSON.stringify({
           integrationCode: selectedIntegration,
-          apiKey,
+          // Chỉ gửi khóa khi user nhập khóa MỚI — mask hiển thị không phải secret thật,
+          // gửi đi sẽ ghi đè khóa đúng trong Vault
+          apiKey: newApiKey || undefined,
           apiUrl,
           isActive
         })
@@ -289,7 +300,8 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
       });
 
       setSuccessMsg(data.message || 'Đã lưu cấu hình thành công!');
-      setApiKey('');
+      // Tải lại để nhận mask mới (nếu vừa đổi khóa) và đồng bộ form
+      await fetchIntegrations();
     } catch (err: any) {
       setError(err.message || 'Đã xảy ra lỗi khi lưu cấu hình');
     } finally {
@@ -409,6 +421,17 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
   };
 
   const handleToggleActive = (checked: boolean) => {
+    // Xác nhận khi TẮT tích hợp — tránh admin vô tình gạt làm ngắt luồng chat
+    // đang dùng connector này. Bật lại thì không cần hỏi.
+    if (!checked) {
+      const name = availableIntegrations.find(i => i.code === selectedIntegration)?.name || selectedIntegration;
+      const ok = window.confirm(
+        `Bạn có muốn TẮT tích hợp "${name}" không?\n\n` +
+        'Các luồng trò chuyện sử dụng tích hợp này sẽ không gọi được tool cho đến khi bật lại. ' +
+        '(Nhớ bấm "Lưu cấu hình" để áp dụng.)'
+      );
+      if (!ok) return;
+    }
     setIsActive(checked);
     setIntegrations(prev => {
       const exists = prev.some(i => i.integration_code === selectedIntegration);
@@ -501,8 +524,15 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
                   </div>
                   {availableIntegrations.map((item) => {
                     const config = integrations.find(i => i.integration_code === item.code);
-                    
+
                     const isSelected = selectedIntegration === item.code;
+                    const testStatusText =
+                      config?.last_test_status === 'passed' ? 'Hoạt động bình thường (lần kiểm tra gần nhất đạt)'
+                      : config?.last_test_status === 'degraded' ? 'Kết nối được nhưng có cảnh báo'
+                      : config?.last_test_status === 'failed' ? 'Lần kiểm tra gần nhất THẤT BẠI'
+                      : 'Chưa kiểm tra kết nối';
+                    const statusTitle = testStatusText +
+                      (config?.last_tested_at ? ` — ${new Date(config.last_tested_at).toLocaleString('vi-VN')}` : '');
 
                     return (
                       <button
@@ -519,25 +549,16 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
                           {item.name}
                         </span>
 
-                        {/* Status Pill Badge - Fixed size */}
-                        <div className="shrink-0 flex items-center gap-1.5">
-                          {config?.last_test_status === 'passed' ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-sage/15 text-sage border border-sage/30" title="Kiểm tra kết nối gần nhất: Đạt">
-                              <span className="w-1.5 h-1.5 rounded-full bg-sage shrink-0" />
-                              Đã kết nối
-                            </span>
-                          ) : config?.last_test_status === 'failed' ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-clay/15 text-clay border border-clay/30" title="Kiểm tra kết nối gần nhất: Thất bại">
-                              <span className="w-1.5 h-1.5 rounded-full bg-clay shrink-0" />
-                              Lỗi kết nối
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-surface-raised text-ink-3 border border-hair" title="Chưa kiểm tra kết nối">
-                              <span className="w-1.5 h-1.5 rounded-full bg-ink-3 shrink-0" />
-                              Chưa test
-                            </span>
-                          )}
-                        </div>
+                        {/* Status Dot — chỉ chấm màu, di chuột xem chi tiết */}
+                        <span
+                          className={`shrink-0 w-2 h-2 rounded-full ${
+                            config?.last_test_status === 'passed' ? 'bg-sage'
+                            : config?.last_test_status === 'degraded' ? 'bg-amber-400'
+                            : config?.last_test_status === 'failed' ? 'bg-clay'
+                            : 'bg-ink-3/50'
+                          }`}
+                          title={statusTitle}
+                        />
                       </button>
                     );
                   })}
@@ -560,11 +581,8 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
                             <p className="text-xs text-ink-3 mt-1">Cấu hình thông tin kết nối và khóa API bảo mật</p>
                           </div>
 
-                          <div className="flex items-center gap-3.5 bg-surface-raised/80 border border-hair px-4 py-2 rounded-xl shrink-0">
-                            <span className={`text-xs font-semibold whitespace-nowrap ${isActive ? 'text-sage' : 'text-ink-3'}`}>
-                              {isActive ? 'Đang hoạt động' : 'Tạm tắt'}
-                            </span>
-                            <label className="relative inline-flex items-center cursor-pointer">
+                          <div className="flex items-center bg-surface-raised/80 border border-hair px-4 py-2 rounded-xl shrink-0">
+                            <label className="relative inline-flex items-center cursor-pointer" title={isActive ? 'Đang hoạt động — bấm để tắt' : 'Đang tắt — bấm để bật'}>
                               <input
                                 type="checkbox"
                                 className="sr-only peer"
@@ -590,13 +608,41 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
 
                           <div>
                             <label className="block text-xs font-semibold text-ink-2 mb-2">API Key / Token (Vault Security)</label>
-                            <input
-                              type="password"
-                              value={apiKey}
-                              onChange={(e) => setApiKey(e.target.value)}
-                              placeholder="Bỏ trống nếu không muốn thay đổi..."
-                              className="w-full bg-ink border border-hair rounded-xl px-4 py-3 text-ink-1 placeholder-ink-3 focus:outline-none focus:border-brass focus:ring-1 focus:ring-brass transition-all text-sm"
-                            />
+                            <div className="relative">
+                              <input
+                                type={showApiKey ? 'text' : 'password'}
+                                value={apiKey}
+                                onChange={(e) => setApiKey(e.target.value)}
+                                placeholder="Bỏ trống nếu không muốn thay đổi..."
+                                autoComplete="off"
+                                className="w-full bg-ink border border-hair rounded-xl pl-4 pr-11 py-3 text-ink-1 placeholder-ink-3 focus:outline-none focus:border-brass focus:ring-1 focus:ring-brass transition-all text-sm"
+                              />
+                              {apiKey && (
+                                <button
+                                  type="button"
+                                  onClick={() => setShowApiKey(s => !s)}
+                                  title={showApiKey ? 'Ẩn khóa' : 'Hiện khóa'}
+                                  className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-3 hover:text-brass transition-colors cursor-pointer"
+                                >
+                                  {showApiKey ? (
+                                    <svg className="w-4.5 h-4.5" width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                                    </svg>
+                                  ) : (
+                                    <svg className="w-4.5 h-4.5" width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                    </svg>
+                                  )}
+                                </button>
+                              )}
+                            </div>
+                            {savedApiKeyMask && (
+                              <p className="text-[11px] text-ink-3 mt-1.5 leading-relaxed">
+                                Khóa đã lưu dạng rút gọn — server không bao giờ trả secret thật.
+                                Chỉ nhập lại khi muốn thay đổi; xóa trắng ô này nghĩa là giữ nguyên khóa cũ.
+                              </p>
+                            )}
                           </div>
 
                           <p className="text-xs text-ink-3 flex items-center gap-1.5">
