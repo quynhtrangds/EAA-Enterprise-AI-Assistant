@@ -147,7 +147,7 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
   // Khóa MỚI user thực sự nhập (khác mask đang lưu) — chỉ gửi đi khi có giá trị này
   const newApiKey = apiKey && apiKey !== savedApiKeyMask ? apiKey : '';
 
-  const fetchIntegrations = async () => {
+  const fetchIntegrations = async (opts?: { keepForm?: boolean }) => {
     try {
       const token = authToken || localStorage.getItem('auth_token');
       const res = await fetch('/api/admin/integrations', {
@@ -157,8 +157,12 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
       const data = await res.json();
       setIntegrations(data.integrations || []);
 
-      const current = data.integrations?.find((i: any) => i.integration_code === selectedIntegration);
-      syncFormFromConfig(current);
+      // keepForm: chỉ cập nhật danh sách (chấm trạng thái), GIỮ NGUYÊN form đang
+      // nhập — dùng sau khi Test để không làm mất khóa mới người dùng vừa gõ.
+      if (!opts?.keepForm) {
+        const current = data.integrations?.find((i: any) => i.integration_code === selectedIntegration);
+        syncFormFromConfig(current);
+      }
     } catch (err: any) {
       console.warn('Load integrations warning:', err.message);
     } finally {
@@ -248,15 +252,21 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
       const data: TestConnectionResult = await res.json();
       setTestResult(data);
 
+      // Test dùng khóa mới người dùng vừa gõ nhưng KHÔNG tự lưu — nhắc rõ để
+      // tránh tưởng nhầm đã ghi vào Vault
+      const unsavedKeyHint = newApiKey
+        ? ' Lưu ý: khóa MỚI chưa được lưu vào Vault — bấm "Lưu cấu hình" để ghi.'
+        : '';
       if (data.overallStatus === 'passed') {
-        setSuccessMsg(`Kiểm tra kết nối "${selectedIntegration.toUpperCase()}" thành công toàn bộ các bước!`);
+        setSuccessMsg(`Kiểm tra kết nối "${selectedIntegration.toUpperCase()}" thành công toàn bộ các bước!${unsavedKeyHint}`);
       } else if (data.overallStatus === 'degraded') {
-        setSuccessMsg(`Kết nối "${selectedIntegration.toUpperCase()}" khả dụng nhưng có cảnh báo.`);
+        setSuccessMsg(`Kết nối "${selectedIntegration.toUpperCase()}" khả dụng nhưng có cảnh báo.${unsavedKeyHint}`);
       } else {
         setError(`Kiểm tra kết nối "${selectedIntegration.toUpperCase()}" thất bại. Vui lòng xem chi tiết từng bước bên dưới.`);
       }
 
-      await fetchIntegrations();
+      // Chỉ refresh chấm trạng thái, không đè form (giữ khóa mới đã gõ)
+      await fetchIntegrations({ keepForm: true });
     } catch (err: any) {
       setError(err.message || 'Đã xảy ra lỗi khi kiểm tra kết nối.');
     } finally {

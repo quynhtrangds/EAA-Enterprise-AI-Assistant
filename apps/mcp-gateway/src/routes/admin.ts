@@ -170,7 +170,14 @@ adminRouter.post('/integrations', async (req, res, next) => {
         apiKeyMasked: maskSecret(savedIntegration.api_key),
         hasApiKey: Boolean(savedIntegration.api_key)
       } : null,
-      message: (apiKey || apiUrl) ? 'Đã lưu cấu hình và thông tin kết nối vào Vault' : 'Đã cập nhật trạng thái tích hợp'
+      // Thông báo phải phản ánh đúng việc gì đã xảy ra: chỉ khi có apiKey khác
+      // rỗng thì khóa trong Vault mới được ghi — tránh tuyên bố "đã lưu vào
+      // Vault" khiến admin tưởng nhầm khóa mới đã được ghi
+      message: apiKey
+        ? 'Đã lưu cấu hình và API key mới vào Vault'
+        : apiUrl !== undefined
+        ? 'Đã lưu cấu hình (giữ nguyên API key hiện tại trong Vault)'
+        : 'Đã cập nhật trạng thái tích hợp'
     });
   } catch (error) {
     next(error);
