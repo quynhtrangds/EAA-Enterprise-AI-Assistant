@@ -13,6 +13,11 @@
 # ============================================================================
 set -eu
 
+# QUAN TRỌNG: Vault CLI mặc định gọi https://127.0.0.1:8200, trong khi
+# listener của ta tắt TLS (http). Không set này thì mọi lệnh status/init/
+# unseal trong script đều thất bại và vault kẹt ở trạng thái sealed.
+export VAULT_ADDR="http://127.0.0.1:8200"
+
 VAULT_DIR="/vault/data"
 CONFIG_FILE="/vault/config.hcl"
 KEY_FILE="$VAULT_DIR/init-keys.json"
