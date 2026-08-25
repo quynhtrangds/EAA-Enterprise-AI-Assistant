@@ -3,13 +3,16 @@
 # Vault persistent entrypoint — thay cho chế độ dev (secret nằm trên RAM).
 # Nhiệm vụ:
 #   1. Sinh config server thật với file storage (dữ liệu nằm trên volume)
-#   2. Khởi động server nền
+#   2. Khởi động server nền, đợi API phản hồi
 #   3. Lần đầu: tự `vault operator init`, LƯU unseal key + root token vào
 #      /vault/data/init-keys.json (nằm trên volume — hãy sao lưu file này!)
 #   4. Các lần sau: tự unseal bằng key đã lưu
 #   5. Đảm bảo mount KV v2 'secret/' tồn tại (dev mode có sẵn, server mode thì không)
 #   6. Tạo token có ID 'root' để mcp-gateway (VAULT_TOKEN=root) chạy tiếp
 #      không cần sửa .env
+#
+# LƯU Ý PARSE: `vault operator init -format=json` xuất JSON ĐA DÒNG (pretty)
+# nên tách bằng sed một-dòng là hỏng — dùng output plain text thay thế.
 # ============================================================================
 set -eu
 
@@ -35,13 +38,13 @@ ui = true
 disable_mlock = true
 EOF
 
-# --- 2. Chạy server nền và đợi sẵn sàng ---
+# --- 2. Chạy server nền và đợi API thực sự phản hồi ---
+# (grep '"initialized"' chỉ khớp khi server đã trả JSON — tránh break sớm
+#  do exit-code của `vault status` khi server chưa lên)
 vault server -config="$CONFIG_FILE" > /vault/server.log 2>&1 &
 
 i=0
-until vault status >/dev/null 2>&1; do
-  rc=$?
-  [ "$rc" -eq 2 ] && break   # server đã lên, đang sealed
+until vault status -format=json 2>/dev/null | grep -q '"initialized"'; do
   i=$((i + 1))
   if [ "$i" -gt 30 ]; then
     echo "FATAL: Vault server không phản hồi sau 30s — xem /vault/server.log"
@@ -51,31 +54,47 @@ until vault status >/dev/null 2>&1; do
   sleep 1
 done
 
-# --- 3/4. Init lần đầu hoặc unseal bằng key đã lưu ---
-if [ -f "$KEY_FILE" ]; then
-  UNSEAL_KEY=$(sed -n 's/.*"unseal_keys_b64": *\["\([^"]*\)".*/\1/p' "$KEY_FILE")
-  ROOT_TOKEN=$(sed -n 's/.*"root_token": *"\([^"]*\)".*/\1/p' "$KEY_FILE")
+STATUS_JSON=$(vault status -format=json 2>/dev/null || true)
+
+# --- 3/4. Lấy unseal key + root token: init mới hoặc đọc từ file đã lưu ---
+if printf '%s' "$STATUS_JSON" | grep -q '"initialized": false'; then
+  # Chưa init — dùng output PLAIN TEXT (dễ parse, không phụ thuộc định dạng JSON)
+  INIT_OUT=$(vault operator init -key-shares=1 -key-threshold=1)
+  UNSEAL_KEY=$(printf '%s\n' "$INIT_OUT" | sed -n 's/^Unseal Key 1: //p' | tr -d '\r')
+  ROOT_TOKEN=$(printf '%s\n' "$INIT_OUT" | sed -n 's/^Initial Root Token: //p' | tr -d '\r')
   if [ -z "$UNSEAL_KEY" ] || [ -z "$ROOT_TOKEN" ]; then
-    echo "FATAL: Vault đã khởi tạo nhưng file $KEY_FILE hỏng/thiếu trường."
-    echo "Không thể unseal mà không có key. Khôi phục từ bản sao lưu file này,"
-    echo "hoặc xóa volume vault_data để khởi tạo lại (MẤT TOÀN BỘ SECRET)."
+    echo "FATAL: không tách được unseal key/root token từ kết quả init:"
+    printf '%s\n' "$INIT_OUT"
     exit 1
   fi
-  vault operator unseal "$UNSEAL_KEY" >/dev/null
-  echo "[vault-entrypoint] Đã unseal bằng key lưu tại $KEY_FILE"
-else
-  INIT_JSON=$(vault operator init -key-shares=1 -key-threshold=1 -format=json)
-  UNSEAL_KEY=$(printf '%s' "$INIT_JSON" | sed -n 's/.*"unseal_keys_b64": *\["\([^"]*\)".*/\1/p')
-  ROOT_TOKEN=$(printf '%s' "$INIT_JSON" | sed -n 's/.*"root_token": *"\([^"]*\)".*/\1/p')
-  printf '{\n  "unseal_keys_b64": ["%s"],\n  "root_token": "%s"\n}\n' "$UNSEAL_KEY" "$ROOT_TOKEN" > "$KEY_FILE"
+  printf 'unseal_key=%s\nroot_token=%s\n' "$UNSEAL_KEY" "$ROOT_TOKEN" > "$KEY_FILE"
   chmod 600 "$KEY_FILE"
-  vault operator unseal "$UNSEAL_KEY" >/dev/null
   echo "==============================================================="
   echo "[vault-entrypoint] KHỞI TẠO LẦN ĐẦU — đã lưu key vào $KEY_FILE"
   echo "[vault-entrypoint] Root token: $ROOT_TOKEN"
   echo "[vault-entrypoint] QUAN TRỌNG: sao lưu file $KEY_FILE ra nơi an toàn"
   echo "[vault-entrypoint] (nó nằm trên volume, mất volume là mất key!)."
   echo "==============================================================="
+elif [ -f "$KEY_FILE" ]; then
+  UNSEAL_KEY=$(sed -n 's/^unseal_key=//p' "$KEY_FILE" | tr -d '\r')
+  ROOT_TOKEN=$(sed -n 's/^root_token=//p' "$KEY_FILE" | tr -d '\r')
+  if [ -z "$UNSEAL_KEY" ] || [ -z "$ROOT_TOKEN" ]; then
+    echo "FATAL: Vault đã khởi tạo nhưng file $KEY_FILE hỏng/thiếu trường."
+    echo "Không thể unseal mà không có key. Khôi phục từ bản sao lưu file này,"
+    echo "hoặc xóa volume vault_data để khởi tạo lại (MẤT TOÀN BỘ SECRET)."
+    exit 1
+  fi
+else
+  echo "FATAL: Vault đã khởi tạo nhưng không tìm thấy $KEY_FILE trên volume."
+  echo "Khôi phục file key từ bản sao lưu, hoặc xóa volume vault_data để"
+  echo "khởi tạo lại (MẤT TOÀN BỘ SECRET)."
+  exit 1
+fi
+
+# --- Unseal nếu còn sealed (sau init hoặc sau restart) ---
+if printf '%s' "$STATUS_JSON" | grep -q '"sealed": true'; then
+  vault operator unseal "$UNSEAL_KEY" >/dev/null
+  echo "[vault-entrypoint] Đã unseal"
 fi
 
 # Sau unseal mới có thể thao tác API — dùng root token vừa có
