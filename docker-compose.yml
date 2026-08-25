@@ -120,6 +120,11 @@ services:
   vault:
     image: hashicorp/vault:latest
     container_name: enterprise_ai_vault
+    # user: root — entrypoint custom thay thế docker-entrypoint.sh gốc của image
+    # (bộ phận chỉnh quyền /vault/data bị bỏ qua), volume cũ không thuộc quyền
+    # ghi của user vault (UID 100) nên init báo "mkdir permission denied".
+    # Root + disable_mlock=true là cấu hình hợp lệ cho môi trường nội bộ.
+    user: root
     entrypoint: ["sh", "/vault/scripts/entrypoint.sh"]
     ports:
       - "8200:8200"
