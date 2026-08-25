@@ -65,11 +65,11 @@ describe('routes/mcp.ts: authorizeAndPrepareToolRequest', () => {
     expect(readSecret).not.toHaveBeenCalled();
   });
 
-  it('ném PERMISSION_DENIED 400 nếu tích hợp đang bị TẮT trong DB', async () => {
+  it('chuyển sang _mockMode khi tích hợp đang bị TẮT trong DB (không còn chặn cứng)', async () => {
     query.mockResolvedValueOnce({ rows: [{ is_active: false }] });
-    await expect(
-      authorizeAndPrepareToolRequest(baseUser, { method: 'tools/call', params: { name: 'erpnext_get_invoice' } })
-    ).rejects.toMatchObject({ code: 'PERMISSION_DENIED', statusCode: 400 });
+    const request = { method: 'tools/call', params: { name: 'erpnext_get_invoice', arguments: {} } };
+    await authorizeAndPrepareToolRequest(baseUser, request);
+    expect(request.params.arguments).toMatchObject({ _mockMode: true });
     expect(readSecret).not.toHaveBeenCalled();
   });
 
@@ -86,15 +86,13 @@ describe('routes/mcp.ts: authorizeAndPrepareToolRequest', () => {
     });
   });
 
-  it('từ chối nếu Vault không có đủ URL và API key', async () => {
+  it('chuyển sang _mockMode nếu Vault chưa có đủ URL và API key', async () => {
     query.mockResolvedValueOnce({ rows: [{ is_active: true }] });
     readSecret.mockResolvedValue(null);
 
     const request = { method: 'tools/call', params: { name: 'erpnext_get_invoice', arguments: { a: 1 } } };
-    await expect(authorizeAndPrepareToolRequest(baseUser, request)).rejects.toMatchObject({
-      code: 'INTEGRATION_NOT_CONFIGURED',
-      statusCode: 400
-    });
+    await authorizeAndPrepareToolRequest(baseUser, request);
+    expect(request.params.arguments).toMatchObject({ a: 1, _mockMode: true });
   });
 
   it('không tra cứu tenant integration nếu user không có tenantId', async () => {

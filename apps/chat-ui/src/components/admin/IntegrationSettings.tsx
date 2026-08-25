@@ -444,8 +444,8 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
       const name = availableIntegrations.find(i => i.code === selectedIntegration)?.name || selectedIntegration;
       const ok = window.confirm(
         `Bạn có muốn TẮT tích hợp "${name}" không?\n\n` +
-        'Các luồng trò chuyện sử dụng tích hợp này sẽ không gọi được tool cho đến khi bật lại. ' +
-        '(Nhớ bấm "Lưu cấu hình" để áp dụng.)'
+        'Các tool liên quan sẽ chuyển sang trả DỮ LIỆU MẪU (mock) thay vì dữ liệu thật ' +
+        'cho đến khi bật lại. (Nhớ bấm "Lưu cấu hình" để áp dụng.)'
       );
       if (!ok) return;
     }

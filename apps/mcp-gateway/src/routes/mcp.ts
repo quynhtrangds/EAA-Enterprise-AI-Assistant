@@ -92,7 +92,11 @@ export async function prepareToolExecution(
     args._tenantId = user.tenantId;
   }
 
-  // 5. Inject _integrationCredentials từ Vault
+  // 5. Chọn chế độ dữ liệu theo trạng thái tích hợp của tenant:
+  //    - BẬT + đủ credentials trong Vault → inject _integrationCredentials (data thật)
+  //    - TẮT / chưa khai báo / chưa đủ credentials → _mockMode: true (MCP server
+  //      trả dữ liệu mẫu kèm nhãn _mock để báo người dùng đây không phải data thật).
+  //      Server không hỗ trợ mock sẽ tự báo lỗi "chưa cấu hình" như trước.
   const serverName = mcpClientManager.toolToServerMap.get(toolName);
   if (serverName && user.tenantId) {
     const activeRes = await query<{ is_active: boolean }>(
@@ -100,21 +104,20 @@ export async function prepareToolExecution(
       [user.tenantId, serverName]
     );
 
-    if (activeRes.rows.length > 0) {
-      if (activeRes.rows[0]?.is_active === false) {
-        throw new AppError('PERMISSION_DENIED', `Hệ thống tích hợp ${serverName.toUpperCase()} hiện đang bị TẮT trong Cấu hình Tích hợp. Vui lòng BẬT lại để sử dụng.`, 400);
-      }
+    const isActive = activeRes.rows.length > 0 && activeRes.rows[0]?.is_active === true;
 
+    if (isActive) {
       const vaultPath = `integrations/${user.tenantId}/${serverName}`;
       const secrets = await VaultService.readSecret(vaultPath);
-      if (!secrets?.apiKey || !secrets.apiUrl) {
-        throw new AppError('INTEGRATION_NOT_CONFIGURED', `Tích hợp ${serverName.toUpperCase()} chưa có đầy đủ API URL và API key trong Vault.`, 400);
+      if (secrets?.apiKey && secrets.apiUrl) {
+        await validateIntegrationUrlAsync(secrets.apiUrl);
+
+        args._integrationCredentials = { apiKey: secrets.apiKey, apiUrl: secrets.apiUrl };
+        return args;
       }
-
-      await validateIntegrationUrlAsync(secrets.apiUrl);
-
-      args._integrationCredentials = { apiKey: secrets.apiKey, apiUrl: secrets.apiUrl };
     }
+
+    args._mockMode = true;
   }
 
   return args;

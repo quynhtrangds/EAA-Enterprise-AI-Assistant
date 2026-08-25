@@ -398,15 +398,8 @@ toolsRouter.post('/tools/call', async (req, res, next) => {
     parsed = callToolSchema.parse(req.body);
 
     const targetServerName = mcpClientManager.toolToServerMap.get(parsed.toolName);
-    if (targetServerName && user.tenantId) {
-      const activeRes = await query<{ is_active: boolean }>(
-        `SELECT is_active FROM tenant_integrations WHERE tenant_id = $1 AND integration_code = $2`,
-        [user.tenantId, targetServerName]
-      );
-      if (activeRes.rows.length > 0 && activeRes.rows[0]?.is_active === false) {
-        throw new AppError('PERMISSION_DENIED', `Hệ thống tích hợp ${targetServerName.toUpperCase()} hiện đang bị TẮT trong Cấu hình Tích hợp. Vui lòng BẬT lại để sử dụng.`, 400);
-      }
-    }
+    // Lưu ý: tích hợp bị TẮT không còn chặn cứng ở đây — chế độ real/mock được
+    // quyết định tại khối inject credentials phía dưới (xem _mockMode).
 
     if (['get_customer_orders', 'get_revenue_summary', 'get_top_customers', 'get_product_sales_summary'].includes(parsed.toolName)) {
       const args = (parsed.arguments || {}) as any;
@@ -446,15 +439,30 @@ toolsRouter.post('/tools/call', async (req, res, next) => {
     }
 
     if (serverName && user.tenantId) {
-      const vaultPath = `integrations/${user.tenantId}/${serverName}`;
-      const secrets = await VaultService.readSecret(vaultPath);
-      if (!secrets?.apiKey || !secrets.apiUrl) {
-        throw new AppError('INTEGRATION_NOT_CONFIGURED', `Tích hợp ${serverName.toUpperCase()} chưa có đầy đủ API URL và API key trong Vault.`, 400);
+      // Chọn chế độ dữ liệu theo trạng thái tích hợp của tenant:
+      //   BẬT + đủ credentials trong Vault → inject _integrationCredentials (data thật)
+      //   TẮT / chưa khai báo / chưa đủ credentials → _mockMode: true (server trả
+      //   dữ liệu mẫu kèm nhãn _mock; server không hỗ trợ mock sẽ tự báo lỗi như cũ)
+      const activeRes = await query<{ is_active: boolean }>(
+        `SELECT is_active FROM tenant_integrations WHERE tenant_id = $1 AND integration_code = $2`,
+        [user.tenantId, serverName]
+      );
+      const isActive = activeRes.rows.length > 0 && activeRes.rows[0]?.is_active === true;
+
+      let credentials: { apiKey: string; apiUrl: string } | null = null;
+      if (isActive) {
+        const vaultPath = `integrations/${user.tenantId}/${serverName}`;
+        const secrets = await VaultService.readSecret(vaultPath);
+        if (secrets?.apiKey && secrets.apiUrl) {
+          credentials = { apiKey: secrets.apiKey, apiUrl: secrets.apiUrl };
+        }
       }
 
-      const finalCredentials = { apiKey: secrets.apiKey, apiUrl: secrets.apiUrl };
-
-      mergedArgs = { ...mergedArgs, _integrationCredentials: finalCredentials };
+      if (credentials) {
+        mergedArgs = { ...mergedArgs, _integrationCredentials: credentials };
+      } else {
+        (mergedArgs as any)._mockMode = true;
+      }
     }
     console.log(`[Tool Execution] toolName: ${parsed.toolName}, credentialsInjected: ${Boolean(serverName && user.tenantId)}`);
 

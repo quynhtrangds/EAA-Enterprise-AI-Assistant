@@ -5,6 +5,7 @@ import {
   CallToolRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
+import { buildMockCrmResponse } from "./mock-data.js";
 
 const server = new Server(
   {
@@ -69,8 +70,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const creds = rawArgs._integrationCredentials || {};
   const { apiKey, apiUrl } = creds;
 
-  if (!apiUrl) {
-    throw new Error("Chưa cấu hình Endpoint URL cho hệ thống CRM. Vui lòng vào Cấu hình Tích hợp để nhập URL.");
+  // CHẾ ĐỘ DỮ LIỆU MẪU: gateway truyền _mockMode khi tích hợp bị TẮT/chưa cấu
+  // hình — trả dữ liệu mẫu kèm nhãn _mock thay vì từ chối, để trợ lý AI vẫn
+  // hữu ích và người dùng biết rõ đây không phải dữ liệu thật.
+  if (rawArgs._mockMode === true || !apiUrl) {
+    return buildMockCrmResponse(toolName, rawArgs);
   }
 
   const baseUrl = apiUrl.endsWith('/') ? apiUrl.slice(0, -1) : apiUrl;

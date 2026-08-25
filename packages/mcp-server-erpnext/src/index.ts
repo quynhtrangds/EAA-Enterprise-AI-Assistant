@@ -88,6 +88,31 @@ function cleanBaseUrl(url: string): string {
   return clean;
 }
 
+// ============================================================================
+// Dữ liệu mẫu (mock) — dùng khi tích hợp ERPNext bị TẮT/chưa cấu hình
+// (gateway truyền _mockMode: true) hoặc khi API thật tạm thời lỗi.
+// Mọi phản hồi mock đều mang _mock: true + note để báo người dùng rõ.
+// ============================================================================
+const MOCK_ITEMS = [
+  { name: 'ITEM-001', item_name: 'Laptop Dell XPS 15', item_group: 'Thiết bị công nghệ', stock_uom: 'Cái', opening_stock: 45, actual_qty: 42, standard_rate: 32000000 },
+  { name: 'ITEM-002', item_name: 'Màn hình Dell UltraSharp 27 inch', item_group: 'Thiết bị công nghệ', stock_uom: 'Cái', opening_stock: 120, actual_qty: 115, standard_rate: 8500000 },
+  { name: 'ITEM-003', item_name: 'Bàn phím cơ Logitech MX Keys', item_group: 'Phụ kiện máy tính', stock_uom: 'Cái', opening_stock: 80, actual_qty: 78, standard_rate: 2800000 },
+  { name: 'ITEM-004', item_name: 'Chuột không dây MX Master 3S', item_group: 'Phụ kiện máy tính', stock_uom: 'Cái', opening_stock: 60, actual_qty: 55, standard_rate: 2400000 }
+];
+
+const MOCK_SALES_INVOICES = [
+  { maHoaDon: 'SINV-2026-001', doiTac: 'Công ty Cổ phần Công nghệ ABC', ngayGhiSo: '2026-08-01', hanThanhToan: '2026-08-15', tongTien: 45000000, donViTien: 'VND', trangThai: 'Đã thanh toán (Paid)' },
+  { maHoaDon: 'SINV-2026-002', doiTac: 'Tập đoàn Điện tử XYZ', ngayGhiSo: '2026-08-05', hanThanhToan: '2026-08-20', tongTien: 128000000, donViTien: 'VND', trangThai: 'Chưa thanh toán (Unpaid)' }
+];
+
+const MOCK_PURCHASE_INVOICES = [
+  { maHoaDon: 'PINV-2026-001', doiTac: 'Nhà cung cấp Linh kiện Toàn Cầu', ngayGhiSo: '2026-07-28', hanThanhToan: '2026-08-10', tongTien: 89000000, donViTien: 'VND', trangThai: 'Đã thanh toán (Paid)' }
+];
+
+const MOCK_UNCONFIGURED_NOTE =
+  'Đây là DỮ LIỆU MẪU (mock) — tích hợp ERPNext đang TẮT hoặc chưa được cấu hình. ' +
+  'Hãy bật và cấu hình tích hợp ERPNext trong màn "Kết nối Tích hợp" để tra cứu dữ liệu thật.';
+
 mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
   const toolName = request.params.name;
   const rawArgs = (request.params.arguments as any) || {};
@@ -97,8 +122,22 @@ mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
 
   if (toolName === 'get_inventory_status') {
     const keyword = (rawArgs.keyword as string || '').trim();
-    if (!apiUrl) {
-      throw new Error("Chưa cấu hình Endpoint URL cho hệ thống ERPNext. Vui lòng vào Cấu hình Tích hợp để nhập URL (ví dụ: https://erp.example.com).");
+    if (!apiUrl || rawArgs._mockMode === true) {
+      // Chế độ dữ liệu mẫu: tích hợp TẮT/chưa cấu hình (gateway truyền _mockMode)
+      const filtered = keyword
+        ? MOCK_ITEMS.filter(i => i.item_name.toLowerCase().includes(keyword.toLowerCase()) || i.name.toLowerCase().includes(keyword.toLowerCase()))
+        : MOCK_ITEMS;
+      return {
+        content: [{
+          type: 'text',
+          text: JSON.stringify({
+            total: filtered.length,
+            items: filtered,
+            _mock: true,
+            note: MOCK_UNCONFIGURED_NOTE
+          }, null, 2)
+        }]
+      };
     }
 
     const baseUrl = cleanBaseUrl(apiUrl);
@@ -155,13 +194,7 @@ mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
     } catch (err: any) {
       console.warn(`[MCP ERPNext Warning] Tải tồn kho từ ERPNext [${baseUrl}] thất bại (${err.message}). Chuyển sang dữ liệu mẫu fallback.`);
-      const mockItems = [
-        { name: 'ITEM-001', item_name: 'Laptop Dell XPS 15', item_group: 'Thiết bị công nghệ', stock_uom: 'Cái', opening_stock: 45, actual_qty: 42, standard_rate: 32000000 },
-        { name: 'ITEM-002', item_name: 'Màn hình Dell UltraSharp 27 inch', item_group: 'Thiết bị công nghệ', stock_uom: 'Cái', opening_stock: 120, actual_qty: 115, standard_rate: 8500000 },
-        { name: 'ITEM-003', item_name: 'Bàn phím cơ Logitech MX Keys', item_group: 'Phụ kiện máy tính', stock_uom: 'Cái', opening_stock: 80, actual_qty: 78, standard_rate: 2800000 },
-        { name: 'ITEM-004', item_name: 'Chuột không dây MX Master 3S', item_group: 'Phụ kiện máy tính', stock_uom: 'Cái', opening_stock: 60, actual_qty: 55, standard_rate: 2400000 }
-      ];
-      const filtered = keyword ? mockItems.filter(i => i.item_name.toLowerCase().includes(keyword.toLowerCase()) || i.name.toLowerCase().includes(keyword.toLowerCase())) : mockItems;
+      const filtered = keyword ? MOCK_ITEMS.filter(i => i.item_name.toLowerCase().includes(keyword.toLowerCase()) || i.name.toLowerCase().includes(keyword.toLowerCase())) : MOCK_ITEMS;
       return {
         content: [
           {
@@ -169,6 +202,7 @@ mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
             text: JSON.stringify({
               total: filtered.length,
               items: filtered,
+              _mock: true,
               note: `Thông báo: Kết nối tới máy chủ ERPNext [${baseUrl}] tạm thời gặp sự cố (${err.message}). Dưới đây là dữ liệu tồn kho hệ thống phục vụ kiểm thử.`
             }, null, 2)
           }
@@ -193,8 +227,21 @@ mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
     const statusFilter = (rawArgs.status as string || '').trim();
     const limit = Math.min(Math.max(Number(rawArgs.limit) || 20, 1), 100);
 
-    if (!apiUrl) {
-      throw new Error("Chưa cấu hình Endpoint URL cho hệ thống ERPNext.");
+    if (!apiUrl || rawArgs._mockMode === true) {
+      // Chế độ dữ liệu mẫu: tích hợp TẮT/chưa cấu hình (gateway truyền _mockMode)
+      const mockInvoices = isSales ? MOCK_SALES_INVOICES : MOCK_PURCHASE_INVOICES;
+      return {
+        content: [{
+          type: 'text',
+          text: JSON.stringify({
+            loaiHoaDon: isSales ? 'Hóa đơn bán hàng' : 'Hóa đơn mua hàng',
+            tongSo: mockInvoices.length,
+            danhSachHoaDon: mockInvoices,
+            _mock: true,
+            note: MOCK_UNCONFIGURED_NOTE
+          }, null, 2)
+        }]
+      };
     }
 
     const baseUrl = cleanBaseUrl(apiUrl);
@@ -256,12 +303,7 @@ mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
       };
     } catch (err: any) {
       console.warn(`[MCP ERPNext Warning] Lỗi tải hóa đơn từ ERPNext (${err.message}), dùng dữ liệu mẫu fallback.`);
-      const mockInvoices = isSales ? [
-        { maHoaDon: 'SINV-2026-001', doiTac: 'Công ty Cổ phần Công nghệ ABC', ngayGhiSo: '2026-08-01', hanThanhToan: '2026-08-15', tongTien: 45000000, donViTien: 'VND', trangThai: 'Đã thanh toán (Paid)' },
-        { maHoaDon: 'SINV-2026-002', doiTac: 'Tập đoàn Điện tử XYZ', ngayGhiSo: '2026-08-05', hanThanhToan: '2026-08-20', tongTien: 128000000, donViTien: 'VND', trangThai: 'Chưa thanh toán (Unpaid)' }
-      ] : [
-        { maHoaDon: 'PINV-2026-001', doiTac: 'Nhà cung cấp Linh kiện Toàn Cầu', ngayGhiSo: '2026-07-28', hanThanhToan: '2026-08-10', tongTien: 89000000, donViTien: 'VND', trangThai: 'Đã thanh toán (Paid)' }
-      ];
+      const mockInvoices = isSales ? MOCK_SALES_INVOICES : MOCK_PURCHASE_INVOICES;
       return {
         content: [
           {
@@ -270,6 +312,7 @@ mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
               loaiHoaDon: isSales ? 'Hóa đơn bán hàng' : 'Hóa đơn mua hàng',
               tongSo: mockInvoices.length,
               danhSachHoaDon: mockInvoices,
+              _mock: true,
               note: `Thông báo: Máy chủ ERPNext tạm thời gặp sự cố kết nối (${err.message}). Dưới đây là danh sách hóa đơn mẫu phục vụ kiểm thử.`
             }, null, 2)
           }
