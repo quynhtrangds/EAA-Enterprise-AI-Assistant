@@ -24,6 +24,8 @@ services:
       - ./database/migrations/010_tenant_isolation_indexes.sql:/docker-entrypoint-initdb.d/10_tenant_isolation_indexes.sql:ro
       - ./database/migrations/011_account_lockout.sql:/docker-entrypoint-initdb.d/11_account_lockout.sql:ro
       - ./database/migrations/012_integration_test_status.sql:/docker-entrypoint-initdb.d/12_integration_test_status.sql:ro
+      # Thư mục backup trên máy host — scripts/backup-postgres.ps1 ghi vào đây
+      - ./database/backups:/backup
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-enterprise_ai_demo}"]
       interval: 5s
@@ -110,16 +112,20 @@ services:
     depends_on:
       - ai-orchestrator
 
+  # Vault SERVER MODE (không còn dev mode): secret lưu file trên volume,
+  # sống sót qua restart/rebuild container. scripts/vault-entrypoint.sh tự
+  # init lần đầu, tự unseal sau mỗi lần restart, và tự tạo token ID 'root'
+  # để mcp-gateway (VAULT_TOKEN=root) chạy tiếp không cần sửa .env.
+  # File key nằm ở /vault/data/init-keys.json trên volume — HÃY SAO LƯU.
   vault:
     image: hashicorp/vault:latest
     container_name: enterprise_ai_vault
-    environment:
-      VAULT_DEV_ROOT_TOKEN_ID: root
-      VAULT_DEV_LISTEN_ADDRESS: 0.0.0.0:8200
+    entrypoint: ["sh", "/vault/scripts/entrypoint.sh"]
     ports:
       - "8200:8200"
     volumes:
       - vault_data:/vault/data
+      - ./scripts/vault-entrypoint.sh:/vault/scripts/entrypoint.sh:ro
     restart: unless-stopped
     cap_add:
       - IPC_LOCK

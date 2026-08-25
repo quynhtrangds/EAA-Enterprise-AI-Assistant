@@ -48,3 +48,7 @@ test-results/
 
 .postman/
 postman/
+
+# Backup artifacts (vault export, postgres dump)
+database/backups/*.sql
+apps/mcp-gateway/backups/
