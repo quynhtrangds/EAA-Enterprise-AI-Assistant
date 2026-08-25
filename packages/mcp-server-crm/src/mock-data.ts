@@ -89,9 +89,9 @@ const MOCK_NOTE =
   'Hãy bật và cấu hình tích hợp CRM trong màn "Kết nối Tích hợp" để tra cứu dữ liệu thật.';
 
 export function buildMockCrmResponse(toolName: string, rawArgs: any) {
-  // crm_get_customer_status: lọc theo keyword trên toàn bộ trường (bao gồm địa chỉ)
+  // crm_get_customer_status: lọc theo keyword/address trên toàn bộ trường
   if (toolName === 'crm_get_customer_status') {
-    const keyword = String(rawArgs?.keyword || '').trim().toLowerCase();
+    const keyword = String(rawArgs?.address || rawArgs?.keyword || '').trim().toLowerCase();
     const contacts = keyword
       ? MOCK_CONTACTS.filter(c => JSON.stringify(c).toLowerCase().includes(keyword))
       : MOCK_CONTACTS;

@@ -20,7 +20,8 @@ const server = new Server(
 );
 
 const getCustomerStatusInput = z.object({
-  keyword: z.string().optional().describe("Mã hoặc tên khách hàng/lead cần tìm kiếm")
+  keyword: z.string().optional().describe("Mã hoặc tên khách hàng/lead cần tìm kiếm"),
+  address: z.string().optional().describe("Địa chỉ cần tra cứu (đường, thành phố...). Hãy DÙNG tham số này khi người dùng tìm khách hàng THEO ĐỊA CHỈ — hệ thống sẽ tìm trong sổ địa chỉ ERPNext và trả về khách hàng liên kết.")
 });
 
 const getOpportunitiesInput = z.object({
@@ -32,7 +33,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
     tools: [
       {
         name: "crm_get_customer_status",
-        description: "Lấy danh sách khách hàng (Customer) và tiềm năng (Lead) từ hệ thống CRM.",
+        description: "Lấy danh sách khách hàng (Customer) và tiềm năng (Lead) từ hệ thống CRM. Hỗ trợ tìm theo `keyword` (tên/mã) hoặc theo `address` (địa chỉ — tra trong sổ địa chỉ ERPNext và trả về khách hàng liên kết).",
         inputSchema: {
           type: "object",
           properties: getCustomerStatusInput.shape,
@@ -64,6 +65,74 @@ export function getAuthHeaders(apiKey?: string): Record<string, string> {
   return headers;
 }
 
+/**
+ * Tra cứu khách hàng THEO ĐỊA CHỈ.
+ * Trong ERPNext, địa chỉ nằm ở doctype Address riêng, liên kết tới Customer
+ * qua Dynamic Link — nên luồng là: tìm Address khớp → đọc links → map ngược
+ * về Customer. Các phần của địa chỉ (phân tách bởi dấu phẩy) được tìm OR trên
+ * address_line1/city để khớp cả khi người dùng nhập đầy đủ lẫn một phần.
+ */
+async function searchCustomersByAddress(addressQuery: string, headers: Record<string, string>, baseUrl: string) {
+  const parts = addressQuery.split(',').map(s => s.trim()).filter(s => s.length >= 3);
+  const searchParts = parts.length ? parts : [addressQuery.trim()];
+  const orFilters = searchParts.flatMap(p => [
+    ['address_line1', 'like', `%${p}%`],
+    ['city', 'like', `%${p}%`]
+  ]);
+
+  const addrFields = JSON.stringify(["name", "address_title", "address_line1", "city", "address_type"]);
+  const linkFilter = JSON.stringify([["Dynamic Link", "link_doctype", "=", "Customer"]]);
+  const addrUrl = `${baseUrl}/api/resource/Address?fields=${encodeURIComponent(addrFields)}`
+    + `&filters=${encodeURIComponent(linkFilter)}`
+    + `&or_filters=${encodeURIComponent(JSON.stringify(orFilters))}`
+    + `&limit_page_length=20`;
+
+  const addrResp = await fetch(addrUrl, { headers });
+  if (!addrResp.ok) {
+    throw new Error(`CRM API Error [${addrResp.status}]: ${await addrResp.text()}`);
+  }
+  const addrData = await addrResp.json();
+  const addresses: any[] = addrData.data || [];
+
+  // Map ngược Address → Customer (giới hạn 10 địa chỉ để tránh gọi quá nhiều)
+  const contacts: any[] = [];
+  for (const addr of addresses.slice(0, 10)) {
+    const docResp = await fetch(`${baseUrl}/api/resource/Address/${encodeURIComponent(addr.name)}`, { headers });
+    if (!docResp.ok) continue;
+    const doc = await docResp.json();
+    const customerLinks = (doc.data?.links || []).filter((l: any) => l.link_doctype === 'Customer');
+    for (const link of customerLinks) {
+      let customerName = link.link_name;
+      let customerGroup: string | undefined;
+      let territory: string | undefined;
+      const custResp = await fetch(
+        `${baseUrl}/api/resource/Customer/${encodeURIComponent(link.link_name)}?fields=${encodeURIComponent(JSON.stringify(["customer_name", "customer_group", "territory"]))}`,
+        { headers }
+      );
+      if (custResp.ok) {
+        const cust = (await custResp.json())?.data;
+        if (cust?.customer_name) customerName = cust.customer_name;
+        customerGroup = cust?.customer_group;
+        territory = cust?.territory;
+      }
+      contacts.push({
+        type: 'Customer',
+        id: link.link_name,
+        name: customerName,
+        customer_group: customerGroup,
+        territory,
+        matched_address: {
+          address_type: addr.address_type,
+          address_line1: addr.address_line1,
+          city: addr.city
+        }
+      });
+    }
+  }
+
+  return { total: contacts.length, contacts, searched_address: addressQuery };
+}
+
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const toolName = request.params.name;
   const rawArgs = (request.params.arguments as any) || {};
@@ -83,6 +152,14 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   if (toolName === "crm_get_customer_status") {
     const args = getCustomerStatusInput.parse(rawArgs);
     const keyword = args.keyword?.trim() || "";
+
+    // Ưu tiên tra cứu theo địa chỉ nếu người dùng cung cấp
+    if (args.address && args.address.trim()) {
+      const result = await searchCustomersByAddress(args.address.trim(), headers, baseUrl);
+      return {
+        content: [{ type: "text", text: JSON.stringify(result, null, 2) }]
+      };
+    }
 
     try {
       // Try Frappe/ERPNext CRM API
