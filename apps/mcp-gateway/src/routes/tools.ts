@@ -11,6 +11,7 @@ import { VaultService } from '../services/vault.js';
 import { AppError } from '../errors/app-error.js';
 import { canExecuteTool } from '../policies/tool-permissions.js';
 import { getToolConfig } from '../config/tools-config.js';
+import { getActiveIntegrationCodes, isSupersededDemoTool } from '../config/demo-tools.js';
 import { mcpClientManager } from '../connectors/mcp-client-manager.js';
 import { checkToolRateLimit, checkLoginRateLimit } from '../policies/rate-limiter.js';
 
@@ -355,6 +356,8 @@ toolsRouter.get('/tools', async (req, res, next) => {
     const mcpToolsResult = await mcpClientManager.listTools();
     const allTools = mcpToolsResult.tools;
     const visibleTools = [];
+    // Các integration đang BẬT — dùng để ẩn tool demo bị tích hợp thật thay thế
+    const activeCodes = user.tenantId ? await getActiveIntegrationCodes(user.tenantId) : new Set<string>();
 
     for (const tool of allTools) {
       const config = getToolConfig(tool.name);
@@ -369,6 +372,11 @@ toolsRouter.get('/tools', async (req, res, next) => {
         if (activeRes.rows.length > 0 && activeRes.rows[0]?.is_active === false) {
           isPermitted = false;
         }
+      }
+
+      // Tool demo (đọc DB nội bộ) bị tích hợp thật đang bật thay thế → không cho phép
+      if (isPermitted && isSupersededDemoTool(tool.name, activeCodes)) {
+        isPermitted = false;
       }
 
       visibleTools.push({

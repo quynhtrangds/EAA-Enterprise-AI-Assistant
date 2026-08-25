@@ -12,6 +12,7 @@ import { writeAuditLog } from '../audit/audit-log.js';
 import { VaultService } from '../services/vault.js';
 import { validateIntegrationUrl, validateIntegrationUrlAsync } from '../policies/url-validator.js';
 import { query } from '../db/pool.js';
+import { getActiveIntegrationCodes, isSupersededDemoTool } from '../config/demo-tools.js';
 import type { CurrentUser } from '../auth/current-user.js';
 
 export const mcpRouter = Router();
@@ -133,8 +134,11 @@ mcpServer.setRequestHandler(ListToolsRequestSchema, async (request, extra) => {
   }
 
   const permittedTools = [];
+  // Ẩn tool demo đã bị tích hợp thật thay thế (vd: CRM bật thì ẩn search_customer
+  // đọc DB demo) — để mỗi miền dữ liệu chỉ còn một nguồn trả lời cho AI
+  const activeCodes = user.tenantId ? await getActiveIntegrationCodes(user.tenantId) : new Set<string>();
   for (const tool of result.tools) {
-    if (await canExecuteTool(user.roles, tool.name)) {
+    if (await canExecuteTool(user.roles, tool.name) && !isSupersededDemoTool(tool.name, activeCodes)) {
       permittedTools.push(tool);
     }
   }
