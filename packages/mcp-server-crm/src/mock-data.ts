@@ -25,14 +25,14 @@ const MOCK_CONTACTS: MockContact[] = [
   {
     type: 'Customer',
     id: 'CRM-CUST-0001',
-    name: 'Palmer Productions Ltd.',
+    name: 'Demo Productions Ltd.',
     customer_group: 'Doanh nghiệp',
-    territory: 'Alaska',
-    email: 'contact@palmer.example.com',
-    phone: '+1-907-555-0100',
+    territory: 'Sample City',
+    email: 'contact@demoproductions.example.com',
+    phone: '+1-555-010-0000',
     status: 'Active',
-    address_line1: '100 Anthem Street',
-    city: 'Alaska'
+    address_line1: '100 Example Street',
+    city: 'Sample City'
   },
   {
     type: 'Customer',
@@ -79,9 +79,9 @@ const MOCK_CONTACTS: MockContact[] = [
 ];
 
 const MOCK_OPPORTUNITIES = [
-  { id: 'CRM-OPP-0001', party_name: 'Palmer Productions Ltd.', type: 'Customer', status: 'Open', amount: 150000000, currency: 'VND' },
-  { id: 'CRM-OPP-0002', party_name: 'Trần Mỹ Linh', type: 'Lead', status: 'Quotation', amount: 42000000, currency: 'VND' },
-  { id: 'CRM-OPP-0003', party_name: 'Công ty TNHH An Phát', type: 'Customer', status: 'Converted', amount: 88000000, currency: 'VND' }
+  { id: 'CRM-OPP-0001', party_name: 'Demo Productions Ltd.', type: 'Customer', status: 'Open', amount: 150000000, currency: 'VND' },
+  { id: 'CRM-OPP-0002', party_name: 'Trần Mỹ Linh (mẫu)', type: 'Lead', status: 'Quotation', amount: 42000000, currency: 'VND' },
+  { id: 'CRM-OPP-0003', party_name: 'Công ty TNHH An Phát (mẫu)', type: 'Customer', status: 'Converted', amount: 88000000, currency: 'VND' }
 ];
 
 const MOCK_NOTE =
