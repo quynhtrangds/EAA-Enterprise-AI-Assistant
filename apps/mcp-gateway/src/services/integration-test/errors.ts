@@ -27,6 +27,19 @@ export function mapNetworkError(stepName: string, error: unknown, latencyMs: num
     };
   }
 
+  if (sysCode === 'EAI_AGAIN') {
+    return {
+      step: stepName,
+      status: 'failed',
+      latencyMs,
+      error: {
+        code: 'DNS_FAILURE',
+        message: `DNS tạm thời không phân giải được hostname: ${err.hostname || message}`,
+        hint: 'Hostname thường không tồn tại trong mạng Docker của container này (hai stack khác mạng?) — nối mạng qua override file (vd docker-compose.frappe.yml) hoặc trỏ URL qua host.docker.internal:<port-đã-publish>. Cũng có thể DNS đang tạm thời quá tải — thử lại sau.'
+      }
+    };
+  }
+
   if (sysCode === 'ECONNREFUSED') {
     return {
       step: stepName,
