@@ -156,6 +156,9 @@ services:
       # nên mapping cũ trỏ vào hư không. Team dùng HTTPS + token là đủ.
     volumes:
       - gitea_data:/var/lib/gitea
+      # Image rootless lưu app.ini tại /etc/gitea — phải gắn volume riêng,
+      # nếu không mỗi lần dựng lại container là mất cấu hình (rơi về màn setup)
+      - gitea_config:/etc/gitea
     depends_on:
       postgres:
         condition: service_healthy
@@ -167,3 +170,5 @@ volumes:
     name: enterprise_ai_vault_data
   gitea_data:
     name: enterprise_ai_gitea_data
+  gitea_config:
+    name: enterprise_ai_gitea_config
