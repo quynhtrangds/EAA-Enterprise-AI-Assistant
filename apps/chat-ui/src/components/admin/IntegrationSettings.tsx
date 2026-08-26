@@ -147,12 +147,18 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState('');
 
-  const availableIntegrations = [
+  // Danh mục gốc. Ngoài ra mọi mã tích hợp đang tồn tại trong DB (vd rag, n8n,
+  // postgres được thêm qua API) sẽ được hợp nhất động vào danh sách hiển thị
+  // để đều quản lý được từ UI — thay vì chỉ hiện 4 mục cứng.
+  const baseIntegrations = [
     { code: 'crm', name: 'CRM (Salesforce / HubSpot)' },
     { code: 'erpnext', name: 'ERPNext' },
     { code: 'zammad', name: 'Zammad Helpdesk' },
-    { code: 'gitea', name: 'Gitea Code Server' }
+    { code: 'gitea', name: 'Gitea Code Server' },
+    { code: 'rag', name: 'RAG — Tra cứu tài liệu nội bộ' },
+    { code: 'postgres', name: 'Database nghiệp vụ (nội bộ)' }
   ];
+  const [integrationCatalog, setIntegrationCatalog] = useState(baseIntegrations);
 
   useEffect(() => {
     fetchIntegrations();
@@ -182,6 +188,16 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
       if (!res.ok) throw new Error('Không thể tải cấu hình kết nối');
       const data = await res.json();
       setIntegrations(data.integrations || []);
+
+      // Hợp nhất danh mục: mọi mã tích hợp tồn tại trong DB nhưng chưa có trong
+      // danh mục gốc (vd n8n thêm qua API) được bổ sung để hiển thị + quản lý được
+      const known = new Set(baseIntegrations.map(a => a.code));
+      const extras = (data.integrations || [])
+        .filter((i: any) => !known.has(i.integration_code))
+        .map((i: any) => ({ code: i.integration_code, name: i.integration_code.toUpperCase() }));
+      if (extras.length > 0) {
+        setIntegrationCatalog([...baseIntegrations, ...extras]);
+      }
 
       // keepForm: chỉ cập nhật danh sách (chấm trạng thái), GIỮ NGUYÊN form đang
       // nhập — dùng sau khi Test để không làm mất khóa mới người dùng vừa gõ.
@@ -474,7 +490,7 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
     // Xác nhận khi TẮT tích hợp — tránh admin vô tình gạt làm ngắt luồng chat
     // đang dùng connector này. Bật lại thì không cần hỏi.
     if (!checked) {
-      const name = availableIntegrations.find(i => i.code === selectedIntegration)?.name || selectedIntegration;
+      const name = integrationCatalog.find(i => i.code === selectedIntegration)?.name || selectedIntegration;
       const ok = window.confirm(
         `Bạn có muốn TẮT tích hợp "${name}" không?\n\n` +
         'Các tool liên quan sẽ chuyển sang trả DỮ LIỆU MẪU (mock) thay vì dữ liệu thật ' +
@@ -623,9 +639,9 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
                 <div className="w-[280px] shrink-0 border-r border-hair pr-6 space-y-2.5">
                   <div className="flex items-center justify-between px-1 mb-3">
                     <p className="text-[11px] font-bold uppercase tracking-wider text-ink-3">Hệ thống Doanh nghiệp</p>
-                    <span className="text-[10px] text-ink-3 font-mono">4 dịch vụ</span>
+                    <span className="text-[10px] text-ink-3 font-mono">{integrationCatalog.length} dịch vụ</span>
                   </div>
-                  {availableIntegrations.map((item) => {
+                  {integrationCatalog.map((item) => {
                     const config = integrations.find(i => i.integration_code === item.code);
 
                     const isSelected = selectedIntegration === item.code;
@@ -679,7 +695,7 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
                         <div className="flex items-center justify-between pb-4 border-b border-hair">
                           <div>
                             <h3 className="text-lg font-bold text-ink-1 leading-tight">
-                              {availableIntegrations.find(i => i.code === selectedIntegration)?.name}
+                              {integrationCatalog.find(i => i.code === selectedIntegration)?.name}
                             </h3>
                             <p className="text-xs text-ink-3 mt-1">Cấu hình thông tin kết nối và khóa API bảo mật</p>
                           </div>
