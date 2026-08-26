@@ -46,8 +46,15 @@ export class IntegrationTestService {
 
   /**
    * Test saved integration for a tenant
+   * @param opts.skipAudit true → không ghi audit log cho lần test này
+   *        (dùng cho health-check tự động — kết quả nằm trong integration_health_events)
    */
-  static async testSaved(tenantId: string, integrationCode: string, userId: string): Promise<IntegrationTestResult> {
+  static async testSaved(
+    tenantId: string,
+    integrationCode: string,
+    userId: string,
+    opts?: { skipAudit?: boolean }
+  ): Promise<IntegrationTestResult> {
     const res = await query<{
       id: string;
       tenant_id: string;
@@ -75,6 +82,7 @@ export class IntegrationTestService {
       // api_url trong DB chỉ là fallback — VaultProbe sẽ ưu tiên giá trị apiUrl trong Vault
       fallbackApiUrl: row.api_url || undefined,
       userId,
+      skipAudit: opts?.skipAudit ?? false,
       isDraft: false
     });
   }
@@ -105,6 +113,7 @@ export class IntegrationTestService {
     apiUrlString?: string;
     apiKey?: string;
     userId: string;
+    skipAudit?: boolean;
     isDraft: boolean;
   }): Promise<IntegrationTestResult> {
     const started = Date.now();
@@ -183,7 +192,7 @@ export class IntegrationTestService {
 
     // Persist result and write audit log for saved tests
     if (!params.isDraft) {
-      await Promise.allSettled([
+      const tasks: Promise<unknown>[] = [
         query(
           `UPDATE tenant_integrations
            SET last_tested_at = NOW(),
@@ -191,25 +200,31 @@ export class IntegrationTestService {
                last_test_detail = $2
            WHERE tenant_id = $3 AND integration_code = $4`,
           [overallStatus, JSON.stringify(steps), params.tenantId, params.integrationCode]
-        ),
-        writeAuditLog({
-          userId: params.userId,
-          sessionId: null,
-          toolName: `integration:test:${params.integrationCode}`,
-          input: {
-            integrationCode: params.integrationCode,
-            isDraft: false
-          },
-          output: {
-            overallStatus,
-            durationMs,
-            failedStep: steps.find((s) => s.status === 'failed')?.step
-          },
-          status: overallStatus === 'failed' ? 'failed' : 'success',
-          errorMessage: steps.find((s) => s.status === 'failed')?.error?.message || null,
-          durationMs
-        })
-      ]);
+        )
+      ];
+      // Health-check tự động bỏ audit (kết quả nằm trong integration_health_events)
+      if (!params.skipAudit) {
+        tasks.push(
+          writeAuditLog({
+            userId: params.userId,
+            sessionId: null,
+            toolName: `integration:test:${params.integrationCode}`,
+            input: {
+              integrationCode: params.integrationCode,
+              isDraft: false
+            },
+            output: {
+              overallStatus,
+              durationMs,
+              failedStep: steps.find((s) => s.status === 'failed')?.step
+            },
+            status: overallStatus === 'failed' ? 'failed' : 'success',
+            errorMessage: steps.find((s) => s.status === 'failed')?.error?.message || null,
+            durationMs
+          })
+        );
+      }
+      await Promise.allSettled(tasks);
     } else {
       // For draft tests, write audit log only
       try {

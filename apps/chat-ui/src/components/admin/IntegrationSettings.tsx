@@ -46,6 +46,21 @@ interface IntegrationSettingsProps {
   onClose: () => void;
 }
 
+interface HealthEventRow {
+  integration_code: string;
+  event_type: string;   // baseline | incident_start | recovered | still_failing | status_change
+  from_status: string | null;
+  to_status: string;
+  failed_step: string | null;
+  error_code: string | null;
+  created_at: string;
+}
+
+interface HealthOverview {
+  health: { integration_code: string; last_test_status: string | null; last_tested_at: string | null }[];
+  recent_events: HealthEventRow[];
+}
+
 const defaultUsers: User[] = [
   { id: '10000000-0000-0000-0000-000000000001', username: 'admin', display_name: 'Quản trị viên', email: 'admin@company.com', role: 'admin', created_at: new Date().toISOString() },
   { id: '10000000-0000-0000-0000-000000000002', username: 'manager', display_name: 'Quản lý', email: 'manager@company.com', role: 'manager', created_at: new Date().toISOString() },
@@ -98,6 +113,9 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
   const [testingConnection, setTestingConnection] = useState(false);
   const [testResult, setTestResult] = useState<TestConnectionResult | null>(null);
 
+  // Health-check overview (panel tình trạng hệ thống)
+  const [healthOverview, setHealthOverview] = useState<HealthOverview | null>(null);
+
   // Users State
   const [users, setUsers] = useState<User[]>(defaultUsers);
   const [loadingUsers, setLoadingUsers] = useState(false);
@@ -139,6 +157,7 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
   useEffect(() => {
     fetchIntegrations();
     fetchUsers();
+    fetchHealthOverview();
   }, []);
 
   // Đồng bộ form từ dữ liệu server: apiKey hiển thị dạng mask nếu đã có khóa lưu
@@ -174,6 +193,19 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
       console.warn('Load integrations warning:', err.message);
     } finally {
       setLoadingIntegrations(false);
+    }
+  };
+
+  const fetchHealthOverview = async () => {
+    try {
+      const token = authToken || localStorage.getItem('auth_token');
+      const res = await fetch('/api/admin/integrations/health', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!res.ok) return;
+      setHealthOverview(await res.json());
+    } catch {
+      // Panel phụ — lỗi thì bỏ qua im lặng
     }
   };
 
@@ -274,6 +306,7 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
 
       // Chỉ refresh chấm trạng thái, không đè form (giữ khóa mới đã gõ)
       await fetchIntegrations({ keepForm: true });
+      fetchHealthOverview();
     } catch (err: any) {
       setError(err.message || 'Đã xảy ra lỗi khi kiểm tra kết nối.');
     } finally {
@@ -527,6 +560,59 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
               <div className="mb-6">
                 {error && <div className="p-3.5 bg-clay/10 border border-clay/25 text-clay rounded-xl text-sm font-medium">{error}</div>}
                 {successMsg && <div className="p-3.5 bg-brass/10 border border-brass/25 text-brass rounded-xl text-sm font-medium">{successMsg}</div>}
+              </div>
+            )}
+
+            {/* Health-check overview — quét tự động mỗi chu kỳ, chỉ hiện ở tab tích hợp */}
+            {activeTab === 'integrations' && healthOverview && healthOverview.health.length > 0 && (
+              <div className="mb-6 p-3.5 bg-surface-raised/40 border border-hair rounded-xl">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-ink-3 mb-2.5">
+                  Tình trạng hệ thống · health-check tự động mỗi 10 phút
+                </p>
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {healthOverview.health.map((h) => (
+                    <span
+                      key={h.integration_code}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-surface border border-hair text-[11px] text-ink-2"
+                      title={h.last_tested_at ? `Kiểm tra lúc ${new Date(h.last_tested_at).toLocaleString('vi-VN')}` : 'Chưa có kết quả quét'}
+                    >
+                      <span className={`w-1.5 h-1.5 rounded-full ${
+                        h.last_test_status === 'passed' ? 'bg-sage'
+                        : h.last_test_status === 'degraded' ? 'bg-amber-400'
+                        : h.last_test_status === 'failed' ? 'bg-clay'
+                        : 'bg-ink-3/50'
+                      }`} />
+                      <span className="font-mono">{h.integration_code}</span>
+                      {h.last_tested_at && (
+                        <span className="text-ink-3">· {new Date(h.last_tested_at).toLocaleTimeString('vi-VN')}</span>
+                      )}
+                    </span>
+                  ))}
+                </div>
+                {healthOverview.recent_events.length > 0 && (
+                  <div className="space-y-1 max-h-24 overflow-y-auto pr-1">
+                    {healthOverview.recent_events.slice(0, 8).map((ev, i) => (
+                      <div key={i} className="text-[11px] text-ink-3 flex items-center gap-2">
+                        <span className={ev.event_type === 'incident_start' ? 'text-clay' : ev.event_type === 'recovered' ? 'text-sage' : ''}>
+                          {ev.event_type === 'incident_start' ? '🔴' : ev.event_type === 'recovered' ? '🟢' : '·'}
+                        </span>
+                        <span className="font-mono">{ev.integration_code}</span>
+                        <span>
+                          {ev.event_type === 'incident_start'
+                            ? `sự cố (${ev.to_status})${ev.failed_step ? ` — fail tại ${ev.failed_step}` : ''}`
+                            : ev.event_type === 'recovered'
+                            ? 'hồi phục'
+                            : ev.event_type === 'still_failing'
+                            ? 'vẫn đang sự cố'
+                            : ev.event_type === 'baseline'
+                            ? 'quan sát đầu tiên'
+                            : `đổi trạng thái → ${ev.to_status}`}
+                        </span>
+                        <span className="ml-auto whitespace-nowrap">{new Date(ev.created_at).toLocaleString('vi-VN')}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 

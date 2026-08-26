@@ -13,7 +13,9 @@ const EnvSchema = z.object({
   GOOGLE_CLIENT_ID: z.string().optional(),
   CORS_ORIGINS: z.string().default('http://localhost:3000'),
   VAULT_ADDR: z.string().default('http://vault:8200'),
-  VAULT_TOKEN: z.string().default('root')
+  VAULT_TOKEN: z.string().default('root'),
+  // Health-check tự động: chu kỳ quét theo phút, 0 = tắt hẳn
+  HEALTH_CHECK_INTERVAL_MINUTES: z.coerce.number().int().min(0).default(10)
 });
 
 export const env = EnvSchema.parse(process.env);

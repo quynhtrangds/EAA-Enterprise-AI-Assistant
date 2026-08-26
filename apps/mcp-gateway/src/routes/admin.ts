@@ -192,6 +192,49 @@ const defaultUsers = [
 
 // Lấy danh sách người dùng trong hệ thống
 
+// Tổng quan tình trạng các tích hợp đang bật + sự cố gần đây (cho panel health-check)
+adminRouter.get('/integrations/health', async (req, res, next) => {
+  try {
+    const user = await getCurrentUser(req);
+    if (!user || !user.tenantId) {
+      throw new AppError('UNAUTHORIZED', 'No tenant associated with user', 401);
+    }
+
+    const statusRes = await query<{
+      integration_code: string;
+      last_test_status: 'passed' | 'degraded' | 'failed' | null;
+      last_tested_at: string | null;
+    }>(
+      `SELECT integration_code, last_test_status, last_tested_at
+       FROM tenant_integrations
+       WHERE tenant_id = $1 AND is_active = true
+       ORDER BY integration_code`,
+      [user.tenantId]
+    );
+
+    const eventsRes = await query<{
+      integration_code: string;
+      event_type: string;
+      from_status: string | null;
+      to_status: string;
+      failed_step: string | null;
+      error_code: string | null;
+      created_at: string;
+    }>(
+      `SELECT integration_code, event_type, from_status, to_status, failed_step, error_code, created_at
+       FROM integration_health_events
+       WHERE tenant_id = $1
+       ORDER BY created_at DESC
+       LIMIT 20`,
+      [user.tenantId]
+    );
+
+    res.json({ health: statusRes.rows, recent_events: eventsRes.rows });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // Test draft integration từ form (chưa lưu)
 adminRouter.post('/integrations/test', integrationTestRateLimiter, async (req, res, next) => {
   try {
