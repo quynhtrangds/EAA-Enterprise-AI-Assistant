@@ -1,5 +1,6 @@
 ﻿import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
+import { SystemHealthSettings } from './SystemHealthSettings';
 
 export interface ProbeStepResult {
   step: string;
@@ -46,21 +47,6 @@ interface IntegrationSettingsProps {
   onClose: () => void;
 }
 
-interface HealthEventRow {
-  integration_code: string;
-  event_type: string;   // baseline | incident_start | recovered | still_failing | status_change
-  from_status: string | null;
-  to_status: string;
-  failed_step: string | null;
-  error_code: string | null;
-  created_at: string;
-}
-
-interface HealthOverview {
-  health: { integration_code: string; last_test_status: string | null; last_tested_at: string | null }[];
-  recent_events: HealthEventRow[];
-}
-
 const defaultUsers: User[] = [
   { id: '10000000-0000-0000-0000-000000000001', username: 'admin', display_name: 'Quản trị viên', email: 'admin@company.com', role: 'admin', created_at: new Date().toISOString() },
   { id: '10000000-0000-0000-0000-000000000002', username: 'manager', display_name: 'Quản lý', email: 'manager@company.com', role: 'manager', created_at: new Date().toISOString() },
@@ -93,7 +79,7 @@ const roleOptions = [
 
 export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
   const { authToken, currentUser } = useAuth();
-  const [activeTab, setActiveTab] = useState<'integrations' | 'users'>('integrations');
+  const [activeTab, setActiveTab] = useState<'integrations' | 'health' | 'users'>('integrations');
 
   // Integrations State
   const [integrations, setIntegrations] = useState<Integration[]>([]);
@@ -112,9 +98,6 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
   // Test Connection State
   const [testingConnection, setTestingConnection] = useState(false);
   const [testResult, setTestResult] = useState<TestConnectionResult | null>(null);
-
-  // Health-check overview (panel tình trạng hệ thống)
-  const [healthOverview, setHealthOverview] = useState<HealthOverview | null>(null);
 
   // Users State
   const [users, setUsers] = useState<User[]>(defaultUsers);
@@ -163,7 +146,6 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
   useEffect(() => {
     fetchIntegrations();
     fetchUsers();
-    fetchHealthOverview();
   }, []);
 
   // Đồng bộ form từ dữ liệu server: apiKey hiển thị dạng mask nếu đã có khóa lưu
@@ -209,19 +191,6 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
       console.warn('Load integrations warning:', err.message);
     } finally {
       setLoadingIntegrations(false);
-    }
-  };
-
-  const fetchHealthOverview = async () => {
-    try {
-      const token = authToken || localStorage.getItem('auth_token');
-      const res = await fetch('/api/admin/integrations/health', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (!res.ok) return;
-      setHealthOverview(await res.json());
-    } catch {
-      // Panel phụ — lỗi thì bỏ qua im lặng
     }
   };
 
@@ -322,7 +291,6 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
 
       // Chỉ refresh chấm trạng thái, không đè form (giữ khóa mới đã gõ)
       await fetchIntegrations({ keepForm: true });
-      fetchHealthOverview();
     } catch (err: any) {
       setError(err.message || 'Đã xảy ra lỗi khi kiểm tra kết nối.');
     } finally {
@@ -545,6 +513,19 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
               </button>
 
               <button
+                onClick={() => { setActiveTab('health'); setError(null); setSuccessMsg(''); }}
+                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all text-left cursor-pointer ${activeTab === 'health'
+                  ? 'bg-surface-raised text-ink-1 font-semibold'
+                  : 'text-ink-2 hover:text-ink-1 hover:bg-surface-raised/60'
+                  }`}
+              >
+                <svg className="w-4 h-4 text-brass" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 12h4l3-8 4 16 3-8h4" />
+                </svg>
+                <span>Tình trạng Hệ thống</span>
+              </button>
+
+              <button
                 onClick={() => { setActiveTab('users'); setError(null); setSuccessMsg(''); }}
                 className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all text-left cursor-pointer ${activeTab === 'users'
                   ? 'bg-surface-raised text-ink-1 font-semibold'
@@ -568,7 +549,7 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
         <div className="flex-1 bg-surface p-8 overflow-y-auto flex flex-col justify-between">
           <div>
             <h2 className="text-xl font-bold text-ink-1 mb-6">
-              {activeTab === 'integrations' ? 'Kết nối Tích hợp' : 'Phân quyền'}
+              {activeTab === 'integrations' ? 'Kết nối Tích hợp' : activeTab === 'health' ? 'Tình trạng Hệ thống' : 'Phân quyền'}
             </h2>
 
             {/* Global Error/Success Messages */}
@@ -579,58 +560,7 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
               </div>
             )}
 
-            {/* Health-check overview — quét tự động mỗi chu kỳ, chỉ hiện ở tab tích hợp */}
-            {activeTab === 'integrations' && healthOverview && healthOverview.health.length > 0 && (
-              <div className="mb-6 p-3.5 bg-surface-raised/40 border border-hair rounded-xl">
-                <p className="text-[11px] font-bold uppercase tracking-wider text-ink-3 mb-2.5">
-                  Tình trạng hệ thống · health-check tự động mỗi 10 phút
-                </p>
-                <div className="flex flex-wrap gap-2 mb-3">
-                  {healthOverview.health.map((h) => (
-                    <span
-                      key={h.integration_code}
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-surface border border-hair text-[11px] text-ink-2"
-                      title={h.last_tested_at ? `Kiểm tra lúc ${new Date(h.last_tested_at).toLocaleString('vi-VN')}` : 'Chưa có kết quả quét'}
-                    >
-                      <span className={`w-1.5 h-1.5 rounded-full ${
-                        h.last_test_status === 'passed' ? 'bg-sage'
-                        : h.last_test_status === 'degraded' ? 'bg-amber-400'
-                        : h.last_test_status === 'failed' ? 'bg-clay'
-                        : 'bg-ink-3/50'
-                      }`} />
-                      <span className="font-mono">{h.integration_code}</span>
-                      {h.last_tested_at && (
-                        <span className="text-ink-3">· {new Date(h.last_tested_at).toLocaleTimeString('vi-VN')}</span>
-                      )}
-                    </span>
-                  ))}
-                </div>
-                {healthOverview.recent_events.length > 0 && (
-                  <div className="space-y-1 max-h-24 overflow-y-auto pr-1">
-                    {healthOverview.recent_events.slice(0, 8).map((ev, i) => (
-                      <div key={i} className="text-[11px] text-ink-3 flex items-center gap-2">
-                        <span className={ev.event_type === 'incident_start' ? 'text-clay' : ev.event_type === 'recovered' ? 'text-sage' : ''}>
-                          {ev.event_type === 'incident_start' ? '🔴' : ev.event_type === 'recovered' ? '🟢' : '·'}
-                        </span>
-                        <span className="font-mono">{ev.integration_code}</span>
-                        <span>
-                          {ev.event_type === 'incident_start'
-                            ? `sự cố (${ev.to_status})${ev.failed_step ? ` — fail tại ${ev.failed_step}` : ''}`
-                            : ev.event_type === 'recovered'
-                            ? 'hồi phục'
-                            : ev.event_type === 'still_failing'
-                            ? 'vẫn đang sự cố'
-                            : ev.event_type === 'baseline'
-                            ? 'quan sát đầu tiên'
-                            : `đổi trạng thái → ${ev.to_status}`}
-                        </span>
-                        <span className="ml-auto whitespace-nowrap">{new Date(ev.created_at).toLocaleString('vi-VN')}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
+            {/* Health-check overview đã tách thành tab riêng "Tình trạng Hệ thống" */}
 
                           {/* TAB 1: INTEGRATIONS */}
             {activeTab === 'integrations' && (
@@ -881,6 +811,11 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
             )}
 
             {/* TAB 2: USERS & ROLES */}
+            {/* TAB 2: TÌNH TRẠNG HỆ THỐNG (health-check tự động) */}
+            {activeTab === 'health' && (
+              <SystemHealthSettings />
+            )}
+
             {activeTab === 'users' && (
               <div className="space-y-4">
                 <div className="flex items-center justify-between pb-3 border-b border-hair">
