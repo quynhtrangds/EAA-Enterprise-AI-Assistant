@@ -152,7 +152,8 @@ services:
       - GITEA__server__HTTP_PORT=3000
     ports:
       - "3001:3000"
-      - "2222:2222"
+      # Đã bỏ mapping 2222:2222 (SSH): image rootless mặc định tắt SSH server
+      # nên mapping cũ trỏ vào hư không. Team dùng HTTPS + token là đủ.
     volumes:
       - gitea_data:/var/lib/gitea
     depends_on:
