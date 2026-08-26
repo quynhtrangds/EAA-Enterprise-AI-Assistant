@@ -81,7 +81,8 @@ export async function runHealthCheckTick(): Promise<void> {
               fromStatus: oldStatus,
               toStatus: result.overallStatus,
               failedStep: failedStep?.step,
-              errorCode: failedStep?.error?.code
+              errorCode: failedStep?.error?.code,
+              hint: failedStep?.error?.hint
             });
           }
         }

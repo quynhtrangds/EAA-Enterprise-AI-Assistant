@@ -15,7 +15,15 @@ const EnvSchema = z.object({
   VAULT_ADDR: z.string().default('http://vault:8200'),
   VAULT_TOKEN: z.string().default('root'),
   // Health-check tự động: chu kỳ quét theo phút, 0 = tắt hẳn
-  HEALTH_CHECK_INTERVAL_MINUTES: z.coerce.number().int().min(0).default(10)
+  HEALTH_CHECK_INTERVAL_MINUTES: z.coerce.number().int().min(0).default(10),
+  // Email cảnh báo (giai đoạn C): chỉ kích hoạt khi có cả SMTP_HOST + HEALTH_ALERT_EMAIL
+  SMTP_HOST: z.string().optional(),
+  SMTP_PORT: z.coerce.number().int().positive().default(587),
+  SMTP_SECURE: z.string().default('false'),   // đặt 'true' khi dùng port 465 (TLS ngầm)
+  SMTP_USER: z.string().optional(),
+  SMTP_PASS: z.string().optional(),
+  SMTP_FROM: z.string().optional(),
+  HEALTH_ALERT_EMAIL: z.string().optional()
 });
 
 export const env = EnvSchema.parse(process.env);
