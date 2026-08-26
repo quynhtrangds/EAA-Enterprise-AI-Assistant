@@ -29,13 +29,17 @@ export class HttpProbe implements ProbeStep {
       const latencyMs = Date.now() - started;
 
       if (response.status === 401 || response.status === 403) {
+        // Đọc body lỗi để biết chính xác đối tác phàn nàn gì
+        // (vd Frappe: AuthenticationError khác SessionExpired khác permission)
+        const bodySnippet = await response.text().then(t => t.slice(0, 300)).catch(() => '');
         return {
           step: this.name,
           status: 'failed',
           latencyMs,
           detail: {
             statusCode: response.status,
-            endpoint: targetUrl
+            endpoint: targetUrl,
+            ...(bodySnippet ? { responseSnippet: bodySnippet } : {})
           },
           error: ctx.strategy.interpretAuthFailure(response.status)
         };
