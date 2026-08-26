@@ -2,6 +2,21 @@
 import tls from 'node:tls';
 import { mapNetworkError } from '../errors.js';
 import { isRemoteStrategy } from '../strategies/strategy.js';
+import { isPrivateOrRestrictedIP } from '../../../policies/url-validator.js';
+
+/**
+ * Host "nội bộ" = tên service Docker (không có dấu chấm), localhost,
+ * *.docker.internal, *.local/*.internal, hoặc IP private.
+ * HTTP tới host nội bộ là bình thường trong môi trường Docker — không cảnh báo.
+ */
+function isInternalHost(hostname: string): boolean {
+  const h = (hostname || '').toLowerCase();
+  if (!h.includes('.')) return true;
+  if (h === 'localhost' || h.endsWith('.localhost')) return true;
+  if (h === 'host.docker.internal' || h.endsWith('.docker.internal')) return true;
+  if (h.endsWith('.local') || h.endsWith('.internal')) return true;
+  return isPrivateOrRestrictedIP(h);
+}
 
 export class TlsProbe implements ProbeStep {
   readonly name = 'tls';
@@ -15,13 +30,20 @@ export class TlsProbe implements ProbeStep {
     const url = ctx.apiUrl!;
 
     if (url.protocol !== 'https:') {
+      // HTTP tới host NỘI BỘ (service Docker, host.docker.internal, IP private)
+      // là bình thường — không warning. HTTP tới host BÊN NGOÀI mới cảnh báo,
+      // vì dữ liệu đi qua mạng không mã hóa.
+      const internal = isInternalHost(url.hostname);
       return {
         step: this.name,
         status: 'passed',
         latencyMs: Date.now() - started,
         detail: {
           protocol: 'http (không mã hóa SSL/TLS)',
-          warning: 'API URL đang dùng giao thức HTTP thường không mã hóa bảo mật.'
+          host_scope: internal ? 'internal' : 'external',
+          ...(internal ? {} : {
+            warning: 'API URL dùng HTTP không mã hóa tới host BÊN NGOÀI — nên chuyển sang HTTPS để bảo vệ dữ liệu.'
+          })
         }
       };
     }
