@@ -96,7 +96,7 @@ chatRouter.post('/chat', async (req, res, next) => {
     const body = chatSchema.parse(req.body);
     const authToken = getBearerToken(req.header('authorization'));
     const user = await gatewayClient.getCurrentUser(authToken);
-    const output = await chatService.chat({ ...body, authToken });
+    const output = await chatService.chat({ ...body, authToken, userId: user.id, tenantId: user.tenantId });
     await appendChatTurn({
       sessionId: output.sessionId,
       userId: user.id,
@@ -117,7 +117,7 @@ chatRouter.post('/chat/edit', async (req, res, next) => {
     const body = chatEditSchema.parse(req.body);
     const authToken = getBearerToken(req.header('authorization'));
     const user = await gatewayClient.getCurrentUser(authToken);
-    const output = await chatService.chat({ sessionId: body.sessionId, message: body.message, authToken });
+    const output = await chatService.chat({ sessionId: body.sessionId, message: body.message, authToken, userId: user.id, tenantId: user.tenantId });
     
     await editChatTurn({
       sessionId: body.sessionId,

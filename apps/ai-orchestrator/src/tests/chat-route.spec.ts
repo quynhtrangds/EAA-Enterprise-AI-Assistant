@@ -79,7 +79,9 @@ describe('POST /api/chat', () => {
     expect(chatMock).toHaveBeenCalledWith({
       sessionId: 'session-123',
       message: 'Hôm nay doanh thu bao nhiêu?',
-      authToken: 'valid-token'
+      authToken: 'valid-token',
+      userId: 'user-1',
+      tenantId: 'tenant-1'
     });
     expect(appendChatTurn).toHaveBeenCalledWith(
       expect.objectContaining({ sessionId: 'session-123', userId: 'user-1', tenantId: 'tenant-1' })

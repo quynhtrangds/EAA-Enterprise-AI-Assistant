@@ -6,6 +6,7 @@ import { ZammadStrategy } from './zammad.strategy.js';
 import { CrmStrategy } from './crm.strategy.js';
 import { RagStrategy } from './rag.strategy.js';
 import { PostgresStrategy } from './postgres.strategy.js';
+import { N8nStrategy } from './n8n.strategy.js';
 
 export interface TestRequestSpec {
   method: 'GET' | 'POST' | 'HEAD';
@@ -49,7 +50,8 @@ const defaultStrategies: IntegrationTestStrategy[] = [
   new ZammadStrategy(),
   new CrmStrategy(),
   new RagStrategy(),
-  new PostgresStrategy()
+  new PostgresStrategy(),
+  new N8nStrategy()
 ];
 
 for (const strat of defaultStrategies) {

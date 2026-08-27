@@ -2,32 +2,51 @@
   "mcpServers": {
     "postgres": {
       "command": "node",
-      "args": ["../../packages/mcp-server-postgres/dist/index.js"],
+      "args": [
+        "../../packages/mcp-server-postgres/dist/index.js"
+      ],
       "env": {}
     },
     "crm": {
       "command": "node",
-      "args": ["../../packages/mcp-server-crm/dist/index.js"],
+      "args": [
+        "../../packages/mcp-server-crm/dist/index.js"
+      ],
       "env": {}
     },
     "rag": {
       "command": "node",
-      "args": ["../../packages/mcp-server-rag/dist/index.js"],
+      "args": [
+        "../../packages/mcp-server-rag/dist/index.js"
+      ],
       "env": {}
     },
     "erpnext": {
       "command": "node",
-      "args": ["../../packages/mcp-server-erpnext/dist/index.js"],
+      "args": [
+        "../../packages/mcp-server-erpnext/dist/index.js"
+      ],
       "env": {}
     },
     "zammad": {
       "command": "node",
-      "args": ["../../packages/mcp-server-zammad/dist/index.js"],
+      "args": [
+        "../../packages/mcp-server-zammad/dist/index.js"
+      ],
       "env": {}
     },
     "gitea": {
       "command": "node",
-      "args": ["../../packages/mcp-server-gitea/dist/index.js"],
+      "args": [
+        "../../packages/mcp-server-gitea/dist/index.js"
+      ],
+      "env": {}
+    },
+    "n8n": {
+      "command": "node",
+      "args": [
+        "../../packages/mcp-server-n8n/dist/index.js"
+      ],
       "env": {}
     }
   }

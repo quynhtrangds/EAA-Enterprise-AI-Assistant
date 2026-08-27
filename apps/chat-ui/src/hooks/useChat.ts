@@ -73,9 +73,12 @@ export const useChat = () => {
           return emptyList;
         } else {
           setSessions(mappedSessions);
-          if (activeSessionId !== 'new-chat-session' && !mappedSessions.some((s: any) => s.id === activeSessionId)) {
-            setActiveSessionId('new-chat-session');
-          }
+          setActiveSessionId(prev => {
+            if (prev !== 'new-chat-session' && !mappedSessions.some((s: any) => s.id === prev)) {
+              return 'new-chat-session';
+            }
+            return prev;
+          });
           return mappedSessions;
         }
       }
@@ -257,6 +260,7 @@ export const useChat = () => {
           toolCalls: data.toolCalls
         };
         setMessages(prev => [...prev, newAiMsg]);
+        setActiveSessionId(targetSessionId);
 
         if (!isGuest && authToken) {
           fetchSessions(authToken).catch(() => {});
@@ -334,6 +338,7 @@ export const useChat = () => {
           toolCalls: data.toolCalls
         };
         setMessages(prev => [...prev, newAiMsg]);
+        setActiveSessionId(targetSessionId);
 
         if (!isGuest && authToken) {
           fetchSessions(authToken).catch(() => {});

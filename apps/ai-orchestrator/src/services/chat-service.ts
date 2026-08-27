@@ -3,6 +3,7 @@ import type { ChatCompletionMessageParam, ChatCompletionTool } from 'openai/reso
 import { env } from '../config/env.js';
 import { AppError } from '../errors/app-error.js';
 import { McpGatewayClient } from '../gateway/mcp-gateway-client.js';
+import { getChatMessages } from '../repositories/chat-history-repository.js';
 import type { ChatInput, ChatOutput, PlannedToolCall, ToolCallTrace } from '../types/chat.js';
 
 interface GatewayTool {
@@ -268,11 +269,26 @@ export class ChatService {
         `- Hôm nay: ${today()}\n` +
         `- 90 ngày trước là: ${ninetyDaysAgo()}`;
 
+      let historyMessages: ChatCompletionMessageParam[] = [];
+      if (input.userId && input.tenantId && input.sessionId && !input.sessionId.startsWith('new-chat')) {
+        try {
+          const stored = await getChatMessages(input.userId, input.tenantId, input.sessionId);
+          const recentStored = stored.slice(-10);
+          historyMessages = recentStored.map(m => ({
+            role: (m.role === 'assistant' ? 'assistant' : 'user') as 'assistant' | 'user',
+            content: m.content
+          }));
+        } catch (e) {
+          console.warn('[chatWithLLM] Could not load prior session messages:', e);
+        }
+      }
+
       const messages: ChatCompletionMessageParam[] = [
         {
           role: 'system',
           content: systemPrompt
         },
+        ...historyMessages,
         {
           role: 'user',
           content: input.message
