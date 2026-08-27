@@ -1,4 +1,4 @@
-export interface PlannedToolCall {
+﻿export interface PlannedToolCall {
   toolName: string;
   arguments: Record<string, unknown>;
 }
@@ -15,6 +15,8 @@ export interface ChatInput {
   sessionId: string;
   message: string;
   authToken: string;
+  userId?: string;
+  tenantId?: string;
 }
 
 export interface ChatOutput {
