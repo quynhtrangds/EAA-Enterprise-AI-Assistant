@@ -286,7 +286,12 @@ describe('Tools & Login Routes – mở rộng (routes/tools.ts)', () => {
       });
 
       // is_active check cho get_open_tickets (zammad) → tắt
-      query.mockResolvedValueOnce({ rows: [{ is_active: false }] });
+      query.mockImplementation(async (sql: string, params?: any[]) => {
+        if (sql.includes('SELECT integration_code FROM tenant_integrations')) {
+          return { rows: [] };
+        }
+        return { rows: [{ is_active: false }] };
+      });
       canExecuteTool.mockResolvedValue(true);
 
       const res = await request(app)
@@ -306,7 +311,12 @@ describe('Tools & Login Routes – mở rộng (routes/tools.ts)', () => {
         tools: [{ name: 'search_repositories', description: 'Search repos', title: '', inputSchema: {} }]
       });
 
-      query.mockResolvedValueOnce({ rows: [{ is_active: true }] });
+      query.mockImplementation(async (sql: string, params?: any[]) => {
+        if (sql.includes('SELECT integration_code FROM tenant_integrations')) {
+          return { rows: [] };
+        }
+        return { rows: [{ is_active: true }] };
+      });
       canExecuteTool.mockResolvedValue(true);
 
       const res = await request(app)
@@ -388,21 +398,30 @@ describe('Tools & Login Routes – mở rộng (routes/tools.ts)', () => {
       expect(res.body.errorCode).toBe('PERMISSION_DENIED');
     });
 
-    it('trả 400 khi integration bị TẮT (is_active = false)', async () => {
+    it('chuyển sang _mockMode = true khi integration bị TẮT (is_active = false)', async () => {
       getCurrentUser.mockResolvedValue(mockAdminUser);
       mcpClientManager.toolToServerMap.set('get_open_tickets', 'zammad');
 
-      query.mockResolvedValueOnce({ rows: [{ is_active: false }] });
+      query.mockImplementation(async (sql: string) => {
+        if (sql.includes('SELECT is_active FROM tenant_integrations')) {
+          return { rows: [{ is_active: false }] };
+        }
+        return { rows: [] };
+      });
       canExecuteTool.mockResolvedValue(true);
+      mcpClientManager.callTool.mockResolvedValue({ tickets: [] });
 
-      const res = await request(app)
+      await request(app)
         .post('/api/tools/call')
         .set('Authorization', 'Bearer valid-token')
         .send({ toolName: 'get_open_tickets', arguments: {}, sessionId: 'sess-2' })
-        .expect(400);
+        .expect(200);
 
-      expect(res.body.errorCode).toBe('PERMISSION_DENIED');
-      expect(res.body.message).toMatch(/ZAMMAD/i);
+      expect(mcpClientManager.callTool).toHaveBeenCalledWith(
+        'get_open_tickets',
+        expect.objectContaining({ _mockMode: true }),
+        mockAdminUser.roles
+      );
     });
 
     it('trả 400 khi body thiếu toolName (Zod validation)', async () => {

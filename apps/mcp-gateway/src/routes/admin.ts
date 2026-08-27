@@ -150,6 +150,7 @@ adminRouter.post('/integrations', async (req, res, next) => {
     ]);
 
     // Nếu có apiKey hoặc apiUrl, lưu/cập nhật vào HashiCorp Vault
+    let currentSecret: { apiKey?: string; apiUrl?: string } | null = null;
     if (apiKey !== undefined || apiUrl !== undefined) {
       const existing = (await VaultService.readSecret(vaultPath)) || {};
       const secretData = {
@@ -158,25 +159,26 @@ adminRouter.post('/integrations', async (req, res, next) => {
         ...(apiUrl !== undefined ? { apiUrl } : {})
       };
       await VaultService.writeSecret(vaultPath, secretData);
+      currentSecret = secretData;
+    } else {
+      currentSecret = await VaultService.readSecret(vaultPath);
     }
 
     const savedIntegration = dbResult.rows[0] as any;
+    const effectiveApiKey = currentSecret?.apiKey;
     res.json({
       success: true,
       integration: savedIntegration ? {
         integration_code: savedIntegration.integration_code,
         is_active: savedIntegration.is_active,
-        api_url: savedIntegration.api_url,
-        apiKeyMasked: maskSecret(savedIntegration.api_key),
-        hasApiKey: Boolean(savedIntegration.api_key)
+        api_url: currentSecret?.apiUrl || savedIntegration.api_url,
+        apiKeyMasked: maskSecret(effectiveApiKey),
+        hasApiKey: Boolean(effectiveApiKey)
       } : null,
-      // Thông báo phải phản ánh đúng việc gì đã xảy ra: chỉ khi có apiKey khác
-      // rỗng thì khóa trong Vault mới được ghi — tránh tuyên bố "đã lưu vào
-      // Vault" khiến admin tưởng nhầm khóa mới đã được ghi
       message: apiKey
         ? 'Đã lưu cấu hình và API key mới vào Vault'
         : apiUrl !== undefined
-        ? 'Đã lưu cấu hình (giữ nguyên API key hiện tại trong Vault)'
+        ? 'Đã lưu cấu hình và thông tin kết nối vào Vault'
         : 'Đã cập nhật trạng thái tích hợp'
     });
   } catch (error) {

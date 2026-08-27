@@ -11,11 +11,18 @@ export async function syncVaultWithDatabase(): Promise<void> {
       res.rows.map(async (row) => {
         const vaultPath = `integrations/${row.tenant_id}/${row.integration_code}`;
         try {
+          // Chỉ khởi tạo vào Vault nếu Vault chưa từng có secret
+          // Tuyệt đối không ghi đè cấu hình hoặc API Key mà người dùng đã lưu trong Vault
+          const existing = await VaultService.readSecret(vaultPath);
+          if (existing && (existing.apiKey || existing.apiUrl)) {
+            return;
+          }
+
           await VaultService.writeSecret(vaultPath, {
             apiKey: row.api_key,
             apiUrl: row.api_url
           });
-          console.log(`[Vault Auto-Sync] Successfully re-synced secret for ${vaultPath} into Vault.`);
+          console.log(`[Vault Auto-Sync] Initialized missing secret for ${vaultPath} into Vault.`);
         } catch (e: any) {
           console.warn(`[Vault Auto-Sync Error for ${vaultPath}]:`, e.message);
         }
