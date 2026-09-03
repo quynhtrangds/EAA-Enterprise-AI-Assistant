@@ -1,4 +1,4 @@
-﻿import { Server } from '@modelcontextprotocol/sdk/server/index.js';
+import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 
@@ -16,13 +16,13 @@ mcpServer.setRequestHandler(ListToolsRequestSchema, async () => {
     tools: [
       {
         name: 'trigger_n8n_webhook',
-        description: 'Kích hoạt một quy trình tự động hóa (Workflow) trên n8n qua Webhook để gửi tin nhắn Telegram, gửi Email, tạo ticket hoặc đồng bộ dữ liệu.',
+        description: 'Kích hoạt một quy trình tự động hóa (Workflow) trên n8n qua Webhook để gửi tin nhắn Telegram, gửi Email, tạo ticket hoặc đồng bộ dữ liệu. Nếu người dùng không chỉ định webhookPath cụ thể, hệ thống sẽ tự động sử dụng đường dẫn webhook mặc định đã cấu hình trong hệ thống.',
         inputSchema: {
           type: 'object',
           properties: {
             webhookPath: {
               type: 'string',
-              description: 'Đường dẫn hoặc mã ID webhook trên n8n (ví dụ: "26317864-61db-424c-87f5-abd29ce33599" hoặc "telegram-alert")'
+              description: 'Đường dẫn hoặc mã ID webhook trên n8n (ví dụ: "26317864-61db-424c-87f5-abd29ce33599" hoặc để trống để tự động dùng webhook mặc định).'
             },
             message: {
               type: 'string',
@@ -33,7 +33,7 @@ mcpServer.setRequestHandler(ListToolsRequestSchema, async () => {
               description: 'Dữ liệu bổ sung tùy chọn (ví dụ: { customerName: "Nguyễn Văn A", revenue: 50000000 })'
             }
           },
-          required: ['webhookPath', 'message']
+          required: ['message']
         }
       }
     ]
@@ -49,20 +49,22 @@ mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
     const creds = rawArgs._integrationCredentials || {};
     let baseUrl = creds.apiUrl || process.env.N8N_BASE_URL || 'http://enterprise_ai_n8n:5678';
     const apiKey = creds.apiKey;
-
-    if (!webhookPath) {
-      throw new Error('Thiếu tham số webhookPath để kích hoạt n8n workflow.');
-    }
+    const defaultWebhookPath = creds.defaultWebhookPath || '26317864-61db-424c-87f5-abd29ce33599';
 
     baseUrl = baseUrl.replace(/\/+$/, '');
 
+    // Sử dụng path được truyền vào hoặc fallback về defaultWebhookPath
+    const effectivePath = (webhookPath && typeof webhookPath === 'string' && webhookPath.trim())
+      ? webhookPath.trim()
+      : defaultWebhookPath;
+
     let targetUrl: string;
-    if (webhookPath.startsWith('http://') || webhookPath.startsWith('https://')) {
-      targetUrl = webhookPath;
-    } else if (webhookPath.startsWith('/')) {
-      targetUrl = `${baseUrl}${webhookPath}`;
+    if (effectivePath.startsWith('http://') || effectivePath.startsWith('https://')) {
+      targetUrl = effectivePath;
+    } else if (effectivePath.startsWith('/')) {
+      targetUrl = `${baseUrl}${effectivePath}`;
     } else {
-      targetUrl = `${baseUrl}/webhook/${webhookPath}`;
+      targetUrl = `${baseUrl}/webhook/${effectivePath}`;
     }
 
     const payload = {
@@ -89,16 +91,34 @@ mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
         body: JSON.stringify(payload)
       });
 
-      // Nếu production URL trả về 404 (chưa Publish), tự động thử fallback sang webhook-test
-      if (response.status === 404 && targetUrl.includes('/webhook/')) {
-        const testUrl = targetUrl.replace('/webhook/', '/webhook-test/');
-        const testResp = await fetch(testUrl, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify(payload)
-        });
-        if (testResp.ok) {
-          response = testResp;
+      // Nếu URL trả về 404 (chưa đăng ký đường dẫn này), thử fallback về defaultWebhookPath hoặc webhook-test
+      if (response.status === 404) {
+        // 1. Thử fallback sang defaultWebhookPath nếu trước đó dùng path khác
+        if (effectivePath !== defaultWebhookPath) {
+          const defaultUrl = `${baseUrl}/webhook/${defaultWebhookPath}`;
+          const defaultResp = await fetch(defaultUrl, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(payload)
+          });
+          if (defaultResp.ok) {
+            response = defaultResp;
+            targetUrl = defaultUrl;
+          }
+        }
+
+        // 2. Nếu vẫn 404 và có chứa /webhook/, thử webhook-test
+        if (!response.ok && targetUrl.includes('/webhook/')) {
+          const testUrl = targetUrl.replace('/webhook/', '/webhook-test/');
+          const testResp = await fetch(testUrl, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(payload)
+          });
+          if (testResp.ok) {
+            response = testResp;
+            targetUrl = testUrl;
+          }
         }
       }
     } catch (err: any) {
