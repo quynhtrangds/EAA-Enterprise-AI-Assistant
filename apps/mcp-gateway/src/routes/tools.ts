@@ -456,7 +456,7 @@ toolsRouter.get('/tools', async (req, res, next) => {
       }
 
       // Tool demo (đọc DB nội bộ) bị tích hợp thật đang bật thay thế → không cho phép
-      if (isPermitted && isSupersededDemoTool(tool.name, activeCodes)) {
+      if (isPermitted && isSupersededDemoTool(tool.name, activeCodes, user.roles)) {
         isPermitted = false;
       }
 

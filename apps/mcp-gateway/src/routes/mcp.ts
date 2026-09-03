@@ -138,7 +138,7 @@ mcpServer.setRequestHandler(ListToolsRequestSchema, async (request, extra) => {
   // đọc DB demo) — để mỗi miền dữ liệu chỉ còn một nguồn trả lời cho AI
   const activeCodes = user.tenantId ? await getActiveIntegrationCodes(user.tenantId) : new Set<string>();
   for (const tool of result.tools) {
-    if (await canExecuteTool(user.roles, tool.name) && !isSupersededDemoTool(tool.name, activeCodes)) {
+    if (await canExecuteTool(user.roles, tool.name) && !isSupersededDemoTool(tool.name, activeCodes, user.roles)) {
       permittedTools.push(tool);
     }
   }

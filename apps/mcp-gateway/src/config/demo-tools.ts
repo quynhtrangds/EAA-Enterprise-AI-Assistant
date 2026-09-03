@@ -28,7 +28,12 @@ export async function getActiveIntegrationCodes(tenantId: string): Promise<Set<s
 }
 
 /** Tool demo này đã bị tích hợp thật (đang bật) thay thế chưa? */
-export function isSupersededDemoTool(toolName: string, activeCodes: Set<string>): boolean {
+export function isSupersededDemoTool(toolName: string, activeCodes: Set<string>, userRoles?: string[]): boolean {
+  // Vai trò 'viewer' chỉ có quyền gọi get_revenue_summary và get_product_sales_summary,
+  // không truy cập ERP/CRM thật, nên không bị ẩn các công cụ tổng quan này.
+  if (userRoles && userRoles.includes('viewer')) {
+    return false;
+  }
   const owner = DEMO_TOOL_SUPERSEDED_BY[toolName];
   return Boolean(owner && activeCodes.has(owner));
 }
