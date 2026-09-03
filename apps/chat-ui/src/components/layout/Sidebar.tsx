@@ -186,16 +186,16 @@ const Sidebar: React.FC<SidebarProps> = ({
           title={isOpen && activeSessionId !== 'new-chat-session' ? "Bắt đầu cuộc trò chuyện mới" : !isOpen ? "Mở rộng Sidebar" : undefined}
         >
           <div className="w-10 h-10 flex items-center justify-center shrink-0">
-            <div className={`w-8 h-8 rounded-full border flex items-center justify-center transition-colors ${!isOpen ? 'border-brass/50 group-hover:bg-surface-raised' : 'border-brass/50'}`}>
+            <div className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${!isOpen ? 'group-hover:bg-surface-raised' : ''}`}>
               {!isOpen ? (
                 <>
-                  <span className="font-mono text-brass text-xs group-hover:hidden">AI</span>
+                  <img src="/logo.png" alt="Logo" className="w-7 h-7 object-contain group-hover:hidden" />
                   <svg className="w-4 h-4 text-ink-2 hidden group-hover:block" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 5l7 7-7 7M5 5l7 7-7 7" />
                   </svg>
                 </>
               ) : (
-                <span className="font-mono text-brass text-xs">AI</span>
+                <img src="/logo.png" alt="Logo" className="w-7 h-7 object-contain" />
               )}
             </div>
           </div>
