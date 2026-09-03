@@ -48,7 +48,9 @@ VALUES
   ('staff', 'get_customer_orders', true),
   ('staff', 'get_order_detail', true),
   ('viewer', 'get_revenue_summary', true),
-  ('viewer', 'get_product_sales_summary', true)
+  ('viewer', 'get_product_sales_summary', true),
+  ('viewer', 'get_sales_invoices', true),
+  ('viewer', 'get_inventory_status', true)
 ON CONFLICT (role_code, tool_name) DO UPDATE
 SET can_execute = EXCLUDED.can_execute;
 
