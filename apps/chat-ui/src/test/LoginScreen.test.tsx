@@ -82,4 +82,15 @@ describe('Kiểm thử Component LoginScreen', () => {
     expect(await screen.findByText('Sai tên đăng nhập hoặc mật khẩu.')).toBeInTheDocument();
     expect(mockLogin).not.toHaveBeenCalled();
   });
+  it('TC06: Hien thi thong bao canh bao khi phien dang nhap het han (sessionExpiredNotice)', () => {
+    (useAuth as any).mockReturnValue({
+      login: mockLogin,
+      sessionExpiredNotice: 'Phiên đăng nhập của bạn đã hết hạn hoặc không hợp lệ. Vui lòng đăng nhập lại.'
+    });
+
+    render(<LoginScreen />);
+
+    expect(screen.getByTestId('session-expired-alert')).toBeInTheDocument();
+    expect(screen.getByText('Phiên đăng nhập của bạn đã hết hạn hoặc không hợp lệ. Vui lòng đăng nhập lại.')).toBeInTheDocument();
+  });
 });

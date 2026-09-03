@@ -43,6 +43,10 @@ export const useChat = () => {
       const response = await fetch('/api/chat/sessions', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
+      if (response?.status === 401) {
+        logout('Phiên đăng nhập của bạn đã hết hạn hoặc không hợp lệ. Vui lòng đăng nhập lại.');
+        return [];
+      }
       if (response.ok) {
         const data = await response.json();
         const mappedSessions = (data.sessions || []).map((s: any) => {
@@ -95,6 +99,10 @@ export const useChat = () => {
       const response = await fetch(`/api/chat/search?q=${encodeURIComponent(query)}`, {
         headers: { 'Authorization': `Bearer ${authToken}` }
       });
+      if (response?.status === 401) {
+        logout('Phiên đăng nhập của bạn đã hết hạn hoặc không hợp lệ. Vui lòng đăng nhập lại.');
+        return [];
+      }
       if (response.ok) {
         const data = await response.json();
         return (data.sessions || []).map((s: any) => ({
@@ -123,6 +131,10 @@ export const useChat = () => {
       const response = await fetch(`/api/chat/sessions/${sessionCode}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
+      if (response?.status === 401) {
+        logout('Phiên đăng nhập của bạn đã hết hạn hoặc không hợp lệ. Vui lòng đăng nhập lại.');
+        return;
+      }
       if (response.ok) {
         const data = await response.json();
         const mappedMessages = (data.messages || []).map((m: any) => ({
@@ -196,10 +208,14 @@ export const useChat = () => {
 
     if (authToken && id !== 'new-chat-session' && !isGuest) {
       try {
-        await fetch(`/api/chat/sessions/${id}`, {
+        const res = await fetch(`/api/chat/sessions/${id}`, {
           method: 'DELETE',
           headers: { 'Authorization': `Bearer ${authToken}` }
         });
+        if (res?.status === 401) {
+          logout('Phiên đăng nhập của bạn đã hết hạn hoặc không hợp lệ. Vui lòng đăng nhập lại.');
+          return;
+        }
       } catch (e) {
         console.error('Failed to delete session:', e);
       }
@@ -239,9 +255,9 @@ export const useChat = () => {
       });
 
       if (!response.ok) {
-        if (response.status === 401) {
-          logout();
-          throw new Error('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
+        if (response?.status === 401) {
+          logout('Phiên đăng nhập của bạn đã hết hạn hoặc không hợp lệ. Vui lòng đăng nhập lại.');
+          throw new Error('Phiên đăng nhập của bạn đã hết hạn hoặc không hợp lệ. Vui lòng đăng nhập lại.');
         }
         throw new Error('Không thể kết nối tới máy chủ AI Orchestrator');
       }
@@ -317,7 +333,7 @@ export const useChat = () => {
       });
 
       if (!response.ok) {
-        if (response.status === 401) {
+        if (response?.status === 401) {
           logout();
           throw new Error('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
         }

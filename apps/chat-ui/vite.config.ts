@@ -12,6 +12,11 @@ export default defineConfig({
     strictPort: true,
     host: '0.0.0.0',
     proxy: {
+      '/api/me': {
+        target: process.env.MCP_GATEWAY_URL || 'http://localhost:8081',
+        changeOrigin: true,
+        secure: false
+      },
       '/api/login': {
         target: process.env.MCP_GATEWAY_URL || 'http://localhost:8081',
         changeOrigin: true,
