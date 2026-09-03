@@ -111,15 +111,28 @@ export function isPrivateOrRestrictedIP(ip: string): boolean {
  * Kiểm tra xem hostname/IP có nằm trong danh sách whitelist cho phép nội bộ hay không
  * Đọc từ biến môi trường INTEGRATION_TEST_ALLOWED_PRIVATE_HOSTS (phân cách bằng dấu phẩy)
  */
+export const SENSITIVE_INFRA_HOSTS = new Set([
+  'vault',
+  'enterprise_ai_vault',
+  'postgres',
+  'enterprise_ai_postgres',
+  'mcp-gateway',
+  'enterprise_ai_mcp_gateway',
+  'localhost',
+  '127.0.0.1',
+  '::1'
+]);
+
 export function isAllowedPrivateHost(rawHost: string): boolean {
   const host = rawHost.toLowerCase().replace(/[\[\]]/g, '');
 
-  // 1. Tuyệt đối KHÔNG BAO GIỜ cho phép Cloud Metadata (169.254.169.254, metadata.google.internal, instance-data)
+  // 1. Tuyet doi KHONG BAO GIO cho phep Cloud Metadata hoac ha tang noi bo toi nhay cam
   if (
     host === '169.254.169.254' ||
     host.startsWith('169.254.') ||
     host === 'metadata.google.internal' ||
-    host === 'instance-data'
+    host === 'instance-data' ||
+    SENSITIVE_INFRA_HOSTS.has(host)
   ) {
     return false;
   }
@@ -127,7 +140,14 @@ export function isAllowedPrivateHost(rawHost: string): boolean {
   const envAllowed = process.env.INTEGRATION_TEST_ALLOWED_PRIVATE_HOSTS;
   if (!envAllowed) return false;
   const list = envAllowed.split(',').map(h => h.trim().toLowerCase()).filter(Boolean);
-  return list.includes('*') || list.includes(host);
+
+  // Vo hieu hoa ky tu dai dien '*' (fail-closed) de tranh bypass toan bo bo loc SSRF
+  if (list.includes('*')) {
+    console.warn('[SSRF Protection] Wildcard "*" in INTEGRATION_TEST_ALLOWED_PRIVATE_HOSTS is disabled for security reasons.');
+    return false;
+  }
+
+  return list.includes(host);
 }
 
 export function isRestrictedHostname(rawHost: string): boolean {

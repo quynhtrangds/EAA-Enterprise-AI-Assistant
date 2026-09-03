@@ -216,6 +216,130 @@ describe('Tools & Login Routes – mở rộng (routes/tools.ts)', () => {
       expect(res.body.errorCode).toBe('UNAUTHENTICATED');
       expect(createAuthSession).not.toHaveBeenCalled();
     });
+
+    it('chan brute-force theo username - tra ve 429 khi vuot nguong rate limit', async () => {
+      checkLoginRateLimit.mockImplementationOnce(() => {
+        throw new AppError('RATE_LIMIT_EXCEEDED', 'Qua nhieu lan thu dang nhap. Vui long thu lai sau 1 phut.', 429);
+      });
+
+      const res = await request(app)
+        .post('/api/login')
+        .send({ username: 'admin', password: 'password123' })
+        .expect(429);
+
+      expect(res.body.errorCode).toBe('RATE_LIMIT_EXCEEDED');
+      expect(query).not.toHaveBeenCalled();
+    });
+
+    it('tra ve 423 ACCOUNT_LOCKED khi toan bo candidate deu dang bi khoa', async () => {
+      const lockedUser = {
+        id: 'user-locked-001',
+        username: 'staff',
+        password_hash: 'hash-staff',
+        display_name: 'Nhan vien bi khoa',
+        email: 'staff@example.com',
+        tenant_id: 'tenant-001',
+        role: 'staff',
+        roles: ['staff'],
+        failed_login_attempts: 5,
+        locked_until: new Date(Date.now() + 10 * 60000).toISOString()
+      };
+      query.mockResolvedValueOnce({ rows: [lockedUser] });
+
+      const res = await request(app)
+        .post('/api/login')
+        .send({ username: 'staff', password: 'any_password' })
+        .expect(423);
+
+      expect(res.body.errorCode).toBe('ACCOUNT_LOCKED');
+      expect(writeAuditLog).toHaveBeenCalledWith(
+        expect.objectContaining({
+          toolName: 'auth_login',
+          status: 'failed',
+          errorMessage: 'Account locked.',
+          sessionId: null
+        })
+      );
+    });
+
+    it('username trung o 2 tenant: candidate A bi khoa khong lam anh huong den candidate B hop le', async () => {
+      const lockedCandidateA = {
+        id: 'user-tenant-a',
+        username: 'staff',
+        password_hash: 'hash-a',
+        display_name: 'Staff Tenant A (Locked)',
+        email: 'staff@a.com',
+        tenant_id: 'tenant-a',
+        role: 'staff',
+        roles: ['staff'],
+        failed_login_attempts: 5,
+        locked_until: new Date(Date.now() + 15 * 60000).toISOString()
+      };
+      const activeCandidateB = {
+        id: 'user-tenant-b',
+        username: 'staff',
+        password_hash: 'hash-b',
+        display_name: 'Staff Tenant B (Active)',
+        email: 'staff@b.com',
+        tenant_id: 'tenant-b',
+        role: 'staff',
+        roles: ['staff'],
+        failed_login_attempts: 0,
+        locked_until: null
+      };
+
+      query.mockResolvedValueOnce({ rows: [lockedCandidateA, activeCandidateB] });
+      verifyPassword.mockImplementation(async (_pw, hash) => hash === 'hash-b');
+      createAuthSession.mockResolvedValueOnce({ token: 'tok-b', expiresAt: '2026-08-02T00:00:00Z' });
+
+      const res = await request(app)
+        .post('/api/login')
+        .send({ username: 'staff', password: 'correct-for-b' })
+        .expect(200);
+
+      expect(res.body.user.username).toBe('staff');
+      expect(createAuthSession).toHaveBeenCalledWith('user-tenant-b', ['staff']);
+      expect(writeAuditLog).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: 'user-tenant-b',
+          toolName: 'auth_login',
+          status: 'success',
+          sessionId: null
+        })
+      );
+    });
+
+    it('ghi audit log status=failed khi mat khau khong dung', async () => {
+      const dbUser = {
+        id: 'user-001',
+        username: 'staff',
+        password_hash: 'hash-correct',
+        display_name: 'Staff',
+        email: 'staff@example.com',
+        tenant_id: 'tenant-001',
+        role: 'staff',
+        roles: ['staff'],
+        failed_login_attempts: 0,
+        locked_until: null
+      };
+      query.mockResolvedValueOnce({ rows: [dbUser] });
+      verifyPassword.mockResolvedValueOnce(false);
+
+      await request(app)
+        .post('/api/login')
+        .send({ username: 'staff', password: 'wrong_password' })
+        .expect(401);
+
+      expect(writeAuditLog).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: null,
+          toolName: 'auth_login',
+          status: 'failed',
+          errorMessage: 'Username hoac password khong dung.',
+          sessionId: null
+        })
+      );
+    });
   });
 
   // ═══════════════════════════════════════════════════════════════════════════

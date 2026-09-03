@@ -9,7 +9,8 @@ export type AppErrorCode =
   | 'UNAUTHENTICATED'
   | 'NOT_FOUND'
   | 'INTERNAL_ERROR'
-  | 'RATE_LIMIT_EXCEEDED';
+  | 'RATE_LIMIT_EXCEEDED'
+  | 'ACCOUNT_LOCKED';
 
 export class AppError extends Error {
   constructor(

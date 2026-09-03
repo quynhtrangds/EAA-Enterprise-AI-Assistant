@@ -1,9 +1,10 @@
-﻿import { describe, it, expect, vi } from 'vitest';
+﻿import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
   isPrivateIPv4,
   isPrivateIPv6,
   isPrivateOrRestrictedIP,
   isRestrictedHostname,
+  isAllowedPrivateHost,
   validateIntegrationUrl,
   validateIntegrationUrlAsync
 } from './url-validator.js';
@@ -159,6 +160,44 @@ describe('policies/url-validator.ts: Comprehensive SSRF & CIDR Protection Suite'
 
       await expect(validateIntegrationUrlAsync('http://172.20.0.5.nip.io'))
         .rejects.toThrowError(/DNS Rebinding \/ SSRF Protection/);
+    });
+  });
+  describe('isAllowedPrivateHost & SENSITIVE_INFRA_HOSTS Protection', () => {
+    const originalEnv = process.env.INTEGRATION_TEST_ALLOWED_PRIVATE_HOSTS;
+
+    afterEach(() => {
+      process.env.INTEGRATION_TEST_ALLOWED_PRIVATE_HOSTS = originalEnv;
+    });
+
+    it('vo hieu hoa wildcard * (fail-closed, khong cho phep bypass toan bo he thong)', () => {
+      process.env.INTEGRATION_TEST_ALLOWED_PRIVATE_HOSTS = '*';
+      expect(isAllowedPrivateHost('vault')).toBe(false);
+      expect(isAllowedPrivateHost('postgres')).toBe(false);
+      expect(isAllowedPrivateHost('127.0.0.1')).toBe(false);
+      expect(isAllowedPrivateHost('gitea')).toBe(false);
+    });
+
+    it('tuyet doi chan vault, postgres, mcp-gateway, loopback ke ca khi co tinh dua vao whitelist', () => {
+      process.env.INTEGRATION_TEST_ALLOWED_PRIVATE_HOSTS = 'vault,postgres,mcp-gateway,localhost,127.0.0.1,gitea';
+      expect(isAllowedPrivateHost('vault')).toBe(false);
+      expect(isAllowedPrivateHost('enterprise_ai_vault')).toBe(false);
+      expect(isAllowedPrivateHost('postgres')).toBe(false);
+      expect(isAllowedPrivateHost('enterprise_ai_postgres')).toBe(false);
+      expect(isAllowedPrivateHost('mcp-gateway')).toBe(false);
+      expect(isAllowedPrivateHost('localhost')).toBe(false);
+      expect(isAllowedPrivateHost('127.0.0.1')).toBe(false);
+      expect(isAllowedPrivateHost('169.254.169.254')).toBe(false);
+
+      // Nhung host an toan hop le van duoc phep
+      expect(isAllowedPrivateHost('gitea')).toBe(true);
+    });
+
+    it('cho phep cac service noi bo hop le duoc khai bao tuong minh', () => {
+      process.env.INTEGRATION_TEST_ALLOWED_PRIVATE_HOSTS = 'frontend,gitea,enterprise_ai_n8n';
+      expect(isAllowedPrivateHost('frontend')).toBe(true);
+      expect(isAllowedPrivateHost('gitea')).toBe(true);
+      expect(isAllowedPrivateHost('enterprise_ai_n8n')).toBe(true);
+      expect(isAllowedPrivateHost('other_service')).toBe(false);
     });
   });
 });

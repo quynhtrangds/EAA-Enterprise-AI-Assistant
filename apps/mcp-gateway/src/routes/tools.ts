@@ -54,6 +54,8 @@ interface LoginUserRow {
   tenant_id: string;
   sso_provider?: string;
   sso_id?: string;
+  failed_login_attempts?: number;
+  locked_until?: string | Date | null;
 }
 
 function unwrapSchema(schema: any): { schema: any; required: boolean } {
@@ -106,6 +108,7 @@ function zodToJsonSchema(schema: unknown): Record<string, unknown> {
 }
 
 toolsRouter.post('/login', async (req, res, next) => {
+  const startTime = Date.now();
   try {
     let credentials: z.infer<typeof loginSchema>;
     try {
@@ -116,6 +119,10 @@ toolsRouter.post('/login', async (req, res, next) => {
       }
       throw zodErr;
     }
+
+    // 1. Rate-limit theo Username truoc khi cham DB
+    checkLoginRateLimit(credentials.username);
+
     const result = await query<LoginUserRow>(
       `
       SELECT
@@ -126,35 +133,109 @@ toolsRouter.post('/login', async (req, res, next) => {
         u.email,
         u.tenant_id,
         u.role,
+        COALESCE(u.failed_login_attempts, 0) AS failed_login_attempts,
+        u.locked_until,
         COALESCE(NULLIF(array_agg(r.role_code ORDER BY r.role_code) FILTER (WHERE r.role_code IS NOT NULL), '{}'), ARRAY[COALESCE(u.role, 'staff')]) AS roles
       FROM users u
       LEFT JOIN user_roles ur ON ur.user_id = u.id
       LEFT JOIN roles r ON r.id = ur.role_id
       WHERE u.status = 'active'
         AND u.username = $1
-      GROUP BY u.id, u.username, u.password_hash, u.display_name, u.email, u.tenant_id, u.role
+      GROUP BY u.id, u.username, u.password_hash, u.display_name, u.email, u.tenant_id, u.role, u.failed_login_attempts, u.locked_until
       `,
       [credentials.username]
     );
 
-    // Username chỉ unique THEO TỪNG TENANT (xem migration 007), nên 2 tenant
-    // khác nhau có thể có user trùng username. Không được LIMIT 1 rồi mới
-    // verify password — thứ tự trả về không xác định nên có thể chọn nhầm
-    // user của tenant khác. Duyệt qua từng candidate và chỉ đăng nhập vào
-    // đúng người có password khớp.
+    const now = new Date();
     let user: LoginUserRow | undefined;
+    const candidatesTested: LoginUserRow[] = [];
+    let allLocked = result.rows.length > 0;
+
     for (const candidate of result.rows) {
+      const isLocked = candidate.locked_until && new Date(candidate.locked_until) > now;
+      if (isLocked) {
+        continue;
+      }
+      allLocked = false;
+      candidatesTested.push(candidate);
+
       if (await verifyPassword(credentials.password, candidate.password_hash)) {
         user = candidate;
         break;
       }
     }
 
+    // Neu toan bo candidate deu dang bi khoa -> 423 kem Audit Log
+    if (result.rows.length > 0 && allLocked) {
+      await writeAuditLog({
+        userId: null,
+        sessionId: null,
+        toolName: 'auth_login',
+        input: { username: credentials.username, ip: req.ip },
+        output: null,
+        status: 'failed',
+        errorMessage: 'Account locked.',
+        durationMs: Date.now() - startTime
+      }).catch(() => {});
+
+      throw new AppError('ACCOUNT_LOCKED', 'Tai khoan tam thoi bi khoa do dang nhap sai qua nhieu lan. Vui long thu lai sau.', 423);
+    }
+
+    // Neu khong co candidate nao khop mat khau
     if (!user) {
+      for (const candidate of candidatesTested) {
+        const nextAttempts = Number(candidate.failed_login_attempts || 0) + 1;
+        try {
+          await query(
+            `
+            UPDATE users
+            SET failed_login_attempts = $2,
+                locked_until = CASE WHEN $2 >= 5 THEN now() + INTERVAL '15 minutes' ELSE locked_until END
+            WHERE id = $1
+            `,
+            [candidate.id, nextAttempts]
+          );
+        } catch {
+          // Ignore DB update error in lockout tracking
+        }
+      }
+
+      await writeAuditLog({
+        userId: null,
+        sessionId: null,
+        toolName: 'auth_login',
+        input: { username: credentials.username, ip: req.ip },
+        output: null,
+        status: 'failed',
+        errorMessage: 'Username hoac password khong dung.',
+        durationMs: Date.now() - startTime
+      }).catch(() => {});
+
       throw new AppError('UNAUTHENTICATED', 'Username hoac password khong dung.', 401);
     }
 
+    // Dang nhap thanh cong -> Reset bo dem failed_login_attempts cho dung user.id
+    try {
+      await query(
+        `UPDATE users SET failed_login_attempts = 0, locked_until = NULL WHERE id = $1`,
+        [user.id]
+      );
+    } catch {
+      // Ignore DB update error in lockout reset
+    }
+
     const session = await createAuthSession(user.id, user.roles);
+
+    await writeAuditLog({
+      userId: user.id,
+      sessionId: null,
+      toolName: 'auth_login',
+      input: { username: credentials.username, ip: req.ip },
+      output: { success: true, userId: user.id, roles: user.roles },
+      status: 'success',
+      errorMessage: null,
+      durationMs: Date.now() - startTime
+    }).catch(() => {});
 
     res.json({
       success: true,
