@@ -23,6 +23,7 @@ interface ConnectorManifest {
 export class McpClientManager {
   private clients: Map<string, Client> = new Map();
   public toolToServerMap: Map<string, string> = new Map();
+  public toolToServersMap: Map<string, string[]> = new Map();
   // Danh sách server được khai báo trong connector.json — dùng cho Test Connection
   // để phân biệt "connector thuộc loại MCP nhưng tiến trình chưa sống" với
   // "integration code ngoài danh sách" (không áp dụng probe MCP server).
@@ -73,12 +74,30 @@ export class McpClientManager {
       const toolsResult = await client.listTools();
       for (const tool of toolsResult.tools) {
         this.toolToServerMap.set(tool.name, serverName);
+        const servers = this.toolToServersMap.get(tool.name) || [];
+        if (!servers.includes(serverName)) {
+          servers.push(serverName);
+        }
+        this.toolToServersMap.set(tool.name, servers);
       }
       
       console.log(`Connected to MCP Server: ${serverName} (${toolsResult.tools.length} tools)`);
     } catch (error) {
       console.error(`Failed to connect to MCP Server: ${serverName}`, error);
     }
+  }
+
+  getServerForTool(name: string, activeCodes?: Set<string>): string {
+    const servers = this.toolToServersMap.get(name) || [];
+    if (activeCodes && servers.length > 1) {
+      if (activeCodes.has('erpnext') && servers.includes('erpnext')) {
+        return 'erpnext';
+      }
+      if (activeCodes.has('postgres') && servers.includes('postgres')) {
+        return 'postgres';
+      }
+    }
+    return this.toolToServerMap.get(name) || servers[0] || '';
   }
 
   isConnected(serverName: string): boolean {
@@ -133,12 +152,14 @@ export class McpClientManager {
   }
 
   async listTools(): Promise<ListToolsResult> {
-    const allTools = [];
+    const toolMap = new Map<string, any>();
     for (const client of this.clients.values()) {
       const result = await client.listTools();
-      allTools.push(...result.tools);
+      for (const tool of result.tools) {
+        toolMap.set(tool.name, tool);
+      }
     }
-    return { tools: allTools };
+    return { tools: Array.from(toolMap.values()) };
   }
 
   // Các role được xem dữ liệu PII đầy đủ (không bị mask). Staff/viewer luôn
@@ -147,8 +168,8 @@ export class McpClientManager {
   // chỉ không thấy email/SĐT/địa chỉ đầy đủ.
   private static readonly PII_BYPASS_ROLES = new Set(['admin', 'manager']);
 
-  async callTool(name: string, args: any, roles: string[] = []) {
-    const serverName = this.toolToServerMap.get(name);
+  async callTool(name: string, args: any, roles: string[] = [], targetServer?: string) {
+    const serverName = targetServer || this.toolToServerMap.get(name);
     if (!serverName) {
       throw new Error(`Tool not found: ${name}`);
     }

@@ -444,7 +444,7 @@ toolsRouter.get('/tools', async (req, res, next) => {
       const config = getToolConfig(tool.name);
       let isPermitted = await canExecuteTool(user.roles, tool.name);
 
-      const serverName = mcpClientManager.toolToServerMap.get(tool.name);
+      const serverName = (typeof (mcpClientManager as any).getServerForTool === "function") ? (mcpClientManager as any).getServerForTool(tool.name, activeCodes) : mcpClientManager.toolToServerMap.get(tool.name);
       if (serverName && user.tenantId) {
         const activeRes = await query<{ is_active: boolean }>(
           `SELECT is_active FROM tenant_integrations WHERE tenant_id = $1 AND integration_code = $2`,
@@ -493,12 +493,12 @@ toolsRouter.post('/tools/call', async (req, res, next) => {
     if (['get_customer_orders', 'get_revenue_summary', 'get_top_customers', 'get_product_sales_summary'].includes(parsed.toolName)) {
       const args = (parsed.arguments || {}) as any;
       if (!args.toDate) {
-        args.toDate = new Date().toISOString();
+        args.toDate = new Date().toISOString().slice(0, 10);
       }
       if (!args.fromDate) {
         const d = new Date();
         d.setDate(d.getDate() - 90);
-        args.fromDate = d.toISOString();
+        args.fromDate = d.toISOString().slice(0, 10);
       }
       parsed.arguments = args;
     }

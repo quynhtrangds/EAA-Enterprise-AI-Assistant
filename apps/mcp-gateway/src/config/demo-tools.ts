@@ -1,11 +1,10 @@
 // ============================================================================
-// Bản đồ "tool demo → tích hợp thật thay thế".
+// Bản đồ "tool demo -> tích hợp thật thay thế".
 //
-// Các tool dưới đây đọc dữ liệu từ DB demo nội bộ (mcp-server-postgres). Khi
-// tích hợp thật đảm nhiệm cùng miền dữ liệu đang BẬT cho tenant, tool demo bị
-// ẨN khỏi danh sách tool của AI và bị đánh dấu không cho phép — để mỗi miền
-// dữ liệu chỉ còn MỘT nguồn trả lời, hết cảnh hai tool cho hai kết quả lệch nhau.
-// Khi tích hợp tương ứng TẮT/chưa cấu hình, tool demo hiện lại (chế độ dữ liệu mẫu).
+// Các tool nghiệp vụ cốt lõi (get_revenue_summary, get_product_sales_summary,
+// search_customer, get_customer_orders, get_order_detail, get_top_customers)
+// hiện đã được mcp-server-erpnext hỗ trợ trực tiếp từ Frappe REST API thời gian thực.
+// Do đó không còn bị coi là tool demo bị thay thế nữa.
 // ============================================================================
 import { query } from '../db/pool.js';
 
@@ -29,11 +28,5 @@ export async function getActiveIntegrationCodes(tenantId: string): Promise<Set<s
 
 /** Tool demo này đã bị tích hợp thật (đang bật) thay thế chưa? */
 export function isSupersededDemoTool(toolName: string, activeCodes: Set<string>, userRoles?: string[]): boolean {
-  // Vai trò 'viewer' chỉ có quyền gọi get_revenue_summary và get_product_sales_summary,
-  // không truy cập ERP/CRM thật, nên không bị ẩn các công cụ tổng quan này.
-  if (userRoles && userRoles.includes('viewer')) {
-    return false;
-  }
-  const owner = DEMO_TOOL_SUPERSEDED_BY[toolName];
-  return Boolean(owner && activeCodes.has(owner));
+  return false;
 }

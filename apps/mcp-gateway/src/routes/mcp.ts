@@ -41,12 +41,12 @@ const mcpServer = new Server({
 export function applySalesDateDefaults(toolName: string, args: Record<string, any> = {}): Record<string, any> {
   if (['get_customer_orders', 'get_revenue_summary', 'get_top_customers', 'get_product_sales_summary'].includes(toolName)) {
     if (!args.toDate) {
-      args.toDate = new Date().toISOString();
+      args.toDate = new Date().toISOString().slice(0, 10);
     }
     if (!args.fromDate) {
       const d = new Date();
       d.setDate(d.getDate() - 90);
-      args.fromDate = d.toISOString();
+      args.fromDate = d.toISOString().slice(0, 10);
     }
   }
   return args;
