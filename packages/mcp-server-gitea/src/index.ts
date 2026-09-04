@@ -71,9 +71,13 @@ mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
 
     const repositories = repoList.map((r: any) => {
       let rawUrl = r.html_url || r.clone_url || '';
-      // Convert host.docker.internal to localhost so browser on host machine can open it directly
-      if (rawUrl.includes('host.docker.internal')) {
+      // Convert internal docker host names to localhost so browser on host machine can open it directly
+      if (rawUrl.includes('host.docker.internal:3001')) {
+        rawUrl = rawUrl.replace('host.docker.internal:3001', 'localhost:3001');
+      } else if (rawUrl.includes('host.docker.internal')) {
         rawUrl = rawUrl.replace('host.docker.internal', 'localhost');
+      } else if (rawUrl.includes('gitea:3000')) {
+        rawUrl = rawUrl.replace('gitea:3000', 'localhost:3001');
       }
 
       return {

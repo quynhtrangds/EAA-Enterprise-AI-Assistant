@@ -1,4 +1,4 @@
-﻿import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
   isPrivateIPv4,
   isPrivateIPv6,
@@ -178,7 +178,7 @@ describe('policies/url-validator.ts: Comprehensive SSRF & CIDR Protection Suite'
     });
 
     it('tuyet doi chan vault, postgres, mcp-gateway, loopback ke ca khi co tinh dua vao whitelist', () => {
-      process.env.INTEGRATION_TEST_ALLOWED_PRIVATE_HOSTS = 'vault,postgres,mcp-gateway,localhost,127.0.0.1,gitea';
+      process.env.INTEGRATION_TEST_ALLOWED_PRIVATE_HOSTS = 'vault,postgres,mcp-gateway,localhost,127.0.0.1,host.docker.internal,gitea';
       expect(isAllowedPrivateHost('vault')).toBe(false);
       expect(isAllowedPrivateHost('enterprise_ai_vault')).toBe(false);
       expect(isAllowedPrivateHost('postgres')).toBe(false);
@@ -186,6 +186,7 @@ describe('policies/url-validator.ts: Comprehensive SSRF & CIDR Protection Suite'
       expect(isAllowedPrivateHost('mcp-gateway')).toBe(false);
       expect(isAllowedPrivateHost('localhost')).toBe(false);
       expect(isAllowedPrivateHost('127.0.0.1')).toBe(false);
+      expect(isAllowedPrivateHost('host.docker.internal')).toBe(false);
       expect(isAllowedPrivateHost('169.254.169.254')).toBe(false);
 
       // Nhung host an toan hop le van duoc phep

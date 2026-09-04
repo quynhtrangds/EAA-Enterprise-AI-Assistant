@@ -1,4 +1,4 @@
-﻿# docker-compose.frappe.yml
+# docker-compose.frappe.yml
 # Override file de ket noi mcp-gateway vao mang Frappe/ERPNext khi chay local.
 #
 # Su dung:
@@ -9,6 +9,8 @@
 
 services:
   mcp-gateway:
+    environment:
+      INTEGRATION_TEST_ALLOWED_PRIVATE_HOSTS: "gitea,frontend,frappe_docker-frontend-1"
     networks:
       - default
       - frappe_network

@@ -1,4 +1,4 @@
-﻿import net from 'net';
+import net from 'net';
 import dns from 'dns';
 import { AppError } from '../errors/app-error.js';
 
@@ -120,7 +120,8 @@ export const SENSITIVE_INFRA_HOSTS = new Set([
   'enterprise_ai_mcp_gateway',
   'localhost',
   '127.0.0.1',
-  '::1'
+  '::1',
+  'host.docker.internal'
 ]);
 
 export function isAllowedPrivateHost(rawHost: string): boolean {
