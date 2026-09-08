@@ -131,8 +131,8 @@ adminRouter.post('/integrations', async (req, res, next) => {
     // Lưu vào database
     // Store integration metadata in database (api_key is kept NULL/masked in DB; raw secret is stored ONLY in Vault)
     const upsertQuery = `
-      INSERT INTO tenant_integrations (tenant_id, integration_code, vault_path, is_active, api_url, api_key)
-      VALUES ($1, $2, $3, $4, $5, NULL)
+      INSERT INTO tenant_integrations (tenant_id, integration_code, vault_path, is_active, api_url)
+      VALUES ($1, $2, $3, $4, $5)
       ON CONFLICT (tenant_id, integration_code) 
       DO UPDATE SET 
         is_active = EXCLUDED.is_active,
