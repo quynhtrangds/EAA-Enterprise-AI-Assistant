@@ -128,11 +128,27 @@ export async function prepareToolExecution(
       const vaultPath = `integrations/${user.tenantId}/${serverName}`;
       const secrets = await VaultService.readSecret(vaultPath);
       if (secrets?.apiKey && secrets.apiUrl) {
-        await validateIntegrationUrlAsync(secrets.apiUrl);
+        try {
+          await validateIntegrationUrlAsync(secrets.apiUrl);
 
-        args._integrationCredentials = { apiKey: secrets.apiKey, apiUrl: secrets.apiUrl };
-        args._targetServer = serverName;
-        return args;
+          args._integrationCredentials = { apiKey: secrets.apiKey, apiUrl: secrets.apiUrl };
+          args._targetServer = serverName;
+          return args;
+        } catch (validationErr) {
+          console.warn(`[prepareToolExecution] validateIntegrationUrlAsync failed for ${serverName}: ${(validationErr as Error).message}`);
+          if (serverName === 'erpnext' && servers.includes('postgres')) {
+            const pgActiveRes = await query<{ is_active: boolean }>(
+              `SELECT is_active FROM tenant_integrations WHERE tenant_id = $1 AND integration_code = 'postgres'`,
+              [user.tenantId]
+            );
+            const isPgActive = pgActiveRes.rows.length > 0 ? pgActiveRes.rows[0]?.is_active === true : true;
+            if (isPgActive) {
+              args._targetServer = 'postgres';
+              return args;
+            }
+          }
+          throw validationErr;
+        }
       }
     }
 

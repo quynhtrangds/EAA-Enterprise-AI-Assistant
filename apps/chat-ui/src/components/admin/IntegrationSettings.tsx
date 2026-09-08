@@ -138,8 +138,8 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
     { code: 'erpnext', name: 'ERPNext' },
     { code: 'zammad', name: 'Zammad Helpdesk' },
     { code: 'gitea', name: 'Gitea Code Server' },
-    { code: 'rag', name: 'RAG — Tra cứu tài liệu nội bộ' },
-    { code: 'postgres', name: 'Database nghiệp vụ (nội bộ)' }
+    { code: 'rag', name: 'RAG - Tra cứu tài liệu' },
+    { code: 'postgres', name: 'Database nghiệp vụ' }
   ];
   const [integrationCatalog, setIntegrationCatalog] = useState(baseIntegrations);
 
@@ -562,7 +562,7 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
 
             {/* Health-check overview đã tách thành tab riêng "Tình trạng Hệ thống" */}
 
-                          {/* TAB 1: INTEGRATIONS */}
+            {/* TAB 1: INTEGRATIONS */}
             {activeTab === 'integrations' && (
               <div className="flex gap-8">
                 {/* Left Service List */}
@@ -577,9 +577,9 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
                     const isSelected = selectedIntegration === item.code;
                     const testStatusText =
                       config?.last_test_status === 'passed' ? 'Hoạt động bình thường (lần kiểm tra gần nhất đạt)'
-                      : config?.last_test_status === 'degraded' ? 'Kết nối được nhưng có cảnh báo'
-                      : config?.last_test_status === 'failed' ? 'Lần kiểm tra gần nhất THẤT BẠI'
-                      : 'Chưa kiểm tra kết nối';
+                        : config?.last_test_status === 'degraded' ? 'Kết nối được nhưng có cảnh báo'
+                          : config?.last_test_status === 'failed' ? 'Lần kiểm tra gần nhất THẤT BẠI'
+                            : 'Chưa kiểm tra kết nối';
                     const statusTitle = testStatusText +
                       (config?.last_tested_at ? ` — ${new Date(config.last_tested_at).toLocaleString('vi-VN')}` : '');
 
@@ -588,11 +588,10 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
                         key={item.code}
                         type="button"
                         onClick={() => handleSelectIntegration(item.code)}
-                        className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl transition-all text-left cursor-pointer border ${
-                          isSelected
-                            ? 'bg-brass/10 border-brass/40 shadow-sm text-ink-1'
-                            : 'border-transparent text-ink-2 hover:bg-surface-raised hover:text-ink-1 hover:border-hair'
-                        }`}
+                        className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl transition-all text-left cursor-pointer border ${isSelected
+                          ? 'bg-brass/10 border-brass/40 shadow-sm text-ink-1'
+                          : 'border-transparent text-ink-2 hover:bg-surface-raised hover:text-ink-1 hover:border-hair'
+                          }`}
                       >
                         <span className={`text-[13px] font-medium leading-none whitespace-nowrap mr-3 ${isSelected ? 'text-brass font-semibold' : 'text-ink-1'}`}>
                           {item.name}
@@ -600,12 +599,11 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
 
                         {/* Status Dot — chỉ chấm màu, di chuột xem chi tiết */}
                         <span
-                          className={`shrink-0 w-2 h-2 rounded-full ${
-                            config?.last_test_status === 'passed' ? 'bg-sage'
+                          className={`shrink-0 w-2 h-2 rounded-full ${config?.last_test_status === 'passed' ? 'bg-sage'
                             : config?.last_test_status === 'degraded' ? 'bg-amber-400'
-                            : config?.last_test_status === 'failed' ? 'bg-clay'
-                            : 'bg-ink-3/50'
-                          }`}
+                              : config?.last_test_status === 'failed' ? 'bg-clay'
+                                : 'bg-ink-3/50'
+                            }`}
                           title={statusTitle}
                         />
                       </button>
@@ -712,9 +710,8 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
                             <div className="mt-4 p-3.5 bg-surface-raised/40 border border-hair rounded-xl space-y-2">
                               <div className="flex items-center justify-between pb-2 border-b border-hair">
                                 <div className="flex items-center gap-2">
-                                  <span className={`w-2.5 h-2.5 rounded-full ${
-                                    testResult.overallStatus === 'passed' ? 'bg-sage' : testResult.overallStatus === 'degraded' ? 'bg-amber-400' : 'bg-clay'
-                                  }`} />
+                                  <span className={`w-2.5 h-2.5 rounded-full ${testResult.overallStatus === 'passed' ? 'bg-sage' : testResult.overallStatus === 'degraded' ? 'bg-amber-400' : 'bg-clay'
+                                    }`} />
                                   <span className="text-xs font-bold text-ink-1">
                                     Kết quả kiểm tra chuỗi Probe ({testResult.steps.filter(s => s.status === 'passed').length}/{testResult.steps.filter(s => s.status !== 'skipped').length} bước áp dụng đạt)
                                   </span>
@@ -730,11 +727,10 @@ export function IntegrationSettings({ onClose }: IntegrationSettingsProps) {
                                   const isFail = st.status === 'failed';
 
                                   return (
-                                    <div key={idx} className={`p-2 rounded-lg text-xs border ${
-                                      isPass ? 'bg-sage/5 border-sage/20 text-ink-1' :
+                                    <div key={idx} className={`p-2 rounded-lg text-xs border ${isPass ? 'bg-sage/5 border-sage/20 text-ink-1' :
                                       isFail ? 'bg-clay/10 border-clay/30 text-ink-1' :
-                                      'bg-surface/60 border-hair text-ink-3'
-                                    }`}>
+                                        'bg-surface/60 border-hair text-ink-3'
+                                      }`}>
                                       <div className="flex items-center justify-between">
                                         <div className="flex items-center gap-2">
                                           <span className={`font-bold ${isPass ? 'text-sage' : isFail ? 'text-clay' : 'text-ink-3'}`}>
