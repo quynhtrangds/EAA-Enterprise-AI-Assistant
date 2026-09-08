@@ -103,7 +103,7 @@ const LoginScreen: React.FC = () => {
       {/* 3. Glassmorphic Login Card */}
       <div className="relative z-10 w-full max-w-md p-8 md:p-9 bg-surface/90 backdrop-blur-xl rounded-2xl border border-hair/80 shadow-2xl shadow-black/80 animate-in fade-in zoom-in-95 duration-200">
         <div className="text-center mb-8">
-          <div className="w-12 h-12 rounded-2xl bg-brass/15 border border-brass/40 flex items-center justify-center mx-auto mb-4 shadow-lg shadow-brass/10">
+          <div className="w-12 h-12 rounded-2xl bg-blue-500/10 border border-blue-400/25 flex items-center justify-center mx-auto mb-4 shadow-lg shadow-blue-500/10 backdrop-blur-sm">
             <img src="/logo.png" alt="Logo" className="w-9 h-9 object-contain" />
           </div>
           <h2 className="text-xl font-bold text-ink-1 tracking-tight">Trợ lý AI Doanh nghiệp</h2>
