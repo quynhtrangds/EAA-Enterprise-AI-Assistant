@@ -2,11 +2,11 @@
 
 Nền tảng Trợ lý AI doanh nghiệp thông minh bằng tiếng Việt, xây dựng trên kiến trúc **MCP (Model Context Protocol)**. Mô hình ngôn ngữ lớn (LLM) và AI Orchestrator **không bao giờ** truy cập trực tiếp vào cơ sở dữ liệu hay các hệ thống nghiệp vụ (CRM, ERP, Helpdesk, Automation...). Mọi thao tác dữ liệu đều phải đi qua **MCP Gateway** dưới dạng các *tool* (công cụ) được kiểm soát phân quyền chặt chẽ (RBAC), rate-limit, chống rò rỉ dữ liệu (Masking) và ghi Audit Log đầy đủ.
 
-> 📌 Nhánh `extended_phase` đã hoàn thiện toàn diện: Xác thực Token/Google SSO, Multi-tenant, Quản lý bí mật bằng HashiCorp Vault, Đa dạng kết nối MCP (CRM, ERPNext, Zammad, Gitea, n8n, Postgres, RAG), Kiểm tra kết nối đa tầng (Layered Probing), Quản lý lịch sử trò chuyện đa lượt (Multi-turn Chat) và Cảnh báo sức khỏe tự động.
+> Nhánh `extended_phase` đã hoàn thiện toàn diện: Xác thực Token/Google SSO, Multi-tenant, Quản lý bí mật bằng HashiCorp Vault, Đa dạng kết nối MCP (CRM, ERPNext, Zammad, Gitea, n8n, Postgres, RAG), Kiểm tra kết nối đa tầng (Layered Probing), Quản lý lịch sử trò chuyện đa lượt (Multi-turn Chat) và Cảnh báo sức khỏe tự động.
 
 ---
 
-## 🏗️ Kiến trúc tổng quan
+## Kiến trúc tổng quan
 
 ```text
 User (Chat UI :3000)
@@ -38,7 +38,7 @@ n8n Automation (:5678) ◀── Workflow Engine tự động hóa (Telegram, Em
 
 ---
 
-## 🗄️ Sơ đồ Cơ sở Dữ liệu (ERD - Entity Relationship Diagram)
+## Sơ đồ Cơ sở Dữ liệu (ERD - Entity Relationship Diagram)
 
 Hệ thống cơ sở dữ liệu PostgreSQL (`localhost:55432 / enterprise_ai_demo`) gồm **16 bảng thực thể** được phân bổ theo 3 phân hệ nghiệp vụ:
 
@@ -247,11 +247,11 @@ erDiagram
     }
 ```
 
-> 📖 **Xem thêm**: Tài liệu đặc tả ERD tại [`docs/erd.md`](docs/erd.md) hoặc xem giao diện HTML trực quan tương tác tại [`docs/erd.html`](docs/erd.html).
+> **Xem thêm**: Tài liệu đặc tả ERD tại [`docs/erd.md`](docs/erd.md) hoặc xem giao diện HTML trực quan tương tác tại [`docs/erd.html`](docs/erd.html).
 
 ---
 
-## 📋 Yêu cầu hệ thống
+## Yêu cầu hệ thống
 
 1. **Node.js 20+**
 2. **Docker & Docker Compose** (đang chạy)
@@ -259,7 +259,7 @@ erDiagram
 
 ---
 
-## 🚀 Khởi chạy hệ thống
+## Khởi chạy hệ thống
 
 ### Cách 1: Docker Compose (Khuyến nghị cho toàn bộ hệ sinh thái)
 
@@ -273,7 +273,7 @@ docker compose up -d
 docker compose ps
 ```
 
-### 🌐 Danh sách Cổng & Dịch vụ mặc định:
+### Danh sách Cổng & Dịch vụ mặc định:
 
 | Dịch vụ | URL Local | Cổng Container | Mô tả |
 |---|---|---|---|
@@ -315,7 +315,7 @@ npm run dev                # Chạy tại http://localhost:3000
 
 ---
 
-## 🔐 Xác thực & Phân quyền (Authentication & RBAC)
+## Xác thực & Phân quyền (Authentication & RBAC)
 
 Toàn bộ API (ngoại trừ `/health` và `/login`, `/auth/*`) yêu cầu xác thực qua HTTP Header:
 
@@ -339,9 +339,9 @@ Authorization: Bearer <token>
 
 ---
 
-## 🔌 Danh mục API chính
+## Danh mục API chính
 
-### 🛡️ MCP Gateway (`:8085` / `:8081`)
+### MCP Gateway (`:8085` / `:8081`)
 
 | Method | Endpoint | Mô tả | Phân quyền |
 |---|---|---|---|
@@ -357,7 +357,7 @@ Authorization: Bearer <token>
 | POST | `/api/admin/integrations/test` | Kiểm tra kết nối bản nháp trước khi lưu (Draft Test) | Admin |
 | GET  | `/api/admin/system/health` | Lấy thông tin tổng quan sức khỏe toàn hệ thống | Admin |
 
-### 🤖 AI Orchestrator (`:8082`)
+### AI Orchestrator (`:8082`)
 
 | Method | Endpoint | Mô tả |
 |---|---|---|
@@ -371,7 +371,7 @@ Authorization: Bearer <token>
 
 ---
 
-## 🔍 Cơ chế Kiểm tra Kết nối Đa Tầng (Layered Probe Testing)
+## Cơ chế Kiểm tra Kết nối Đa Tầng (Layered Probe Testing)
 
 Khi Quản trị viên bấm **"Kiểm tra kết nối"** trên giao diện Cài đặt Tích hợp, hệ thống thực hiện quy trình kiểm tra chuyên sâu 8 tầng:
 
@@ -389,7 +389,7 @@ Khi Quản trị viên bấm **"Kiểm tra kết nối"** trên giao diện Cài
 
 ---
 
-## 🧩 Danh mục MCP Server con (`packages/`)
+## Danh mục MCP Server con (`packages/`)
 
 | Package | Vai trò & Danh mục Tools |
 |---|---|
@@ -403,7 +403,7 @@ Khi Quản trị viên bấm **"Kiểm tra kết nối"** trên giao diện Cài
 
 ---
 
-## ⚙️ Cấu hình LLM Provider
+## Cấu hình LLM Provider
 
 Biến `LLM_PROVIDER` trong `apps/ai-orchestrator/.env` hỗ trợ 3 chế độ:
 
@@ -424,7 +424,7 @@ LOCAL_LLM_BASE_URL=http://localhost:11434/v1
 
 ---
 
-## 🧪 Kiểm thử (Testing)
+## Kiểm thử (Testing)
 
 Hệ thống đi kèm bộ kiểm thử tự động toàn diện hơn **316+ automated tests** bao phủ toàn bộ các tầng:
 
@@ -444,7 +444,7 @@ cd apps/chat-ui && npm run test:e2e
 
 ---
 
-## 🚢 Hướng dẫn triển khai Production
+## Hướng dẫn triển khai Production
 
 Sử dụng cấu hình production tối ưu hóa `docker-compose.prod.yml`:
 
@@ -459,7 +459,7 @@ Chi tiết các bước thiết lập chứng chỉ SSL/TLS, Caddy Reverse Proxy
 
 ---
 
-## 📚 Tài liệu kỹ thuật chi tiết (`docs/`)
+## Tài liệu kỹ thuật chi tiết (`docs/`)
 
 - [**Sơ đồ Cơ sở Dữ liệu (ERD - Markdown)**](docs/erd.md) & [**ERD Trực quan (HTML)**](docs/erd.html): Chi tiết 16 bảng dữ liệu, quan hệ khóa ngoại (FK), kiểu dữ liệu và ràng buộc toàn vẹn.
 - [**Kiến trúc Hệ thống (Architecture)**](docs/architecture.md): Luồng xử lý chi tiết từ Chat UI -> AI Orchestrator -> MCP Gateway -> MCP Connectors.
