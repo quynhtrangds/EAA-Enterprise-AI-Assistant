@@ -73,7 +73,9 @@ export class McpClientManager {
 
       const toolsResult = await client.listTools();
       for (const tool of toolsResult.tools) {
-        this.toolToServerMap.set(tool.name, serverName);
+        if (!this.toolToServerMap.has(tool.name) || serverName === 'postgres') {
+          this.toolToServerMap.set(tool.name, serverName);
+        }
         const servers = this.toolToServersMap.get(tool.name) || [];
         if (!servers.includes(serverName)) {
           servers.push(serverName);
@@ -96,6 +98,9 @@ export class McpClientManager {
       if (activeCodes.has('postgres') && servers.includes('postgres')) {
         return 'postgres';
       }
+    }
+    if (servers.includes('postgres') && (!activeCodes || !activeCodes.has('erpnext'))) {
+      return 'postgres';
     }
     return this.toolToServerMap.get(name) || servers[0] || '';
   }
@@ -169,7 +174,7 @@ export class McpClientManager {
   private static readonly PII_BYPASS_ROLES = new Set(['admin', 'manager']);
 
   async callTool(name: string, args: any, roles: string[] = [], targetServer?: string) {
-    const serverName = targetServer || this.toolToServerMap.get(name);
+    const serverName = targetServer || args?._targetServer || this.toolToServerMap.get(name);
     if (!serverName) {
       throw new Error(`Tool not found: ${name}`);
     }

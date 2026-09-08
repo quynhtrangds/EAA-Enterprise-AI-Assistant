@@ -97,28 +97,63 @@ export async function prepareToolExecution(
   //    - BẬT + đủ credentials trong Vault → inject _integrationCredentials (data thật)
   //    - TẮT / chưa khai báo / chưa đủ credentials → _mockMode: true (MCP server
   //      trả dữ liệu mẫu kèm nhãn _mock để báo người dùng đây không phải data thật).
-  //      Server không hỗ trợ mock sẽ tự báo lỗi "chưa cấu hình" như trước.
-  const serverName = mcpClientManager.toolToServerMap.get(toolName);
+  // 5. Chọn server thực thi động & chế độ dữ liệu theo trạng thái tích hợp của tenant:
+  const servers = (mcpClientManager as any).toolToServersMap?.get(toolName) || [];
+  let serverName: string | undefined;
+
+  if (servers.length > 1 && user.tenantId) {
+    const activeCodes = await getActiveIntegrationCodes(user.tenantId);
+    serverName = mcpClientManager.getServerForTool(toolName, activeCodes);
+  } else {
+    serverName = (typeof (mcpClientManager as any).getServerForTool === 'function' && (mcpClientManager as any).toolToServersMap?.has(toolName))
+      ? (mcpClientManager as any).getServerForTool(toolName)
+      : mcpClientManager.toolToServerMap.get(toolName);
+  }
+
   if (serverName && user.tenantId) {
     const activeRes = await query<{ is_active: boolean }>(
       `SELECT is_active FROM tenant_integrations WHERE tenant_id = $1 AND integration_code = $2`,
       [user.tenantId, serverName]
     );
 
-    const isActive = activeRes.rows.length > 0 && activeRes.rows[0]?.is_active === true;
+    const isActive = activeRes.rows.length > 0 ? activeRes.rows[0]?.is_active === true : (serverName === 'postgres');
 
     if (isActive) {
+      if (serverName === 'postgres') {
+        // Postgres dùng DB pool nội bộ của tenant, không cần API key / Vault credentials
+        args._targetServer = serverName;
+        return args;
+      }
+
       const vaultPath = `integrations/${user.tenantId}/${serverName}`;
       const secrets = await VaultService.readSecret(vaultPath);
       if (secrets?.apiKey && secrets.apiUrl) {
         await validateIntegrationUrlAsync(secrets.apiUrl);
 
         args._integrationCredentials = { apiKey: secrets.apiKey, apiUrl: secrets.apiUrl };
+        args._targetServer = serverName;
+        return args;
+      }
+    }
+
+    // Nếu ERPNext không active hoặc thiếu credentials trong Vault, nhưng tool có hỗ trợ qua postgres
+    if (serverName === 'erpnext' && servers.includes('postgres')) {
+      const pgActiveRes = await query<{ is_active: boolean }>(
+        `SELECT is_active FROM tenant_integrations WHERE tenant_id = $1 AND integration_code = 'postgres'`,
+        [user.tenantId]
+      );
+      const isPgActive = pgActiveRes.rows.length > 0 ? pgActiveRes.rows[0]?.is_active === true : true;
+      if (isPgActive) {
+        args._targetServer = 'postgres';
         return args;
       }
     }
 
     args._mockMode = true;
+  }
+
+  if (serverName) {
+    args._targetServer = serverName;
   }
 
   return args;
@@ -166,7 +201,8 @@ mcpServer.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
       request.params.arguments = args;
     }
 
-    const data = await mcpClientManager.callTool(toolName, args, user?.roles || []);
+    const targetServer = (args as any)?._targetServer;
+    const data = await mcpClientManager.callTool(toolName, args, user?.roles || [], targetServer);
 
     if (user) {
       await writeAuditLog({

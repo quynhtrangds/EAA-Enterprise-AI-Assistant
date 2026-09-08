@@ -486,9 +486,19 @@ toolsRouter.post('/tools/call', async (req, res, next) => {
     const user = await getCurrentUser(req);
     parsed = callToolSchema.parse(req.body);
 
-    const targetServerName = mcpClientManager.toolToServerMap.get(parsed.toolName);
-    // Lưu ý: tích hợp bị TẮT không còn chặn cứng ở đây — chế độ real/mock được
-    // quyết định tại khối inject credentials phía dưới (xem _mockMode).
+    const servers = (mcpClientManager as any).toolToServersMap?.get(parsed.toolName) || [];
+    let serverName: string | undefined;
+
+    if (servers.length > 1 && user.tenantId) {
+      const activeCodes = await getActiveIntegrationCodes(user.tenantId);
+      serverName = (typeof (mcpClientManager as any).getServerForTool === 'function')
+        ? (mcpClientManager as any).getServerForTool(parsed.toolName, activeCodes)
+        : mcpClientManager.toolToServerMap.get(parsed.toolName);
+    } else {
+      serverName = (typeof (mcpClientManager as any).getServerForTool === 'function' && (mcpClientManager as any).toolToServersMap?.has(parsed.toolName))
+        ? (mcpClientManager as any).getServerForTool(parsed.toolName)
+        : mcpClientManager.toolToServerMap.get(parsed.toolName);
+    }
 
     if (['get_customer_orders', 'get_revenue_summary', 'get_top_customers', 'get_product_sales_summary'].includes(parsed.toolName)) {
       const args = (parsed.arguments || {}) as any;
@@ -520,7 +530,6 @@ toolsRouter.post('/tools/call', async (req, res, next) => {
       durationMs: 0
     });
 
-    const serverName = targetServerName; // Use targetServerName
     console.log(`[Tool Execution] toolName: ${parsed.toolName}, serverName: ${serverName}, tenantId: ${user?.tenantId}`);
     let mergedArgs = { ...((parsed.arguments as object) || {}) };
     if (user?.tenantId) {
@@ -528,30 +537,47 @@ toolsRouter.post('/tools/call', async (req, res, next) => {
     }
 
     if (serverName && user.tenantId) {
-      // Chọn chế độ dữ liệu theo trạng thái tích hợp của tenant:
-      //   BẬT + đủ credentials trong Vault → inject _integrationCredentials (data thật)
-      //   TẮT / chưa khai báo / chưa đủ credentials → _mockMode: true (server trả
-      //   dữ liệu mẫu kèm nhãn _mock; server không hỗ trợ mock sẽ tự báo lỗi như cũ)
       const activeRes = await query<{ is_active: boolean }>(
         `SELECT is_active FROM tenant_integrations WHERE tenant_id = $1 AND integration_code = $2`,
         [user.tenantId, serverName]
       );
-      const isActive = activeRes.rows.length > 0 && activeRes.rows[0]?.is_active === true;
+      const isActive = activeRes.rows.length > 0 ? activeRes.rows[0]?.is_active === true : (serverName === 'postgres');
 
-      let credentials: { apiKey: string; apiUrl: string } | null = null;
-      if (isActive) {
-        const vaultPath = `integrations/${user.tenantId}/${serverName}`;
-        const secrets = await VaultService.readSecret(vaultPath);
-        if (secrets?.apiKey && secrets.apiUrl) {
-          credentials = { apiKey: secrets.apiKey, apiUrl: secrets.apiUrl };
+      if (serverName === 'postgres') {
+        if (!isActive) {
+          (mergedArgs as any)._mockMode = true;
+        }
+      } else {
+        let credentials: { apiKey: string; apiUrl: string } | null = null;
+        if (isActive) {
+          const vaultPath = `integrations/${user.tenantId}/${serverName}`;
+          const secrets = await VaultService.readSecret(vaultPath);
+          if (secrets?.apiKey && secrets.apiUrl) {
+            credentials = { apiKey: secrets.apiKey, apiUrl: secrets.apiUrl };
+          }
+        }
+
+        if (credentials) {
+          mergedArgs = { ...mergedArgs, _integrationCredentials: credentials };
+        } else if (serverName === 'erpnext' && servers.includes('postgres')) {
+          const pgActiveRes = await query<{ is_active: boolean }>(
+            `SELECT is_active FROM tenant_integrations WHERE tenant_id = $1 AND integration_code = 'postgres'`,
+            [user.tenantId]
+          );
+          const isPgActive = pgActiveRes.rows.length > 0 ? pgActiveRes.rows[0]?.is_active === true : true;
+          if (isPgActive) {
+            serverName = 'postgres';
+          } else {
+            (mergedArgs as any)._mockMode = true;
+          }
+        } else {
+          (mergedArgs as any)._mockMode = true;
         }
       }
+    }
 
-      if (credentials) {
-        mergedArgs = { ...mergedArgs, _integrationCredentials: credentials };
-      } else {
-        (mergedArgs as any)._mockMode = true;
-      }
+    if (serverName) {
+      (mergedArgs as any)._targetServer = serverName;
     }
     console.log(`[Tool Execution] toolName: ${parsed.toolName}, credentialsInjected: ${Boolean(serverName && user.tenantId)}`);
 
