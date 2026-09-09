@@ -190,7 +190,6 @@ volumes:
     name: enterprise_ai_gitea_config
   n8n_data:
     name: n8n_data
-    external: true
 networks:
   default:
   frappe_network:
