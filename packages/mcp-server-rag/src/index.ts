@@ -1,16 +1,83 @@
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
+import { z } from 'zod';
+
+declare const process: any;
 
 export function removeAccents(str: string): string {
   return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D');
 }
+
+export const MAX_RESPONSE_BYTES = 512 * 1024; // 512 KB
+export const MAX_CHUNK_LENGTH = 1500; // characters per document chunk
+
+export const SearchInputSchema = z.object({
+  keyword: z
+    .string({ required_error: 'Từ khóa tìm kiếm là bắt buộc.' })
+    .trim()
+    .min(1, 'Từ khóa tìm kiếm không được để trống.')
+    .max(200, 'Từ khóa tìm kiếm không được vượt quá 200 ký tự.')
+    .transform(val => val.replace(/[\x00-\x1F\x7F]/g, ' ').trim())
+});
 
 export interface DocumentItem {
   id: string;
   title: string;
   category?: string;
   content: string;
+}
+
+export const ExternalRagItemSchema = z.object({
+  id: z.union([z.string(), z.number()]).optional().transform(v => (v !== undefined ? String(v) : undefined)),
+  title: z.string().optional().default('Tài liệu'),
+  category: z.string().optional().default('Chung'),
+  content: z.string().optional().default(''),
+  snippet: z.string().optional(),
+  text: z.string().optional(),
+  score: z.number().optional()
+});
+
+export const ExternalRagResponseSchema = z.union([
+  z.array(ExternalRagItemSchema),
+  z.object({
+    documents: z.array(ExternalRagItemSchema).optional(),
+    results: z.array(ExternalRagItemSchema).optional(),
+    data: z.array(ExternalRagItemSchema).optional(),
+    items: z.array(ExternalRagItemSchema).optional()
+  })
+]);
+
+export function sanitizeAndTruncateText(text: string, maxLength: number = MAX_CHUNK_LENGTH): string {
+  if (!text) return '';
+  if (text.length <= maxLength) return text;
+  return text.slice(0, maxLength) + '... [đã cắt ngắn]';
+}
+
+export function parseAndNormalizeExternalResults(raw: unknown): DocumentItem[] {
+  const parseResult = ExternalRagResponseSchema.safeParse(raw);
+  if (!parseResult.success) {
+    console.warn('[RAG Server] External response does not match expected schema:', parseResult.error.message);
+    return [];
+  }
+
+  const value = parseResult.data;
+  let items: z.infer<typeof ExternalRagItemSchema>[] = [];
+  if (Array.isArray(value)) {
+    items = value;
+  } else {
+    items = value.documents || value.results || value.data || value.items || [];
+  }
+
+  return items.slice(0, 5).map((item, idx) => {
+    const rawContent = item.content || item.snippet || item.text || '';
+    return {
+      id: item.id || `ext-${idx + 1}`,
+      title: item.title || 'Tài liệu không tiêu đề',
+      category: item.category || 'Tài liệu bên ngoài',
+      content: sanitizeAndTruncateText(rawContent, MAX_CHUNK_LENGTH)
+    };
+  });
 }
 
 // Enterprise Knowledge Base Documents
@@ -47,7 +114,7 @@ export const COMPANY_DOCUMENTS: DocumentItem[] = [
   }
 ];
 
-const mcpServer = new Server(
+export const mcpServer = new Server(
   {
     name: 'mcp-server-rag',
     version: '1.0.0'
@@ -70,7 +137,7 @@ mcpServer.setRequestHandler(ListToolsRequestSchema, async () => {
           properties: {
             keyword: {
               type: 'string',
-              description: 'Từ khóa tìm kiếm (ví dụ: nghỉ phép, VPN, sự cố, bảo mật, thanh toán)'
+              description: 'Từ khóa tìm kiếm (tối đa 200 ký tự)'
             }
           },
           required: ['keyword']
@@ -87,7 +154,23 @@ mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { apiKey, apiUrl } = creds;
 
   if (toolName === 'search_internal_documents') {
-    const rawKeyword = String(rawArgs.keyword || '').trim();
+    const keywordValidation = SearchInputSchema.safeParse(rawArgs);
+    if (!keywordValidation.success) {
+      return {
+        isError: true,
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              error: 'INVALID_INPUT',
+              message: keywordValidation.error.errors[0]?.message || 'Từ khóa tìm kiếm không hợp lệ.'
+            })
+          }
+        ]
+      };
+    }
+
+    const rawKeyword = keywordValidation.data.keyword;
     const keyword = removeAccents(rawKeyword.toLowerCase());
 
     // If external RAG / Vector Search endpoint is configured
@@ -110,12 +193,34 @@ mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
         });
 
         if (resp.ok) {
-          const data = await resp.json();
+          const contentLength = resp.headers.get('content-length');
+          if (contentLength && parseInt(contentLength, 10) > MAX_RESPONSE_BYTES) {
+            throw new Error(`Kích thước phản hồi từ external API (${contentLength} bytes) vượt quá giới hạn an toàn (${MAX_RESPONSE_BYTES} bytes).`);
+          }
+
+          const arrayBuffer = await resp.arrayBuffer();
+          if (arrayBuffer.byteLength > MAX_RESPONSE_BYTES) {
+            throw new Error(`Kích thước dữ liệu nhận được (${arrayBuffer.byteLength} bytes) vượt quá giới hạn an toàn (${MAX_RESPONSE_BYTES} bytes).`);
+          }
+
+          const responseText = new TextDecoder('utf-8').decode(arrayBuffer);
+          const rawData = JSON.parse(responseText);
+          const normalizedDocs = parseAndNormalizeExternalResults(rawData);
+
           return {
             content: [
               {
                 type: 'text',
-                text: JSON.stringify(data, null, 2)
+                text: JSON.stringify(
+                  {
+                    source: 'external_rag',
+                    query: rawKeyword,
+                    total_found: normalizedDocs.length,
+                    documents: normalizedDocs
+                  },
+                  null,
+                  2
+                )
               }
             ]
           };
@@ -139,13 +244,14 @@ mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
           type: 'text',
           text: JSON.stringify(
             {
+              source: 'internal_kb',
               query: rawKeyword,
               total_found: results.length,
-              documents: results.map((d) => ({
+              documents: results.slice(0, 5).map((d) => ({
                 id: d.id,
                 title: d.title,
                 category: d.category,
-                content: d.content
+                content: sanitizeAndTruncateText(d.content, MAX_CHUNK_LENGTH)
               }))
             },
             null,
@@ -159,10 +265,12 @@ mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
   throw new Error(`Tool not found: ${toolName}`);
 });
 
-async function run() {
+export async function run() {
   const transport = new StdioServerTransport();
   await mcpServer.connect(transport);
   console.error('RAG MCP Server running on stdio');
 }
 
-run().catch(console.error);
+if (process.env.NODE_ENV !== 'test') {
+  run().catch(console.error);
+}

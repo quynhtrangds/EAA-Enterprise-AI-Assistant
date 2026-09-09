@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { getAuthHeaders } from './index.js';
+import { getAuthHeaders, truncateErrorMessage } from './index.js';
 
 describe('mcp-server-zammad Unit & Mocked Execution Tests', () => {
   beforeEach(() => {
@@ -26,6 +26,20 @@ describe('mcp-server-zammad Unit & Mocked Execution Tests', () => {
         Accept: 'application/json',
         Authorization: 'Token token=zammad_token_abc'
       });
+    });
+  });
+
+  describe('truncateErrorMessage helper', () => {
+    it('giữ nguyên lỗi ngắn dưới 300 ký tự', () => {
+      const shortErr = 'Zammad service unavailable';
+      expect(truncateErrorMessage(shortErr)).toBe('Zammad service unavailable');
+    });
+
+    it('cắt ngắn phản hồi lỗi dài hơn 300 ký tự', () => {
+      const longErr = 'Error: ' + 'A'.repeat(400);
+      const truncated = truncateErrorMessage(longErr, 300);
+      expect(truncated.length).toBe(300 + '... [cắt ngắn]'.length);
+      expect(truncated.endsWith('... [cắt ngắn]')).toBe(true);
     });
   });
 

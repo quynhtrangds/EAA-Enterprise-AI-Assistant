@@ -105,8 +105,18 @@ adminRouter.get('/integrations', async (req, res, next) => {
   }
 });
 
+export const integrationCodeSchema = z
+  .string()
+  .trim()
+  .min(1, 'Mã tích hợp là bắt buộc')
+  .max(50, 'Tối đa 50 ký tự')
+  .regex(
+    /^[a-z0-9_-]+$/,
+    'Mã tích hợp chỉ được chứa chữ cái viết thường (a-z), chữ số (0-9), dấu gạch dưới (_) hoặc gạch ngang (-)'
+  );
+
 const integrationSchema = z.object({
-  integrationCode: z.string(),
+  integrationCode: integrationCodeSchema,
   apiKey: z.string().optional(),
   apiUrl: z.string().optional(),
   isActive: z.boolean().optional()
@@ -263,7 +273,8 @@ adminRouter.post('/integrations/:code/test', integrationTestRateLimiter, async (
     if (!user || !user.tenantId) {
       throw new AppError('UNAUTHORIZED', 'No tenant associated with user', 401);
     }
-    const result = await IntegrationTestService.testSaved(user.tenantId, String(req.params.code), user.id);
+    const code = integrationCodeSchema.parse(req.params.code);
+    const result = await IntegrationTestService.testSaved(user.tenantId, code, user.id);
     res.json(result);
   } catch (error) {
     next(error);

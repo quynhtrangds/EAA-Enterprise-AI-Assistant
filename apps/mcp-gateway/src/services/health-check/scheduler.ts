@@ -6,7 +6,7 @@
 // - Chu kỳ: env HEALTH_CHECK_INTERVAL_MINUTES (mặc định 10, đặt 0 = tắt)
 // - Tick đầu tiên chờ 45s sau khởi động (đợi MCP servers + DB ổn định)
 // - Chống chồng tick: tick mới đến khi tick cũ chưa xong thì bỏ qua
-// - Giữa các tích hợp cách quãng 2s — lịch sự với hệ thống đối tác
+// - Giữa các tích hợp cách quãng 1s — lịch sự với hệ thống đối tác, tối đa 50 tích hợp/tick
 // ============================================================================
 import { query } from '../../db/pool.js';
 import { env } from '../../config/env.js';
@@ -35,7 +35,8 @@ export async function runHealthCheckTick(): Promise<void> {
       `SELECT tenant_id, integration_code, last_test_status
        FROM tenant_integrations
        WHERE is_active = true
-       ORDER BY tenant_id, integration_code`
+       ORDER BY last_tested_at ASC NULLS FIRST, tenant_id, integration_code
+       LIMIT 50`
     );
 
     if (res.rows.length === 0) {
@@ -91,7 +92,7 @@ export async function runHealthCheckTick(): Promise<void> {
           `[health-check] Lỗi khi kiểm tra [${row.integration_code}] (tenant ${row.tenant_id}): ${err?.message}`
         );
       }
-      await sleep(2000); // cách quãng giữa các tích hợp
+      await sleep(1000); // cách quãng 1s giữa các tích hợp
     }
   } finally {
     isRunning = false;

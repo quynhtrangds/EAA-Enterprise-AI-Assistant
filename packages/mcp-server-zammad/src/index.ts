@@ -2,7 +2,9 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 
-const mcpServer = new Server({
+declare const process: any;
+
+export const mcpServer = new Server({
   name: 'mcp-server-zammad',
   version: '1.0.0'
 }, {
@@ -34,6 +36,11 @@ export function getAuthHeaders(apiKey?: string): Record<string, string> {
   return headers;
 }
 
+export function truncateErrorMessage(err: unknown, maxLength: number = 300): string {
+  const str = typeof err === 'string' ? err : err instanceof Error ? err.message : String(err || '');
+  return str.length > maxLength ? str.slice(0, maxLength) + '... [cắt ngắn]' : str;
+}
+
 mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
   const toolName = request.params.name;
   const rawArgs = (request.params.arguments as any) || {};
@@ -57,18 +64,18 @@ mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
       'Authorization': authHeader
     };
 
-    // Try fetching tickets list directly
-    let targetUrl = `${baseUrl}/api/v1/tickets?expand=true`;
-    let resp = await fetch(targetUrl, { headers });
+    // Try fetching tickets list directly with timeout 8s
+    let targetUrl = `${baseUrl}/api/v1/tickets?expand=true&limit=20`;
+    let resp = await fetch(targetUrl, { headers, signal: AbortSignal.timeout(8000) }).catch(() => null);
 
-    if (!resp.ok) {
-      targetUrl = `${baseUrl}/api/v1/tickets/search?query=state.name:open%20OR%20state.name:new%20OR%20state_id:1%20OR%20state_id:2`;
-      resp = await fetch(targetUrl, { headers });
+    if (!resp || !resp.ok) {
+      targetUrl = `${baseUrl}/api/v1/tickets/search?query=state.name:open%20OR%20state.name:new%20OR%20state_id:1%20OR%20state_id:2&limit=20`;
+      resp = await fetch(targetUrl, { headers, signal: AbortSignal.timeout(8000) }).catch(() => null);
     }
 
-    if (!resp.ok) {
-      const errText = await resp.text();
-      throw new Error(`Zammad API Error [${resp.status}]: ${errText || resp.statusText}`);
+    if (!resp || !resp.ok) {
+      const errText = resp ? await resp.text().catch(() => '') : 'Kết nối tới máy chủ Zammad quá thời gian (timeout 8s)';
+      throw new Error(`Zammad API Error [${resp ? resp.status : 504}]: ${truncateErrorMessage(errText || (resp ? resp.statusText : 'Gateway Timeout'))}`);
     }
 
     const data = await resp.json();
@@ -82,10 +89,11 @@ mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
       ticketsList = data.tickets;
     }
 
-    const parsedTickets = ticketsList.map((t: any) => ({
+    // Giới hạn tối đa 20 ticket và cắt ngắn title về 200 ký tự để hạn chế Prompt Injection
+    const parsedTickets = ticketsList.slice(0, 20).map((t: any) => ({
       id: t.id,
       number: t.number || t.id,
-      title: t.title || t.subject || 'No Title',
+      title: String(t.title || t.subject || 'No Title').slice(0, 200),
       state: t.state || (t.state_id === 1 ? 'new' : t.state_id === 2 ? 'open' : 'active'),
       created_at: t.created_at
     }));
@@ -103,10 +111,12 @@ mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
   throw new Error(`Tool not found: ${toolName}`);
 });
 
-async function run() {
+export async function run() {
   const transport = new StdioServerTransport();
   await mcpServer.connect(transport);
   console.log('Zammad MCP Server running on stdio');
 }
 
-run().catch(console.error);
+if (!process.env.VITEST && process.env.NODE_ENV !== 'test') {
+  run().catch(console.error);
+}

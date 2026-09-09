@@ -1,4 +1,4 @@
-﻿import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const mocks = vi.hoisted(() => {
   return {
@@ -19,8 +19,13 @@ vi.mock('../../audit/audit-log.js', () => ({ writeAuditLog: mocks.writeAuditLog 
 vi.mock('../../services/vault.js', () => ({ VaultService: mocks.VaultService }));
 vi.mock('../../connectors/mcp-client-manager.js', () => ({ mcpClientManager: mocks.mcpClientManager }));
 vi.mock('node:dns/promises', () => ({ default: { lookup: mocks.dnsLookup }, lookup: mocks.dnsLookup }));
+vi.mock('dns', () => ({
+  default: { promises: { lookup: mocks.dnsLookup } },
+  promises: { lookup: mocks.dnsLookup }
+}));
 
 vi.mock('node:net', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:net')>();
   const { EventEmitter } = await import('node:events');
   class MockSocket extends EventEmitter {
     setTimeout = vi.fn();
@@ -31,7 +36,34 @@ vi.mock('node:net', async (importOriginal) => {
     });
   }
   return {
-    default: { Socket: MockSocket },
+    ...actual,
+    default: {
+      ...(actual as any).default,
+      ...actual,
+      Socket: MockSocket
+    },
+    Socket: MockSocket
+  };
+});
+
+vi.mock('net', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('net')>();
+  const { EventEmitter } = await import('node:events');
+  class MockSocket extends EventEmitter {
+    setTimeout = vi.fn();
+    destroy = vi.fn();
+    connect = vi.fn().mockImplementation((_port: any, _host: any) => {
+      process.nextTick(() => this.emit('connect'));
+      return this;
+    });
+  }
+  return {
+    ...actual,
+    default: {
+      ...(actual as any).default,
+      ...actual,
+      Socket: MockSocket
+    },
     Socket: MockSocket
   };
 });
@@ -183,6 +215,33 @@ describe('IntegrationTestService', () => {
         globalThis.fetch = originalFetch;
       }
     });
+
+    it('chặn DNS Rebinding / SSRF ở ConfigProbe khi apiUrl đã lưu trỏ về IP nội bộ (overallStatus = failed, SSRF_BLOCKED)', async () => {
+      const dbRow = {
+        id: 'int-001',
+        tenant_id: tenantId,
+        integration_code: 'gitea',
+        vault_path: `integrations/${tenantId}/gitea`,
+        api_url: 'https://gitea.example.com',
+        is_active: true
+      };
+
+      mocks.query.mockResolvedValueOnce({ rows: [dbRow] });
+      mocks.VaultService.readSecret.mockResolvedValueOnce({
+        apiUrl: 'http://169.254.169.254/latest/meta-data',
+        apiKey: 'token_valid_123'
+      });
+
+      const result = await IntegrationTestService.testSaved(tenantId, 'gitea', userId);
+
+      expect(result.overallStatus).toBe('failed');
+      const configStep = result.steps.find((s) => s.step === 'config');
+      expect(configStep?.status).toBe('failed');
+      expect(configStep?.error?.code).toBe('SSRF_BLOCKED');
+
+      const dnsStep = result.steps.find((s) => s.step === 'dns');
+      expect(dnsStep?.status).toBe('skipped');
+    });
   });
 
   describe('testDraft', () => {
@@ -230,6 +289,25 @@ describe('IntegrationTestService', () => {
       } finally {
         globalThis.fetch = originalFetch;
       }
+    });
+
+    it('chặn DNS Rebinding / SSRF ở ConfigProbe khi domain draft phân giải về IP nội bộ (SSRF_BLOCKED)', async () => {
+      mocks.dnsLookup.mockResolvedValueOnce([{ address: '127.0.0.1', family: 4 }]);
+
+      const result = await IntegrationTestService.testDraft(
+        tenantId,
+        {
+          integrationCode: 'gitea',
+          apiUrl: 'https://rebind.attacker.io',
+          apiKey: 'token123'
+        },
+        userId
+      );
+
+      expect(result.overallStatus).toBe('failed');
+      const configStep = result.steps.find((s) => s.step === 'config');
+      expect(configStep?.status).toBe('failed');
+      expect(configStep?.error?.code).toBe('SSRF_BLOCKED');
     });
   });
 

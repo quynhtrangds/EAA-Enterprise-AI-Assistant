@@ -330,6 +330,28 @@ describe('Admin Routes Integration Suite', () => {
       expect(query).not.toHaveBeenCalled();
     });
 
+    it('chặn integrationCode chứa ký tự không hợp lệ hoặc path traversal (400)', async () => {
+      getCurrentUser.mockResolvedValue(adminUser);
+
+      const invalidCodes = ['../../etc/passwd', 'CRM TOOL', 'code@test', 'UPPERCASE', 'code\r\ninjection'];
+      for (const badCode of invalidCodes) {
+        const response = await request(createApp())
+          .post('/api/admin/integrations')
+          .set('Authorization', 'Bearer valid-admin-token')
+          .send({
+            integrationCode: badCode,
+            apiUrl: 'https://example.com'
+          })
+          .expect(400);
+
+        expect(response.body).toMatchObject({
+          success: false,
+          errorCode: 'INVALID_TOOL_INPUT'
+        });
+      }
+      expect(query).not.toHaveBeenCalled();
+    });
+
     it('chấp nhận URL hợp lệ và lưu vào database (200)', async () => {
       getCurrentUser.mockResolvedValue(adminUser);
       query.mockResolvedValueOnce({
@@ -395,6 +417,20 @@ describe('Admin Routes Integration Suite', () => {
         overallStatus: 'passed'
       });
       expect(response.body.steps).toBeInstanceOf(Array);
+    });
+
+    it('từ chối mã integrationCode không hợp lệ trong params (400)', async () => {
+      getCurrentUser.mockResolvedValue(adminUser);
+
+      const response = await request(createApp())
+        .post('/api/admin/integrations/bad!code/test')
+        .set('Authorization', 'Bearer valid-admin-token')
+        .expect(400);
+
+      expect(response.body).toMatchObject({
+        success: false,
+        errorCode: 'INVALID_TOOL_INPUT'
+      });
     });
   });
 

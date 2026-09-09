@@ -2,7 +2,6 @@
 
 Nền tảng Trợ lý AI doanh nghiệp thông minh bằng tiếng Việt, xây dựng trên kiến trúc **MCP (Model Context Protocol)**. Mô hình ngôn ngữ lớn (LLM) và AI Orchestrator **không bao giờ** truy cập trực tiếp vào cơ sở dữ liệu hay các hệ thống nghiệp vụ (CRM, ERP, Helpdesk, Automation...). Mọi thao tác dữ liệu đều phải đi qua **MCP Gateway** dưới dạng các *tool* (công cụ) được kiểm soát phân quyền chặt chẽ (RBAC), rate-limit, chống rò rỉ dữ liệu (Masking) và ghi Audit Log đầy đủ.
 
-> Nhánh `extended_phase` đã hoàn thiện toàn diện: Xác thực Token/Google SSO, Multi-tenant, Quản lý bí mật bằng HashiCorp Vault, Đa dạng kết nối MCP (CRM, ERPNext, Zammad, Gitea, n8n, Postgres, RAG), Kiểm tra kết nối đa tầng (Layered Probing), Quản lý lịch sử trò chuyện đa lượt (Multi-turn Chat) và Cảnh báo sức khỏe tự động.
 
 ---
 

@@ -1,5 +1,6 @@
-﻿import type { ProbeStep, ProbeContext, StepResult } from '../probe-step.js';
+import type { ProbeStep, ProbeContext, StepResult } from '../probe-step.js';
 import { isRemoteStrategy } from '../strategies/strategy.js';
+import { validateIntegrationUrlAsync } from '../../../policies/url-validator.js';
 
 export class ConfigProbe implements ProbeStep {
   readonly name = 'config';
@@ -34,6 +35,24 @@ export class ConfigProbe implements ProbeStep {
           hint: 'Vui lòng nhập API URL hợp lệ (ví dụ: https://gitea.example.com) trong phần Cài đặt.'
         }
       };
+    }
+
+    // SSRF & DNS Rebinding Validation (áp dụng thống nhất cho cả testDraft, testSaved và health-check)
+    if (remote && ctx.apiUrl) {
+      try {
+        await validateIntegrationUrlAsync(ctx.apiUrl.toString());
+      } catch (err: any) {
+        return {
+          step: this.name,
+          status: 'failed',
+          latencyMs: Date.now() - started,
+          error: {
+            code: 'SSRF_BLOCKED',
+            message: err.message || 'URL tích hợp vi phạm chính sách bảo mật hoặc phân giải về địa chỉ IP nội bộ bị hạn chế (SSRF / DNS Rebinding Protection).',
+            hint: 'Kiểm tra lại hostname/IP của URL, đảm bảo không trỏ về mạng nội bộ, localhost hoặc metadata service.'
+          }
+        };
+      }
     }
 
     const maskedUrl = ctx.apiUrl ? `${ctx.apiUrl.protocol}//${ctx.apiUrl.host}${ctx.apiUrl.pathname}` : 'N/A (Nội bộ)';

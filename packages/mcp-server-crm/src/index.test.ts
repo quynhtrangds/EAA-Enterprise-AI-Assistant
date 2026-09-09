@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { getAuthHeaders } from './index.js';
+import { getAuthHeaders, truncateErrorMessage } from './index.js';
 
 describe('mcp-server-crm Unit & Tool Execution Tests', () => {
   beforeEach(() => {
@@ -34,6 +34,25 @@ describe('mcp-server-crm Unit & Tool Execution Tests', () => {
         Accept: 'application/json',
         Authorization: 'token token_val:secret_val'
       });
+    });
+  });
+
+  describe('truncateErrorMessage helper', () => {
+    it('giữ nguyên lỗi ngắn dưới 300 ký tự', () => {
+      const shortErr = 'Lỗi kết nối mạng';
+      expect(truncateErrorMessage(shortErr)).toBe('Lỗi kết nối mạng');
+    });
+
+    it('cắt ngắn lỗi HTML hoặc traceback dài hơn 300 ký tự', () => {
+      const longErr = '<html><head><title>500 Internal Server Error</title></head><body>' + 'X'.repeat(500) + '</body></html>';
+      const truncated = truncateErrorMessage(longErr, 300);
+      expect(truncated.length).toBe(300 + '... [cắt ngắn]'.length);
+      expect(truncated.endsWith('... [cắt ngắn]')).toBe(true);
+    });
+
+    it('xử lý đối tượng Error', () => {
+      const err = new Error('Database connection failed');
+      expect(truncateErrorMessage(err)).toBe('Database connection failed');
     });
   });
 

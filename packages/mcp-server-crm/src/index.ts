@@ -1,13 +1,15 @@
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import {
-  ListToolsRequestSchema,
   CallToolRequestSchema,
+  ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import { buildMockCrmResponse } from "./mock-data.js";
 
-const server = new Server(
+declare const process: any;
+
+export const server = new Server(
   {
     name: "mcp-server-crm",
     version: "1.0.0",
@@ -19,34 +21,59 @@ const server = new Server(
   }
 );
 
-const getCustomerStatusInput = z.object({
-  keyword: z.string().optional().describe("Mã hoặc tên khách hàng/lead cần tìm kiếm"),
-  address: z.string().optional().describe("Địa chỉ cần tra cứu (đường, thành phố...). Hãy DÙNG tham số này khi người dùng tìm khách hàng THEO ĐỊA CHỈ — hệ thống sẽ tìm trong sổ địa chỉ ERPNext và trả về khách hàng liên kết.")
+// Zod schemas for input validation
+export const getCustomerStatusInput = z.object({
+  customerName: z.string().optional().describe("Tên khách hàng hoặc đầu mối (Lead) cần tra cứu"),
+  address: z.string().optional().describe("Địa chỉ khách hàng cần tra cứu (ví dụ: Hà Nội, Quận 1, Đống Đa)"),
+  includeHistory: z.boolean().optional().describe("Có lấy lịch sử tương tác không")
 });
 
-const getOpportunitiesInput = z.object({
-  status: z.string().optional().describe("Trạng thái cơ hội kinh doanh (ví dụ: Open, Quotation, Converted, Lost)")
+export const getOpportunitiesInput = z.object({
+  status: z.string().optional().describe("Lọc theo trạng thái cơ hội (Open, Won, Lost, etc.)")
 });
+
+export function truncateErrorMessage(err: unknown, maxLength: number = 300): string {
+  const str = typeof err === "string" ? err : err instanceof Error ? err.message : String(err || "");
+  return str.length > maxLength ? str.slice(0, maxLength) + "... [cắt ngắn]" : str;
+}
 
 server.setRequestHandler(ListToolsRequestSchema, async () => {
   return {
     tools: [
       {
         name: "crm_get_customer_status",
-        description: "Lấy danh sách khách hàng (Customer) và tiềm năng (Lead) từ hệ thống CRM. Hỗ trợ tìm theo `keyword` (tên/mã) hoặc theo `address` (địa chỉ — tra trong sổ địa chỉ ERPNext và trả về khách hàng liên kết).",
+        description: "Tra cứu thông tin trạng thái khách hàng hoặc đầu mối (Lead) từ CRM. Hỗ trợ tìm kiếm theo tên hoặc theo địa chỉ (tỉnh/thành phố, quận/huyện, đường phố).",
         inputSchema: {
           type: "object",
-          properties: getCustomerStatusInput.shape,
+          properties: {
+            customerName: {
+              type: "string",
+              description: "Tên khách hàng hoặc tên đầu mối (Lead) cần tra cứu"
+            },
+            address: {
+              type: "string",
+              description: "Địa chỉ khách hàng cần tra cứu (ví dụ: Hà Nội, Quận 1, Đống Đa, TP.HCM)"
+            },
+            includeHistory: {
+              type: "boolean",
+              description: "Có lấy lịch sử tương tác không"
+            }
+          }
         },
       },
       {
         name: "crm_get_opportunities",
-        description: "Lấy danh sách cơ hội kinh doanh (Opportunity/Deal) từ hệ thống CRM.",
+        description: "Lấy danh sách các cơ hội bán hàng (Opportunities) từ CRM",
         inputSchema: {
           type: "object",
-          properties: getOpportunitiesInput.shape,
+          properties: {
+            status: {
+              type: "string",
+              description: "Trạng thái cơ hội bán hàng: Open, Quotation, Converted, Lost"
+            }
+          }
         },
-      }
+      },
     ],
   };
 });
@@ -66,11 +93,8 @@ export function getAuthHeaders(apiKey?: string): Record<string, string> {
 }
 
 /**
- * Tra cứu khách hàng THEO ĐỊA CHỈ.
- * Trong ERPNext, địa chỉ nằm ở doctype Address riêng, liên kết tới Customer
- * qua Dynamic Link — nên luồng là: tìm Address khớp → đọc links → map ngược
- * về Customer. Các phần của địa chỉ (phân tách bởi dấu phẩy) được tìm OR trên
- * address_line1/city để khớp cả khi người dùng nhập đầy đủ lẫn một phần.
+ * Tra cứu khách hàng THEO ĐỊA CHỈ (tối ưu hóa song song & giới hạn timeout).
+ * Trong ERPNext, địa chỉ nằm ở doctype Address riêng, liên kết tới Customer qua Dynamic Link.
  */
 async function searchCustomersByAddress(addressQuery: string, headers: Record<string, string>, baseUrl: string) {
   const parts = addressQuery.split(',').map(s => s.trim()).filter(s => s.length >= 3);
@@ -87,40 +111,76 @@ async function searchCustomersByAddress(addressQuery: string, headers: Record<st
     + `&or_filters=${encodeURIComponent(JSON.stringify(orFilters))}`
     + `&limit_page_length=20`;
 
-  const addrResp = await fetch(addrUrl, { headers });
+  const addrResp = await fetch(addrUrl, { headers, signal: AbortSignal.timeout(6000) });
   if (!addrResp.ok) {
-    throw new Error(`CRM API Error [${addrResp.status}]: ${await addrResp.text()}`);
+    const errText = await addrResp.text().catch(() => '');
+    throw new Error(`CRM API Error [${addrResp.status}]: ${truncateErrorMessage(errText)}`);
   }
   const addrData = await addrResp.json();
   const addresses: any[] = addrData.data || [];
 
-  // Map ngược Address → Customer (giới hạn 10 địa chỉ để tránh gọi quá nhiều)
-  const contacts: any[] = [];
-  for (const addr of addresses.slice(0, 10)) {
-    const docResp = await fetch(`${baseUrl}/api/resource/Address/${encodeURIComponent(addr.name)}`, { headers });
-    if (!docResp.ok) continue;
-    const doc = await docResp.json();
-    const customerLinks = (doc.data?.links || []).filter((l: any) => l.link_doctype === 'Customer');
-    for (const link of customerLinks) {
-      let customerName = link.link_name;
-      let customerGroup: string | undefined;
-      let territory: string | undefined;
-      const custResp = await fetch(
-        `${baseUrl}/api/resource/Customer/${encodeURIComponent(link.link_name)}?fields=${encodeURIComponent(JSON.stringify(["customer_name", "customer_group", "territory"]))}`,
-        { headers }
-      );
-      if (custResp.ok) {
-        const cust = (await custResp.json())?.data;
-        if (cust?.customer_name) customerName = cust.customer_name;
-        customerGroup = cust?.customer_group;
-        territory = cust?.territory;
+  // Map ngược Address → Customer (giới hạn 8 địa chỉ và tải song song với timeout)
+  const targetAddresses = addresses.slice(0, 8);
+  const docResults = await Promise.all(
+    targetAddresses.map(async (addr) => {
+      try {
+        const docResp = await fetch(`${baseUrl}/api/resource/Address/${encodeURIComponent(addr.name)}`, {
+          headers,
+          signal: AbortSignal.timeout(5000)
+        });
+        if (!docResp.ok) return null;
+        const doc = await docResp.json();
+        const customerLinks = (doc.data?.links || []).filter((l: any) => l.link_doctype === 'Customer');
+        return { addr, customerLinks };
+      } catch {
+        return null;
       }
+    })
+  );
+
+  // Thu thập danh sách link_name của Customer duy nhất để tránh fetch trùng lặp
+  const customerMap = new Map<string, { addr: any; link: any }[]>();
+  for (const item of docResults) {
+    if (!item) continue;
+    for (const link of item.customerLinks) {
+      const existing = customerMap.get(link.link_name) || [];
+      existing.push({ addr: item.addr, link });
+      customerMap.set(link.link_name, existing);
+    }
+  }
+
+  const distinctCustomerNames = Array.from(customerMap.keys()).slice(0, 10);
+  const customerDetails = await Promise.all(
+    distinctCustomerNames.map(async (linkName) => {
+      try {
+        const custResp = await fetch(
+          `${baseUrl}/api/resource/Customer/${encodeURIComponent(linkName)}?fields=${encodeURIComponent(JSON.stringify(["customer_name", "customer_group", "territory"]))}`,
+          { headers, signal: AbortSignal.timeout(5000) }
+        );
+        if (custResp.ok) {
+          const cust = (await custResp.json())?.data;
+          return { linkName, cust };
+        }
+      } catch {
+        // Bỏ qua lỗi cá nhân từng bản ghi khách hàng
+      }
+      return { linkName, cust: null };
+    })
+  );
+
+  const custDetailMap = new Map(customerDetails.map(c => [c.linkName, c.cust]));
+  const contacts: any[] = [];
+
+  for (const [linkName, links] of customerMap.entries()) {
+    if (!distinctCustomerNames.includes(linkName)) continue;
+    const cust = custDetailMap.get(linkName);
+    for (const { addr } of links) {
       contacts.push({
         type: 'Customer',
-        id: link.link_name,
-        name: customerName,
-        customer_group: customerGroup,
-        territory,
+        id: linkName,
+        name: cust?.customer_name || linkName,
+        customer_group: cust?.customer_group,
+        territory: cust?.territory,
         matched_address: {
           address_type: addr.address_type,
           address_line1: addr.address_line1,
@@ -139,46 +199,56 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const creds = rawArgs._integrationCredentials || {};
   const { apiKey, apiUrl } = creds;
 
-  // CHẾ ĐỘ DỮ LIỆU MẪU: gateway truyền _mockMode khi tích hợp bị TẮT/chưa cấu
-  // hình — trả dữ liệu mẫu kèm nhãn _mock thay vì từ chối, để trợ lý AI vẫn
-  // hữu ích và người dùng biết rõ đây không phải dữ liệu thật.
-  if (rawArgs._mockMode === true || !apiUrl) {
+  // Quyết định nguồn dữ liệu CRM:
+  // - Nếu gateway truyền _mockMode=true (do tenant tắt CRM hoặc chưa có credentials):
+  //   luôn trả dữ liệu mẫu MOCK_CUSTOMERS / MOCK_OPPORTUNITIES.
+  // - Chỉ gọi CRM ngoài khi _mockMode KHÔNG phải true VÀ có apiUrl được cấp.
+  // - Nếu không có _mockMode VÀ cũng không có apiUrl: fallback an toàn về mock data.
+  const isMockMode = rawArgs._mockMode === true || !apiUrl;
+
+  if (isMockMode) {
     return buildMockCrmResponse(toolName, rawArgs);
   }
 
+  // --- Chế độ Live Integration (kết nối CRM thật qua REST API) ---
   const baseUrl = apiUrl.endsWith('/') ? apiUrl.slice(0, -1) : apiUrl;
   const headers = getAuthHeaders(apiKey);
 
   if (toolName === "crm_get_customer_status") {
     const args = getCustomerStatusInput.parse(rawArgs);
-    const keyword = args.keyword?.trim() || "";
+    const keyword = (args.customerName || '').trim();
+    const address = (args.address || '').trim();
 
-    // Ưu tiên tra cứu theo địa chỉ nếu người dùng cung cấp
-    if (args.address && args.address.trim()) {
-      const result = await searchCustomersByAddress(args.address.trim(), headers, baseUrl);
-      return {
-        content: [{ type: "text", text: JSON.stringify(result, null, 2) }]
-      };
+    // Nhánh 1: Tra cứu theo ĐỊA CHỈ
+    if (address) {
+      try {
+        const addressResult = await searchCustomersByAddress(address, headers, baseUrl);
+        return {
+          content: [{ type: "text", text: JSON.stringify(addressResult, null, 2) }]
+        };
+      } catch (err: any) {
+        throw new Error(`Không thể tìm kiếm khách hàng theo địa chỉ trên CRM [${baseUrl}]. Chi tiết: ${truncateErrorMessage(err.message)}`);
+      }
     }
 
+    // Nhánh 2: Tra cứu theo TÊN KHÁCH HÀNG / ĐẦU MỐI
     try {
-      // Try Frappe/ERPNext CRM API
-      const custFields = JSON.stringify(["name", "customer_name", "customer_type", "customer_group", "territory"]);
-      let custUrl = `${baseUrl}/api/resource/Customer?fields=${encodeURIComponent(custFields)}`;
+      const custFields = JSON.stringify(["name", "customer_name", "customer_group", "territory"]);
+      let custUrl = `${baseUrl}/api/resource/Customer?fields=${encodeURIComponent(custFields)}&limit_page_length=20`;
       if (keyword) {
         const filters = JSON.stringify([["customer_name", "like", `%${keyword}%`]]);
         custUrl += `&filters=${encodeURIComponent(filters)}`;
       }
 
       const leadFields = JSON.stringify(["name", "lead_name", "email_id", "mobile_no", "status", "company_name"]);
-      let leadUrl = `${baseUrl}/api/resource/Lead?fields=${encodeURIComponent(leadFields)}`;
+      let leadUrl = `${baseUrl}/api/resource/Lead?fields=${encodeURIComponent(leadFields)}&limit_page_length=20`;
       if (keyword) {
         const filters = JSON.stringify([["lead_name", "like", `%${keyword}%`]]);
         leadUrl += `&filters=${encodeURIComponent(filters)}`;
       }
 
-      const custResp = await fetch(custUrl, { headers }).catch(() => null);
-      const leadResp = await fetch(leadUrl, { headers }).catch(() => null);
+      const custResp = await fetch(custUrl, { headers, signal: AbortSignal.timeout(6000) }).catch(() => null);
+      const leadResp = await fetch(leadUrl, { headers, signal: AbortSignal.timeout(6000) }).catch(() => null);
 
       if ((custResp && custResp.ok) || (leadResp && leadResp.ok)) {
         const custData = (custResp && custResp.ok) ? await custResp.json() : { data: [] };
@@ -205,9 +275,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         let combined = [...customers, ...leads];
 
         if (combined.length === 0 && keyword) {
-          // Retry without keyword filter if keyword was generic
-          const allCustResp = await fetch(`${baseUrl}/api/resource/Customer?fields=${encodeURIComponent(custFields)}`, { headers }).catch(() => null);
-          const allLeadResp = await fetch(`${baseUrl}/api/resource/Lead?fields=${encodeURIComponent(leadFields)}`, { headers }).catch(() => null);
+          // Retry không lọc keyword nếu từ khóa quá cụ thể không ra (giới hạn tối đa 10 bản ghi mỗi bên)
+          const allCustResp = await fetch(`${baseUrl}/api/resource/Customer?fields=${encodeURIComponent(custFields)}&limit_page_length=10`, { headers, signal: AbortSignal.timeout(6000) }).catch(() => null);
+          const allLeadResp = await fetch(`${baseUrl}/api/resource/Lead?fields=${encodeURIComponent(leadFields)}&limit_page_length=10`, { headers, signal: AbortSignal.timeout(6000) }).catch(() => null);
           const allCustData = (allCustResp && allCustResp.ok) ? await allCustResp.json() : { data: [] };
           const allLeadData = (allLeadResp && allLeadResp.ok) ? await allLeadResp.json() : { data: [] };
 
@@ -227,7 +297,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             status: l.status,
             company: l.company_name
           }));
-          combined = [...allCustomers, ...allLeads];
+          combined = [...allCustomers, ...allLeads].slice(0, 15);
         }
 
         return {
@@ -236,23 +306,23 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
       throw new Error(`Máy chủ CRM [${baseUrl}] không phản hồi dữ liệu hợp lệ (HTTP error hoặc chưa phân quyền API).`);
     } catch (err: any) {
-      throw new Error(`Không thể kết nối tới máy chủ CRM [${baseUrl}]. Chi tiết: ${err.message}. Vui lòng kiểm tra lại URL và API Key trong Vault/Cấu hình tích hợp.`);
+      throw new Error(`Không thể kết nối tới máy chủ CRM [${baseUrl}]. Chi tiết: ${truncateErrorMessage(err.message)}. Vui lòng kiểm tra lại URL và API Key trong Vault/Cấu hình tích hợp.`);
     }
   }
 
   if (toolName === "crm_get_opportunities") {
     const args = getOpportunitiesInput.parse(rawArgs);
     const oppFields = JSON.stringify(["name", "party_name", "opportunity_from", "status", "opportunity_amount", "currency"]);
-    let oppUrl = `${baseUrl}/api/resource/Opportunity?fields=${encodeURIComponent(oppFields)}`;
+    let oppUrl = `${baseUrl}/api/resource/Opportunity?fields=${encodeURIComponent(oppFields)}&limit_page_length=20`;
     if (args.status) {
       const filters = JSON.stringify([["status", "=", args.status]]);
       oppUrl += `&filters=${encodeURIComponent(filters)}`;
     }
 
-    const resp = await fetch(oppUrl, { headers });
+    const resp = await fetch(oppUrl, { headers, signal: AbortSignal.timeout(6000) });
     if (!resp.ok) {
-      const errText = await resp.text();
-      throw new Error(`CRM API Error [${resp.status}]: ${errText || resp.statusText}`);
+      const errText = await resp.text().catch(() => '');
+      throw new Error(`CRM API Error [${resp.status}]: ${truncateErrorMessage(errText || resp.statusText)}`);
     }
 
     const data = await resp.json();
@@ -279,4 +349,6 @@ async function main() {
   console.error("CRM MCP Server running on stdio");
 }
 
-main().catch(console.error);
+if (!process.env.VITEST && process.env.NODE_ENV !== "test") {
+  main().catch(console.error);
+}
