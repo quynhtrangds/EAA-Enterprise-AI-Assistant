@@ -23,13 +23,15 @@ const server = new Server(
 
 server.setRequestHandler(ListToolsRequestSchema, async () => {
   return {
-    tools: postgresTools.map((t) => ({
+    tools: postgresTools.map((t: any) => ({
       name: t.name,
       description: t.description,
       inputSchema: {
         type: "object",
         properties: (t.inputSchema as any).shape || {}, // Zod to basic schema fallback
       },
+      _meta: t.piiFields ? { piiFields: t.piiFields } : undefined,
+      piiFields: t.piiFields,
     })),
   };
 });

@@ -166,6 +166,19 @@ services:
       postgres:
         condition: service_healthy
 
+  n8n:
+    image: docker.n8n.io/n8nio/n8n
+    container_name: enterprise_ai_n8n
+    restart: unless-stopped
+    environment:
+      - NODE_FUNCTION_ALLOW_EXTERNAL=*
+      - NODE_FUNCTION_ALLOW_BUILTIN=*
+      - NODE_PATH=/usr/local/lib/node_modules:/home/node/.n8n/node_modules
+    ports:
+      - "5678:5678"
+    volumes:
+      - n8n_data:/home/node/.n8n
+
 volumes:
   postgres_data:
     name: enterprise_ai_postgres_data
@@ -175,6 +188,9 @@ volumes:
     name: enterprise_ai_gitea_data
   gitea_config:
     name: enterprise_ai_gitea_config
+  n8n_data:
+    name: n8n_data
+    external: true
 networks:
   default:
   frappe_network:

@@ -60,6 +60,22 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             }
           }
         },
+        _meta: {
+          piiFields: {
+            name: "name",
+            email: "email",
+            phone: "phone",
+            address: "address",
+            address_line1: "address"
+          }
+        },
+        piiFields: {
+          name: "name",
+          email: "email",
+          phone: "phone",
+          address: "address",
+          address_line1: "address"
+        }
       },
       {
         name: "crm_get_opportunities",
@@ -73,6 +89,14 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             }
           }
         },
+        _meta: {
+          piiFields: {
+            party_name: "name"
+          }
+        },
+        piiFields: {
+          party_name: "name"
+        }
       },
     ],
   };

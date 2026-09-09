@@ -248,6 +248,12 @@ export function createPostgresTools() {
       description: 'Tìm kiếm khách hàng bằng keyword (tên, sđt, email, mã KH). TRẢ VỀ THÔNG TIN CHI TIẾT cá nhân (địa chỉ, số điện thoại, email, trạng thái). Hãy DÙNG TOOL NÀY khi bạn cần lấy chi tiết thông tin của một hoặc nhiều khách hàng bằng mã ID/Code.',
       inputSchema: searchCustomerInput,
       outputSchema: searchCustomerOutputSchema,
+      piiFields: {
+        fullName: 'name',
+        phone: 'phone',
+        email: 'email',
+        address: 'address'
+      },
       async execute(parsedInput: any, context: ToolContext) {
         const { keyword, limit } = parsedInput;
         const tenantId = requireTenantId(context);
@@ -339,6 +345,10 @@ export function createPostgresTools() {
       description: 'Lấy THÔNG TIN CHI TIẾT của MỘT đơn hàng bằng orderCode. TRẢ VỀ danh sách các mặt hàng (sản phẩm, số lượng, giá) và lịch sử thanh toán. Hãy DÙNG TOOL NÀY khi bạn cần tra cứu chi tiết một hoặc nhiều đơn hàng cụ thể.',
       inputSchema: getOrderDetailInput,
       outputSchema: getOrderDetailOutputSchema,
+      piiFields: {
+        customerName: 'name',
+        customerAddress: 'address'
+      },
       async execute(parsedInput: any, context: ToolContext) {
         const { orderCode } = parsedInput;
         const tenantId = requireTenantId(context);
@@ -474,6 +484,9 @@ export function createPostgresTools() {
       title: 'Get Top Customers',
       description: 'Xếp hạng khách hàng theo doanh thu đã thanh toán. TRẢ VỀ thông tin thống kê CƠ BẢN (Mã KH, Tên, Số đơn hàng, Tổng chi tiêu) NHƯNG KHÔNG BAO GỒM (SĐT, Email, Địa chỉ). Nếu cần SĐT/Email/Địa chỉ, hãy lấy kết quả mã KH từ đây rồi gọi tiếp search_customer.',
       inputSchema: getTopCustomersInput,
+      piiFields: {
+        fullName: 'name'
+      },
       async execute(parsedInput: any, context: ToolContext) {
         const parsed = parsedInput;
         const tenantId = requireTenantId(context);

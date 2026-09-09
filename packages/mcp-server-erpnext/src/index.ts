@@ -46,6 +46,18 @@ mcpServer.setRequestHandler(ListToolsRequestSchema, async () => {
               description: 'Số lượng kết quả tối đa (mặc định 20)'
             }
           }
+        },
+        _meta: {
+          piiFields: {
+            doiTac: 'name',
+            customer_name: 'name',
+            customer: 'name'
+          }
+        },
+        piiFields: {
+          doiTac: 'name',
+          customer_name: 'name',
+          customer: 'name'
         }
       },
       {
@@ -67,6 +79,18 @@ mcpServer.setRequestHandler(ListToolsRequestSchema, async () => {
               description: 'Số lượng kết quả tối đa (mặc định 20)'
             }
           }
+        },
+        _meta: {
+          piiFields: {
+            doiTac: 'name',
+            supplier_name: 'name',
+            supplier: 'name'
+          }
+        },
+        piiFields: {
+          doiTac: 'name',
+          supplier_name: 'name',
+          supplier: 'name'
         }
       },
       {
@@ -127,6 +151,22 @@ mcpServer.setRequestHandler(ListToolsRequestSchema, async () => {
               description: 'Từ khóa tìm kiếm (tùy chọn)'
             }
           }
+        },
+        _meta: {
+          piiFields: {
+            fullName: 'name',
+            customer_name: 'name',
+            phone: 'phone',
+            email: 'email',
+            address: 'address'
+          }
+        },
+        piiFields: {
+          fullName: 'name',
+          customer_name: 'name',
+          phone: 'phone',
+          email: 'email',
+          address: 'address'
         }
       },
       {
@@ -165,6 +205,20 @@ mcpServer.setRequestHandler(ListToolsRequestSchema, async () => {
               description: 'Mã số hóa đơn / đơn hàng'
             }
           }
+        },
+        _meta: {
+          piiFields: {
+            customerName: 'name',
+            customer_name: 'name',
+            customerAddress: 'address',
+            address: 'address'
+          }
+        },
+        piiFields: {
+          customerName: 'name',
+          customer_name: 'name',
+          customerAddress: 'address',
+          address: 'address'
         }
       },
       {
@@ -186,6 +240,16 @@ mcpServer.setRequestHandler(ListToolsRequestSchema, async () => {
               description: 'Ngày kết thúc (YYYY-MM-DD)'
             }
           }
+        },
+        _meta: {
+          piiFields: {
+            fullName: 'name',
+            customer_name: 'name'
+          }
+        },
+        piiFields: {
+          fullName: 'name',
+          customer_name: 'name'
         }
       }
     ]

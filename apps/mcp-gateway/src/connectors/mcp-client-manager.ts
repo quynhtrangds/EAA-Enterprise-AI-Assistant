@@ -24,6 +24,7 @@ export class McpClientManager {
   private clients: Map<string, Client> = new Map();
   public toolToServerMap: Map<string, string> = new Map();
   public toolToServersMap: Map<string, string[]> = new Map();
+  public toolMetadataMap: Map<string, { piiFields?: Record<string, any>; outputSchema?: any }> = new Map();
   // Danh sách server được khai báo trong connector.json — dùng cho Test Connection
   // để phân biệt "connector thuộc loại MCP nhưng tiến trình chưa sống" với
   // "integration code ngoài danh sách" (không áp dụng probe MCP server).
@@ -81,6 +82,16 @@ export class McpClientManager {
           servers.push(serverName);
         }
         this.toolToServersMap.set(tool.name, servers);
+
+        const tAny = tool as any;
+        const piiFields = tAny._meta?.piiFields || tAny.piiFields;
+        const outputSchema = tAny.outputSchema;
+        if (piiFields || outputSchema) {
+          this.toolMetadataMap.set(tool.name, {
+            piiFields,
+            outputSchema
+          });
+        }
       }
       
       console.log(`Connected to MCP Server: ${serverName} (${toolsResult.tools.length} tools)`);
@@ -162,6 +173,15 @@ export class McpClientManager {
       const result = await client.listTools();
       for (const tool of result.tools) {
         toolMap.set(tool.name, tool);
+        const tAny = tool as any;
+        const piiFields = tAny._meta?.piiFields || tAny.piiFields;
+        const outputSchema = tAny.outputSchema;
+        if (piiFields || outputSchema) {
+          this.toolMetadataMap.set(tool.name, {
+            piiFields,
+            outputSchema
+          });
+        }
       }
     }
     return { tools: Array.from(toolMap.values()) };
@@ -190,11 +210,15 @@ export class McpClientManager {
 
     // Apply Data Masking
     if (shouldMask && data.content && Array.isArray(data.content)) {
+      const toolMeta = this.toolMetadataMap.get(name);
       for (const item of data.content as any[]) {
         if (item.type === "text" && item.text) {
           try {
             const parsedText = JSON.parse(item.text);
-            const maskedText = MaskingService.maskObject(parsedText);
+            const maskedText = MaskingService.maskObject(parsedText, {
+              toolPiiFields: toolMeta?.piiFields,
+              outputSchema: toolMeta?.outputSchema
+            });
             item.text = JSON.stringify(maskedText);
           } catch (e) {
             // Not JSON or parsing failed, skip masking

@@ -16,10 +16,14 @@ mcpServer.setRequestHandler(ListToolsRequestSchema, async () => {
     tools: [
       {
         name: 'trigger_n8n_webhook',
-        description: 'Kích hoạt một quy trình tự động hóa (Workflow) trên n8n qua Webhook để gửi tin nhắn Telegram, gửi Email, tạo ticket hoặc đồng bộ dữ liệu. Nếu người dùng không chỉ định webhookPath cụ thể, hệ thống sẽ tự động sử dụng đường dẫn webhook mặc định đã cấu hình trong hệ thống.',
+        description: 'Kích hoạt một quy trình tự động hóa (Workflow) trên n8n qua Webhook để xuất hóa đơn/báo cáo PDF (action: "export_pdf"), gửi tin nhắn Telegram (action: "telegram"), gửi Zalo, gửi Email, tạo ticket hoặc đồng bộ dữ liệu. Khi người dùng muốn xuất hóa đơn hoặc báo cáo PDF, hãy luôn truyền action: "export_pdf" kèm mã đơn hàng và thông tin đơn hàng trong data. Khi kết quả trả về có downloadUrl, BẮT BUỘC bạn phải hiển thị đường link tải trực tiếp dạng Markdown cho người dùng nhấp vào: [📥 Tải về file PDF hóa đơn](downloadUrl).',
         inputSchema: {
           type: 'object',
           properties: {
+            action: {
+              type: 'string',
+              description: 'Loại tác vụ tự động hóa cần thực hiện trên n8n. Ví dụ: "export_pdf" khi người dùng yêu cầu xuất hóa đơn, phiếu mua hàng hoặc báo cáo PDF; "telegram" khi gửi tin nhắn thông báo Telegram.'
+            },
             webhookPath: {
               type: 'string',
               description: 'Đường dẫn hoặc mã ID webhook trên n8n (ví dụ: "26317864-61db-424c-87f5-abd29ce33599" hoặc để trống để tự động dùng webhook mặc định).'
@@ -30,7 +34,7 @@ mcpServer.setRequestHandler(ListToolsRequestSchema, async () => {
             },
             data: {
               type: 'object',
-              description: 'Dữ liệu bổ sung tùy chọn (ví dụ: { customerName: "Nguyễn Văn A", revenue: 50000000 })'
+              description: 'Dữ liệu bổ sung tùy chọn (ví dụ: { order_id: "DH-1002", customer_name: "Nguyễn Văn A", total: 1500000 })'
             }
           },
           required: ['message']
@@ -45,13 +49,29 @@ mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
   const rawArgs = (request.params.arguments as any) || {};
 
   if (toolName === 'trigger_n8n_webhook') {
-    const { webhookPath, message, data } = rawArgs;
+    const { webhookPath, message, data, action } = rawArgs;
     const creds = rawArgs._integrationCredentials || {};
     let baseUrl = creds.apiUrl || process.env.N8N_BASE_URL || 'http://enterprise_ai_n8n:5678';
     const apiKey = creds.apiKey;
     const defaultWebhookPath = creds.defaultWebhookPath || '26317864-61db-424c-87f5-abd29ce33599';
 
     baseUrl = baseUrl.replace(/\/+$/, '');
+
+    // Tự động nhận diện action nếu LLM không truyền rõ ràng
+    let resolvedAction = action || (data && (data as any).action);
+    if (!resolvedAction) {
+      if (
+        (data && ((data as any).orderCode || (data as any).order_id || (data as any).orderId)) ||
+        (message && /(hóa đơn|invoice|pdf|phiếu|xuất)/i.test(message))
+      ) {
+        resolvedAction = 'export_pdf';
+      } else {
+        resolvedAction = 'telegram';
+      }
+    }
+
+    const orderId = (data && ((data as any).order_id || (data as any).orderCode || (data as any).orderId)) || '';
+    const customerName = (data && ((data as any).customer_name || (data as any).customerName)) || '';
 
     // Sử dụng path được truyền vào hoặc fallback về defaultWebhookPath
     const effectivePath = (webhookPath && typeof webhookPath === 'string' && webhookPath.trim())
@@ -69,6 +89,11 @@ mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
 
     const payload = {
       sender: 'Enterprise AI Assistant',
+      action: resolvedAction,
+      order_id: orderId,
+      orderCode: orderId,
+      customer_name: customerName,
+      customerName: customerName,
       message: message || '',
       ...(data && typeof data === 'object' ? data : {}),
       timestamp: new Date().toISOString()
@@ -137,17 +162,28 @@ mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
       responseData = await response.text();
     }
 
+    const downloadUrl = (responseData && typeof responseData === 'object' && (responseData as any).downloadUrl)
+      ? (responseData as any).downloadUrl
+      : `http://localhost:5678/webhook/download-invoice?order_id=${encodeURIComponent(orderId)}&customer_name=${encodeURIComponent(customerName)}`;
+
+    const resultPayload: any = {
+      success: true,
+      status: 'Triggered successfully',
+      targetUrl,
+      deliveredMessage: message,
+      n8nResponse: responseData
+    };
+
+    if (resolvedAction === 'export_pdf') {
+      resultPayload.downloadUrl = downloadUrl;
+      resultPayload.instruction = `File PDF hóa đơn đã được khởi tạo thành công! Hãy gửi cho người dùng đường link markdown để họ nhấp vào tải về ngay: [📥 Tải về file PDF hóa đơn](${downloadUrl})`;
+    }
+
     return {
       content: [
         {
           type: 'text',
-          text: JSON.stringify({
-            success: true,
-            status: 'Triggered successfully',
-            targetUrl,
-            deliveredMessage: message,
-            n8nResponse: responseData
-          }, null, 2)
+          text: JSON.stringify(resultPayload, null, 2)
         }
       ]
     };

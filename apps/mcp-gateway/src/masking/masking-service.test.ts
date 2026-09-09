@@ -130,5 +130,115 @@ describe('MaskingService', () => {
       // customerCode không phải PII, phải giữ nguyên để vẫn tra cứu được
       expect(maskedTop.customers[0].customerCode).toBe('KH001');
     });
+
+    it('Declarative: che trường name và phone/email của Lead/Customer khi tool CRM khai báo piiFields', () => {
+      const crmLead = {
+        type: 'Lead',
+        id: 'CRM-LEAD-0001',
+        name: 'Nguyễn Văn A',
+        email: 'vana@example.com',
+        phone: '0912345678',
+        company: 'An Phat Corp'
+      };
+
+      // Khi tool CRM khai báo tường minh piiFields
+      const crmPiiOptions = {
+        toolPiiFields: {
+          name: 'name' as const,
+          email: 'email' as const,
+          phone: 'phone' as const
+        }
+      };
+
+      const result = MaskingService.maskObject(crmLead, crmPiiOptions);
+
+      // Trường name phải được che thành N*** V*** A*** thay vì lọt nguyên văn!
+      expect(result.name).toBe('N*** V*** A***');
+      expect(result.email).toBe('va***@example.com');
+      expect(result.phone).toBe('091***678');
+      // Các trường không phải PII giữ nguyên
+      expect(result.type).toBe('Lead');
+      expect(result.company).toBe('An Phat Corp');
+    });
+
+    it('Declarative: che trường doiTac trong hóa đơn khi tool ERPNext khai báo piiFields', () => {
+      const invoiceData = {
+        danhSachHoaDon: [
+          {
+            maHoaDon: 'SINV-2026-001',
+            doiTac: 'Công ty Cổ phần Công nghệ ABC',
+            tongTien: 45000000,
+            trangThai: 'Đã thanh toán (Paid)'
+          },
+          {
+            maHoaDon: 'ACC-SINV-2026-00001',
+            doiTac: 'Grant Plastics Ltd.',
+            tongTien: 67000,
+            trangThai: 'Đã thanh toán (Paid)'
+          }
+        ]
+      };
+
+      // Khi tool ERPNext khai báo piiFields cho doiTac
+      const erpPiiOptions = {
+        toolPiiFields: {
+          doiTac: 'name' as const
+        }
+      };
+
+      const result = MaskingService.maskObject(invoiceData, erpPiiOptions);
+
+      // Trường doiTac tiếng Việt phải được che đúng!
+      expect(result.danhSachHoaDon[0].doiTac).toBe('C*** t*** C*** p*** C*** n*** A***');
+      expect(result.danhSachHoaDon[1].doiTac).toBe('G*** P*** L***');
+      // Các trường không phải PII giữ nguyên
+      expect(result.danhSachHoaDon[0].maHoaDon).toBe('SINV-2026-001');
+      expect(result.danhSachHoaDon[0].tongTien).toBe(45000000);
+    });
+
+    it('Declarative: che trường party_name trong cơ hội bán hàng CRM', () => {
+      const opportunity = {
+        id: 'CRM-OPP-0002',
+        party_name: 'Trần Mỹ Linh',
+        amount: 42000000,
+        currency: 'VND'
+      };
+
+      const result = MaskingService.maskObject(opportunity, {
+        toolPiiFields: { party_name: 'name' as const }
+      });
+
+      expect(result.party_name).toBe('T*** M*** L***');
+      expect(result.amount).toBe(42000000);
+      expect(result.currency).toBe('VND');
+    });
+
+    it('Declarative: tự động trích xuất PII từ outputSchema có gắn thẻ pii hoặc description pii:<type>', () => {
+      const schema = {
+        type: 'object',
+        properties: {
+          orderId: { type: 'string' },
+          buyerName: { type: 'string', description: 'pii:name' },
+          contactPhone: { type: 'string', pii: 'phone' }
+        }
+      };
+
+      const extracted = MaskingService.extractPiiFromSchema(schema);
+      expect(extracted).toEqual({
+        buyerName: 'name',
+        contactPhone: 'phone'
+      });
+
+      const data = {
+        orderId: 'ORD-123',
+        buyerName: 'Lê Văn C',
+        contactPhone: '0988776655'
+      };
+
+      const result = MaskingService.maskObject(data, { outputSchema: schema });
+      expect(result.orderId).toBe('ORD-123');
+      expect(result.buyerName).toBe('L*** V*** C***');
+      expect(result.contactPhone).toBe('098***655');
+    });
   });
 });
