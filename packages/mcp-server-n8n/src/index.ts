@@ -80,13 +80,13 @@ mcpServer.setRequestHandler(ListToolsRequestSchema, async () => {
     tools: [
       {
         name: 'trigger_n8n_webhook',
-        description: 'Kích hoạt một quy trình tự động hóa (Workflow) trên n8n qua Webhook để xuất hóa đơn/báo cáo PDF (action: "export_pdf"), gửi tin nhắn Telegram (action: "telegram"), gửi Zalo, gửi Email, tạo ticket hoặc đồng bộ dữ liệu. Khi người dùng muốn xuất hóa đơn hoặc báo cáo PDF, hãy luôn truyền action: "export_pdf" kèm mã đơn hàng và thông tin đơn hàng trong data. Khi kết quả trả về có downloadUrl, BẮT BUỘC bạn phải hiển thị đường link tải trực tiếp dạng Markdown cho người dùng nhấp vào: [📥 Tải về file PDF hóa đơn](downloadUrl).',
+        description: 'Kích hoạt quy trình tự động hóa trên n8n qua Webhook để xuất HÓA ĐƠN BÁN HÀNG dạng PDF (action: "export_pdf") hoặc gửi tin nhắn Telegram (action: "telegram"). LƯU Ý QUAN TRỌNG: Tính năng export_pdf CHỈ hỗ trợ duy nhất Hóa đơn bán hàng từ ERPNext (bắt buộc phải có mã đơn hàng order_id). TUYỆT ĐỐI KHÔNG gọi công cụ này để xuất phiếu hỗ trợ/ticket Helpdesk (Zammad) hay báo cáo khác vì n8n chưa hỗ trợ mẫu cho các tài liệu này. Khi xuất hóa đơn PDF thành công và có downloadUrl, BẮT BUỘC hiển thị link: [📥 Tải về file PDF hóa đơn](downloadUrl).',
         inputSchema: {
           type: 'object',
           properties: {
             action: {
               type: 'string',
-              description: 'Loại tác vụ tự động hóa cần thực hiện trên n8n. Ví dụ: "export_pdf" khi người dùng yêu cầu xuất hóa đơn, phiếu mua hàng hoặc báo cáo PDF; "telegram" khi gửi tin nhắn thông báo Telegram.'
+              description: 'Loại tác vụ tự động hóa: "export_pdf" (CHỈ DÙNG khi xuất hóa đơn bán hàng ERPNext, yêu cầu có order_id); "telegram" khi gửi tin nhắn Telegram.'
             },
             webhookPath: {
               type: 'string',
@@ -98,7 +98,7 @@ mcpServer.setRequestHandler(ListToolsRequestSchema, async () => {
             },
             data: {
               type: 'object',
-              description: 'Dữ liệu bổ sung tùy chọn (ví dụ: { order_id: "DH-1002", customer_name: "Nguyễn Văn A", total: 1500000 })'
+              description: 'Dữ liệu bổ sung tùy chọn (ví dụ: { order_id: "ACC-SINV-2026-00001", customer_name: "Nguyễn Văn A", total: 1500000 }). Với export_pdf, order_id là bắt buộc.'
             }
           },
           required: ['message']
@@ -126,7 +126,7 @@ mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
     if (!resolvedAction) {
       if (
         (data && ((data as any).orderCode || (data as any).order_id || (data as any).orderId)) ||
-        (message && /(hóa đơn|invoice|pdf|phiếu|xuất)/i.test(message))
+        (message && /(hóa đơn|invoice|pdf|phiếu bán|xuất hóa đơn)/i.test(message))
       ) {
         resolvedAction = 'export_pdf';
       } else {
@@ -136,6 +136,22 @@ mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
 
     const orderId = (data && ((data as any).order_id || (data as any).orderCode || (data as any).orderId)) || '';
     const customerName = (data && ((data as any).customer_name || (data as any).customerName)) || '';
+
+    // Chặn gọi nhầm export_pdf cho ticket Zammad khi thiếu order_id
+    if (resolvedAction === 'export_pdf' && !orderId && (Boolean(data?.tickets) || /(ticket|phiếu hỗ trợ)/i.test(message || ''))) {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              success: false,
+              errorCode: 'UNSUPPORTED_DOCUMENT_TYPE',
+              message: 'Quy trình n8n hiện tại CHỈ hỗ trợ xuất file PDF cho Hóa đơn bán hàng từ ERPNext (yêu cầu mã đơn hàng order_id). Hệ thống chưa hỗ trợ xuất file PDF cho phiếu hỗ trợ/ticket Zammad. Vui lòng thông báo cho người dùng biết giới hạn này và trình bày thông tin ticket dưới dạng bảng Markdown trực quan ngay trong câu trả lời.'
+            }, null, 2)
+          }
+        ]
+      };
+    }
 
     // Sanitize webhookPath (chặn SSRF & Path Traversal)
     const cleanPath = sanitizeWebhookPath(webhookPath, defaultWebhookPath);
