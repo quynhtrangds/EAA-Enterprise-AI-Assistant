@@ -68,13 +68,6 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             address: "address",
             address_line1: "address"
           }
-        },
-        piiFields: {
-          name: "name",
-          email: "email",
-          phone: "phone",
-          address: "address",
-          address_line1: "address"
         }
       },
       {
@@ -93,9 +86,6 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           piiFields: {
             party_name: "name"
           }
-        },
-        piiFields: {
-          party_name: "name"
         }
       },
     ],

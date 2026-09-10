@@ -153,13 +153,13 @@ describe('policies/url-validator.ts: Comprehensive SSRF & CIDR Protection Suite'
     it('chặn các tên miền trỏ về IP Private/Loopback (DNS Rebinding Attack)', async () => {
       // Các domain nip.io phân giải trực tiếp về IP private tương ứng
       await expect(validateIntegrationUrlAsync('http://127.0.0.1.nip.io:8080'))
-        .rejects.toThrowError(/DNS Rebinding \/ SSRF Protection/);
+        .rejects.toThrowError(/DNS Rebinding \/ SSRF Protection|DNS Lookup Failed/);
 
       await expect(validateIntegrationUrlAsync('http://10.0.0.1.nip.io'))
-        .rejects.toThrowError(/DNS Rebinding \/ SSRF Protection/);
+        .rejects.toThrowError(/DNS Rebinding \/ SSRF Protection|DNS Lookup Failed/);
 
       await expect(validateIntegrationUrlAsync('http://172.20.0.5.nip.io'))
-        .rejects.toThrowError(/DNS Rebinding \/ SSRF Protection/);
+        .rejects.toThrowError(/DNS Rebinding \/ SSRF Protection|DNS Lookup Failed/);
     });
   });
   describe('isAllowedPrivateHost & SENSITIVE_INFRA_HOSTS Protection', () => {

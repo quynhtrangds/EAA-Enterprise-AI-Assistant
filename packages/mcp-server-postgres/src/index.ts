@@ -31,7 +31,6 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         properties: (t.inputSchema as any).shape || {}, // Zod to basic schema fallback
       },
       _meta: t.piiFields ? { piiFields: t.piiFields } : undefined,
-      piiFields: t.piiFields,
     })),
   };
 });

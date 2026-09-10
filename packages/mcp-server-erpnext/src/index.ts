@@ -53,11 +53,6 @@ mcpServer.setRequestHandler(ListToolsRequestSchema, async () => {
             customer_name: 'name',
             customer: 'name'
           }
-        },
-        piiFields: {
-          doiTac: 'name',
-          customer_name: 'name',
-          customer: 'name'
         }
       },
       {
@@ -86,11 +81,6 @@ mcpServer.setRequestHandler(ListToolsRequestSchema, async () => {
             supplier_name: 'name',
             supplier: 'name'
           }
-        },
-        piiFields: {
-          doiTac: 'name',
-          supplier_name: 'name',
-          supplier: 'name'
         }
       },
       {
@@ -160,13 +150,6 @@ mcpServer.setRequestHandler(ListToolsRequestSchema, async () => {
             email: 'email',
             address: 'address'
           }
-        },
-        piiFields: {
-          fullName: 'name',
-          customer_name: 'name',
-          phone: 'phone',
-          email: 'email',
-          address: 'address'
         }
       },
       {
@@ -213,12 +196,6 @@ mcpServer.setRequestHandler(ListToolsRequestSchema, async () => {
             customerAddress: 'address',
             address: 'address'
           }
-        },
-        piiFields: {
-          customerName: 'name',
-          customer_name: 'name',
-          customerAddress: 'address',
-          address: 'address'
         }
       },
       {
@@ -246,10 +223,6 @@ mcpServer.setRequestHandler(ListToolsRequestSchema, async () => {
             fullName: 'name',
             customer_name: 'name'
           }
-        },
-        piiFields: {
-          fullName: 'name',
-          customer_name: 'name'
         }
       }
     ]
