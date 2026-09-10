@@ -84,7 +84,19 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, showTimestamp = 
                 {isAI ? (
                   <div className="prose prose-invert max-w-none text-[15.5px] leading-relaxed text-ink-1">
                     {message.content ? (
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      <ReactMarkdown
+                        remarkPlugins={[remarkGfm]}
+                        components={{
+                          a: ({ node, ...props }) => (
+                            <a
+                              {...props}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-brass hover:text-brass-hover underline underline-offset-2 transition-colors font-medium cursor-pointer"
+                            />
+                          ),
+                        }}
+                      >
                         {message.content}
                       </ReactMarkdown>
                     ) : (
