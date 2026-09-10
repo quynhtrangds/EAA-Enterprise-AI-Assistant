@@ -171,11 +171,14 @@ services:
     container_name: enterprise_ai_n8n
     restart: unless-stopped
     environment:
-      - NODE_FUNCTION_ALLOW_EXTERNAL=*
-      - NODE_FUNCTION_ALLOW_BUILTIN=*
+      - NODE_FUNCTION_ALLOW_EXTERNAL=pdfkit
+      - NODE_FUNCTION_ALLOW_BUILTIN=fs,path
       - NODE_PATH=/usr/local/lib/node_modules:/home/node/.n8n/node_modules
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=${N8N_BASIC_AUTH_USER:-admin}
+      - N8N_BASIC_AUTH_PASSWORD=${N8N_BASIC_AUTH_PASSWORD:-admin123}
     ports:
-      - "5678:5678"
+      - "127.0.0.1:5678:5678"
     volumes:
       - n8n_data:/home/node/.n8n
 

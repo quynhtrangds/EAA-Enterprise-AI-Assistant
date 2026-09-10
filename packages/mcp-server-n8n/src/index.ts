@@ -2,7 +2,7 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 
-const mcpServer = new Server({
+export const mcpServer = new Server({
   name: 'mcp-server-n8n',
   version: '1.0.0'
 }, {
@@ -10,6 +10,70 @@ const mcpServer = new Server({
     tools: {}
   }
 });
+
+export function sanitizeWebhookPath(rawPath?: string, defaultPath: string = '26317864-61db-424c-87f5-abd29ce33599'): string {
+  const path = (rawPath && typeof rawPath === 'string') ? rawPath.trim() : '';
+  if (!path) {
+    return defaultPath;
+  }
+
+  // Chống SSRF: Tuyệt đối không nhận URL đầy đủ hoặc protocol scheme
+  if (/^https?:\/\//i.test(path) || path.startsWith('//') || path.includes(':')) {
+    throw new Error('Tên hoặc mã webhook không hợp lệ: Không được phép truyền URL đầy đủ (chống SSRF). Chỉ truyền mã ID webhook (ví dụ: 26317864-61db-424c-87f5-abd29ce33599).');
+  }
+
+  // Chống Path Traversal: Không cho phép '..' hoặc ký tự nguy hiểm
+  if (path.includes('..') || path.includes('\\')) {
+    throw new Error('Mã webhook không hợp lệ: Không được chứa ký tự path traversal (.. hoặc \\).');
+  }
+
+  const clean = path.replace(/^\/+/, '');
+  // Chỉ chấp nhận ký tự an toàn: chữ cái, số, gạch dưới, gạch ngang, hoặc slug tương đối
+  if (!/^[a-zA-Z0-9_\-]+(\/[a-zA-Z0-9_\-]+)*$/.test(clean)) {
+    throw new Error('Mã webhook không hợp lệ. Chỉ chấp nhận chữ cái, số, gạch ngang, gạch dưới hoặc slug đường dẫn tương đối.');
+  }
+
+  return clean;
+}
+
+export function buildTargetUrl(baseUrl: string, cleanWebhookPath: string): string {
+  const normalizedBase = baseUrl.replace(/\/+$/, '');
+  if (cleanWebhookPath.startsWith('webhook/') || cleanWebhookPath.startsWith('webhook-test/')) {
+    return `${normalizedBase}/${cleanWebhookPath}`;
+  }
+  return `${normalizedBase}/webhook/${cleanWebhookPath}`;
+}
+
+export function validateAndSanitizeDownloadUrl(
+  rawDownloadUrl: unknown,
+  fallbackUrl: string,
+  allowedHostnames: string[] = ['localhost', '127.0.0.1', 'enterprise_ai_n8n']
+): string {
+  if (!rawDownloadUrl || typeof rawDownloadUrl !== 'string') {
+    return fallbackUrl;
+  }
+
+  try {
+    const parsed = new URL(rawDownloadUrl);
+    // Chỉ chấp nhận http: hoặc https: (ngăn chặn javascript:, data:, file:)
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      return fallbackUrl;
+    }
+
+    const host = parsed.hostname.toLowerCase();
+    const isAllowed = allowedHostnames.some(allowed => 
+      host === allowed.toLowerCase() || host.endsWith(`.${allowed.toLowerCase()}`)
+    );
+
+    if (!isAllowed) {
+      return fallbackUrl;
+    }
+
+    return parsed.toString();
+  } catch {
+    return fallbackUrl;
+  }
+}
 
 mcpServer.setRequestHandler(ListToolsRequestSchema, async () => {
   return {
@@ -26,7 +90,7 @@ mcpServer.setRequestHandler(ListToolsRequestSchema, async () => {
             },
             webhookPath: {
               type: 'string',
-              description: 'Đường dẫn hoặc mã ID webhook trên n8n (ví dụ: "26317864-61db-424c-87f5-abd29ce33599" hoặc để trống để tự động dùng webhook mặc định).'
+              description: 'Mã ID webhook trên n8n (ví dụ: "26317864-61db-424c-87f5-abd29ce33599" hoặc để trống để tự động dùng webhook mặc định). Không được truyền URL đầy đủ.'
             },
             message: {
               type: 'string',
@@ -73,19 +137,9 @@ mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
     const orderId = (data && ((data as any).order_id || (data as any).orderCode || (data as any).orderId)) || '';
     const customerName = (data && ((data as any).customer_name || (data as any).customerName)) || '';
 
-    // Sử dụng path được truyền vào hoặc fallback về defaultWebhookPath
-    const effectivePath = (webhookPath && typeof webhookPath === 'string' && webhookPath.trim())
-      ? webhookPath.trim()
-      : defaultWebhookPath;
-
-    let targetUrl: string;
-    if (effectivePath.startsWith('http://') || effectivePath.startsWith('https://')) {
-      targetUrl = effectivePath;
-    } else if (effectivePath.startsWith('/')) {
-      targetUrl = `${baseUrl}${effectivePath}`;
-    } else {
-      targetUrl = `${baseUrl}/webhook/${effectivePath}`;
-    }
+    // Sanitize webhookPath (chặn SSRF & Path Traversal)
+    const cleanPath = sanitizeWebhookPath(webhookPath, defaultWebhookPath);
+    let targetUrl = buildTargetUrl(baseUrl, cleanPath);
 
     const payload = {
       sender: 'Enterprise AI Assistant',
@@ -104,7 +158,8 @@ mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
       'Accept': 'application/json'
     };
 
-    if (apiKey) {
+    // Chỉ gửi X-N8N-API-KEY khi targetUrl hướng tới baseUrl đã cấu hình
+    if (apiKey && targetUrl.startsWith(baseUrl)) {
       headers['X-N8N-API-KEY'] = apiKey;
     }
 
@@ -119,8 +174,8 @@ mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
       // Nếu URL trả về 404 (chưa đăng ký đường dẫn này), thử fallback về defaultWebhookPath hoặc webhook-test
       if (response.status === 404) {
         // 1. Thử fallback sang defaultWebhookPath nếu trước đó dùng path khác
-        if (effectivePath !== defaultWebhookPath) {
-          const defaultUrl = `${baseUrl}/webhook/${defaultWebhookPath}`;
+        if (cleanPath !== defaultWebhookPath) {
+          const defaultUrl = buildTargetUrl(baseUrl, defaultWebhookPath);
           const defaultResp = await fetch(defaultUrl, {
             method: 'POST',
             headers,
@@ -162,9 +217,19 @@ mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
       responseData = await response.text();
     }
 
-    const downloadUrl = (responseData && typeof responseData === 'object' && (responseData as any).downloadUrl)
+    const fallbackDownloadUrl = `http://localhost:5678/webhook/download-invoice?order_id=${encodeURIComponent(orderId)}&customer_name=${encodeURIComponent(customerName)}`;
+    
+    let baseHost = 'enterprise_ai_n8n';
+    try {
+      baseHost = new URL(baseUrl).hostname;
+    } catch {}
+
+    const allowedHosts = ['localhost', '127.0.0.1', 'enterprise_ai_n8n', baseHost];
+    const rawDownloadUrl = (responseData && typeof responseData === 'object' && (responseData as any).downloadUrl)
       ? (responseData as any).downloadUrl
-      : `http://localhost:5678/webhook/download-invoice?order_id=${encodeURIComponent(orderId)}&customer_name=${encodeURIComponent(customerName)}`;
+      : fallbackDownloadUrl;
+
+    const downloadUrl = validateAndSanitizeDownloadUrl(rawDownloadUrl, fallbackDownloadUrl, allowedHosts);
 
     const resultPayload: any = {
       success: true,
@@ -198,4 +263,6 @@ async function run() {
   console.log('n8n MCP Server running on stdio');
 }
 
-run().catch(console.error);
+if (!process.env.VITEST && process.env.NODE_ENV !== 'test') {
+  run().catch(console.error);
+}

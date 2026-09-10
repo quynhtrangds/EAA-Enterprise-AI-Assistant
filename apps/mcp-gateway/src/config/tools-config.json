@@ -60,7 +60,7 @@
     "requiresConfirmation": false
   },
   "trigger_n8n_webhook": {
-    "riskLevel": "low",
+    "riskLevel": "medium",
     "readOnly": false,
     "requiresConfirmation": false
   }

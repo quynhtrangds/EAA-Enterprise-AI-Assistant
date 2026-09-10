@@ -30,6 +30,7 @@ jobs:
           - mcp-server-crm
           - mcp-server-erpnext
           - mcp-server-gitea
+          - mcp-server-n8n
           - mcp-server-postgres
           - mcp-server-rag
           - mcp-server-zammad

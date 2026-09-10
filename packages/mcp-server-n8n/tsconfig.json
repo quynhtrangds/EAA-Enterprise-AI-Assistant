@@ -1,4 +1,4 @@
-﻿{
+{
   "compilerOptions": {
     "target": "ES2022",
     "module": "NodeNext",
@@ -10,5 +10,6 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true
   },
-  "include": ["src/**/*"]
+  "include": ["src/**/*"],
+  "exclude": ["src/**/*.test.ts", "node_modules", "dist"]
 }

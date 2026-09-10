@@ -38,17 +38,21 @@ VALUES
   ('admin', 'get_top_customers', true),
   ('admin', 'get_product_sales_summary', true),
   ('admin', 'view_audit_logs', true),
+  ('admin', 'trigger_n8n_webhook', true),
   ('manager', 'search_customer', true),
   ('manager', 'get_customer_orders', true),
   ('manager', 'get_order_detail', true),
   ('manager', 'get_revenue_summary', true),
   ('manager', 'get_top_customers', true),
   ('manager', 'get_product_sales_summary', true),
+  ('manager', 'trigger_n8n_webhook', true),
   ('staff', 'search_customer', true),
   ('staff', 'get_customer_orders', true),
   ('staff', 'get_order_detail', true),
+  ('staff', 'trigger_n8n_webhook', true),
   ('viewer', 'get_revenue_summary', true),
-  ('viewer', 'get_product_sales_summary', true)
+  ('viewer', 'get_product_sales_summary', true),
+  ('viewer', 'trigger_n8n_webhook', false)
 ON CONFLICT (role_code, tool_name) DO UPDATE
 SET can_execute = EXCLUDED.can_execute;
 
