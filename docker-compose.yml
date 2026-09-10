@@ -174,7 +174,7 @@ services:
     restart: unless-stopped
     environment:
       - NODE_FUNCTION_ALLOW_EXTERNAL=pdfkit
-      - NODE_FUNCTION_ALLOW_BUILTIN=fs,path
+      - NODE_FUNCTION_ALLOW_BUILTIN=fs,path,http,https
       - NODE_PATH=/usr/local/lib/node_modules:/home/node/.n8n/node_modules
       - N8N_BASIC_AUTH_ACTIVE=true
       - N8N_BASIC_AUTH_USER=${N8N_BASIC_AUTH_USER:-admin}
@@ -183,6 +183,9 @@ services:
       - "127.0.0.1:5678:5678"
     volumes:
       - n8n_data:/home/node/.n8n
+    networks:
+      - default
+      - frappe_network
 
 volumes:
   postgres_data:
