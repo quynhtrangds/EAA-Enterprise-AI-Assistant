@@ -120,8 +120,7 @@ export const SENSITIVE_INFRA_HOSTS = new Set([
   'enterprise_ai_mcp_gateway',
   'localhost',
   '127.0.0.1',
-  '::1',
-  'host.docker.internal'
+  '::1'
 ]);
 
 export function isAllowedPrivateHost(rawHost: string): boolean {
