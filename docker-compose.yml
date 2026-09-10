@@ -82,7 +82,9 @@ services:
     environment:
       NODE_ENV: development
       PORT: 8082
-      LLM_PROVIDER: ${LLM_PROVIDER:-local}
+      LLM_PROVIDER: ${LLM_PROVIDER:-gemini}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.5-flash-lite}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gemini-3.5-flash-lite}
       MCP_GATEWAY_URL: http://mcp-gateway:8081
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432

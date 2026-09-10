@@ -246,14 +246,11 @@ export class ChatService {
       if (env.LLM_PROVIDER === 'gemini') {
         apiKey = env.GEMINI_API_KEY || env.OPENAI_API_KEY;
         baseURL = env.LOCAL_LLM_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta/openai/';
-        model = env.GEMINI_MODEL || env.OPENAI_MODEL || 'gemini-3.6-flash';
-        if (model.includes('gemini-3.5') || model.includes('gemini-2.0') || model.includes('gemini-2.5')) {
-          model = 'gemini-3.6-flash';
-        }
+        model = env.GEMINI_MODEL || env.OPENAI_MODEL || 'gemini-3.5-flash-lite';
       } else if (env.LLM_PROVIDER === 'local') {
         apiKey = env.OPENAI_API_KEY || 'local-key';
         baseURL = env.LOCAL_LLM_BASE_URL;
-        model = env.OPENAI_MODEL || 'local-model';
+        model = env.OPENAI_MODEL || 'gemini-3.5-flash-lite';
       } else if (env.LLM_PROVIDER === 'mock') {
         apiKey = env.OPENAI_API_KEY || 'mock-key';
         baseURL = env.LOCAL_LLM_BASE_URL;
