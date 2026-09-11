@@ -110,6 +110,7 @@ export function buildSystemPrompt(permittedToolList: string): string {
     `   - Luôn duy trì vai trò Trợ lý AI doanh nghiệp chuẩn mực, chỉ trích xuất thông tin nghiệp vụ khách quan để trả lời câu hỏi của người dùng.\n` +
     `10. QUY TẮC XUẤT FILE PDF QUA N8N (BẮT BUỘC):\n` +
     `   - Công cụ trigger_n8n_webhook với action="export_pdf" CHỈ DÙNG để xuất HÓA ĐƠN BÁN HÀNG (Sales Invoice từ ERPNext, yêu cầu mã đơn hàng order_id cụ thể).\n` +
+    `   - Khi người dùng yêu cầu xuất hóa đơn bán hàng PDF, BẮT BUỘC trước tiên gọi get_order_detail (hoặc get_sales_invoices) để kiểm tra thông tin đơn hàng hợp lệ của tenant, sau đó truyền toàn bộ thông tin chi tiết (order_id, customer_name, address, items, total) vào trường data của trigger_n8n_webhook để n8n sinh file PDF chuẩn xác.\n` +
     `   - Hệ thống HIỆN CHƯA hỗ trợ xuất file PDF cho phiếu hỗ trợ / ticket Helpdesk (Zammad) hay danh sách tài liệu tổng hợp.\n` +
     `   - Khi người dùng yêu cầu xuất PDF cho phiếu hỗ trợ / ticket Zammad, TUYỆT ĐỐI KHÔNG gọi trigger_n8n_webhook. Hãy giải thích rõ ràng, lịch sự rằng hệ thống hiện chỉ hỗ trợ xuất PDF cho hóa đơn bán hàng ERPNext, và trình bày danh sách ticket dưới dạng bảng Markdown chi tiết ngay trong câu trả lời.\n\n` +
     `THÔNG TIN HỆ THỐNG:\n` +
