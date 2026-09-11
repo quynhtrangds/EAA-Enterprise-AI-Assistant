@@ -177,8 +177,8 @@ describe('policies/url-validator.ts: Comprehensive SSRF & CIDR Protection Suite'
       expect(isAllowedPrivateHost('gitea')).toBe(false);
     });
 
-    it('tuyet doi chan vault, postgres, mcp-gateway, loopback ke ca khi co tinh dua vao whitelist', () => {
-      process.env.INTEGRATION_TEST_ALLOWED_PRIVATE_HOSTS = 'vault,postgres,mcp-gateway,localhost,127.0.0.1,gitea';
+    it('tuyet doi chan vault, postgres, mcp-gateway, loopback, host.docker.internal ke ca khi co tinh dua vao whitelist', () => {
+      process.env.INTEGRATION_TEST_ALLOWED_PRIVATE_HOSTS = 'vault,postgres,mcp-gateway,localhost,127.0.0.1,host.docker.internal,gitea';
       expect(isAllowedPrivateHost('vault')).toBe(false);
       expect(isAllowedPrivateHost('enterprise_ai_vault')).toBe(false);
       expect(isAllowedPrivateHost('postgres')).toBe(false);
@@ -186,23 +186,23 @@ describe('policies/url-validator.ts: Comprehensive SSRF & CIDR Protection Suite'
       expect(isAllowedPrivateHost('mcp-gateway')).toBe(false);
       expect(isAllowedPrivateHost('localhost')).toBe(false);
       expect(isAllowedPrivateHost('127.0.0.1')).toBe(false);
+      expect(isAllowedPrivateHost('host.docker.internal')).toBe(false);
       expect(isAllowedPrivateHost('169.254.169.254')).toBe(false);
 
       // Nhung host an toan hop le van duoc phep
       expect(isAllowedPrivateHost('gitea')).toBe(true);
     });
 
-    it('cho phep cac service noi bo hop le duoc khai bao tuong minh (bao gom host.docker.internal)', () => {
-      process.env.INTEGRATION_TEST_ALLOWED_PRIVATE_HOSTS = 'frontend,gitea,enterprise_ai_n8n,host.docker.internal';
+    it('cho phep cac service noi bo hop le duoc khai bao tuong minh', () => {
+      process.env.INTEGRATION_TEST_ALLOWED_PRIVATE_HOSTS = 'frontend,gitea,enterprise_ai_n8n';
       expect(isAllowedPrivateHost('frontend')).toBe(true);
       expect(isAllowedPrivateHost('gitea')).toBe(true);
       expect(isAllowedPrivateHost('enterprise_ai_n8n')).toBe(true);
-      expect(isAllowedPrivateHost('host.docker.internal')).toBe(true);
       expect(isAllowedPrivateHost('other_service')).toBe(false);
     });
 
-    it('chan host.docker.internal khi khong duoc khai bao trong whitelist (SSRF protection)', () => {
-      process.env.INTEGRATION_TEST_ALLOWED_PRIVATE_HOSTS = 'frontend,gitea';
+    it('chan host.docker.internal ke ca khi co trong whitelist hoac khong co (SSRF protection)', () => {
+      process.env.INTEGRATION_TEST_ALLOWED_PRIVATE_HOSTS = 'frontend,gitea,host.docker.internal';
       expect(isAllowedPrivateHost('host.docker.internal')).toBe(false);
       expect(() => validateIntegrationUrl('http://host.docker.internal:8080')).toThrow(
         /Hostname 'host\.docker\.internal' trỏ tới dịch vụ nội bộ hoặc Cloud Metadata bị hạn chế/
