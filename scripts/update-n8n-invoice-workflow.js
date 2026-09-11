@@ -1,6 +1,13 @@
 /**
- * Script to update n8n workflow 'download_pdf_wf' so it dynamically fetches
- * real-time invoice and customer address details from ERPNext.
+ * Script to configure n8n workflow 'download_pdf_wf' as a pure, stateless
+ * document rendering engine.
+ * 
+ * ARCHITECTURE COMPLIANCE:
+ * - NO hardcoded credentials or API tokens.
+ * - NO outbound network calls (HTTP/Fetch) from inside the rendering engine.
+ * - Consumes structured order/invoice data directly from the input payload
+ *   (which is validated, authorized, and provided by the MCP Gateway / Orchestrator).
+ * - Fully multi-tenant safe and eliminates IDOR/BOLA by design.
  * 
  * Usage inside n8n container:
  *   node scripts/update-n8n-invoice-workflow.js
@@ -10,131 +17,48 @@ const sqlite3 = require('/usr/local/lib/node_modules/n8n/node_modules/sqlite3');
 const db = new sqlite3.Database('/home/node/.n8n/database.sqlite');
 
 const generatorCode = `const PDFDocument = require('pdfkit');
-const http = require('http');
-
-function fetchJson(apiPath, headers = {}) {
-  return new Promise((resolve) => {
-    try {
-      const req = http.request({
-        hostname: 'frontend',
-        port: 8080,
-        path: apiPath,
-        method: 'GET',
-        headers: headers
-      }, (res) => {
-        let data = '';
-        res.on('data', chunk => data += chunk);
-        res.on('end', () => {
-          try {
-            if (res.statusCode >= 200 && res.statusCode < 300) {
-              resolve(JSON.parse(data));
-            } else {
-              resolve(null);
-            }
-          } catch (e) {
-            resolve(null);
-          }
-        });
-      });
-      req.on('error', () => resolve(null));
-      req.setTimeout(5000, () => { req.destroy(); resolve(null); });
-      req.end();
-    } catch (err) {
-      resolve(null);
-    }
-  });
-}
 
 const query = $input.first().json.query || $input.first().json.body || $input.first().json;
-const orderId = (query.order_id || query.orderCode || 'ACC-SINV-2026-00001').trim();
-let customerName = query.customer_name || query.customerName || 'Khách hàng';
-let customerAddress = query.address || '';
-let customerTaxId = query.tax_id || query.taxId || '';
-let invoiceDate = new Date().toLocaleDateString('vi-VN');
-let invoiceStatus = 'Đã thanh toán (Paid)';
+const orderId = (query.order_id || query.orderCode || query.orderId || 'ACC-SINV-2026-00001').toString().trim();
+const customerName = (query.customer_name || query.customerName || query.customer || 'Khách hàng').toString().trim();
+const customerAddress = (query.address || query.customer_address || query.customerAddress || 'Địa chỉ chưa cập nhật').toString().trim();
+const customerTaxId = (query.tax_id || query.taxId || '').toString().trim();
+
+let invoiceDate = query.invoiceDate || query.invoice_date;
+if (!invoiceDate) {
+  if (query.posting_date) {
+    const parts = query.posting_date.split('-');
+    if (parts.length === 3) invoiceDate = parts[2] + '/' + parts[1] + '/' + parts[0];
+    else invoiceDate = query.posting_date;
+  } else {
+    invoiceDate = new Date().toLocaleDateString('vi-VN');
+  }
+}
+
+let rawStatus = (query.status || query.invoiceStatus || 'Đã thanh toán (Paid)').toString();
+let invoiceStatus = rawStatus === 'Paid' ? 'Đã thanh toán (Paid)' : rawStatus;
+
 let currencyUnit = (query.currency && query.currency.trim()) || 'VNĐ';
 if (currencyUnit === 'VND') currencyUnit = 'VNĐ';
-let productItems = query.items;
-let subTotal = 0;
-let vat = 0;
-let grandTotal = query.total ? Number(query.total) : 0;
 
-// Truy vấn dữ liệu thực tế từ ERPNext theo orderId
-if (orderId) {
-  try {
-    const erpData = await fetchJson('/api/resource/Sales%20Invoice/' + encodeURIComponent(orderId), {
-      'Authorization': 'token 6ccdf2b19b0b86b:f5e1f0858f92561'
-    });
-    if (erpData && erpData.data) {
-      const inv = erpData.data;
-      customerName = inv.customer_name || inv.customer || customerName;
-      invoiceStatus = inv.status === 'Paid' ? 'Đã thanh toán (Paid)' : (inv.status || invoiceStatus);
-      if (inv.posting_date) {
-        const parts = inv.posting_date.split('-');
-        if (parts.length === 3) invoiceDate = parts[2] + '/' + parts[1] + '/' + parts[0];
-        else invoiceDate = inv.posting_date;
-      }
-      if (inv.currency) {
-        currencyUnit = inv.currency === 'VND' ? 'VNĐ' : inv.currency;
-      }
-      if (inv.items && inv.items.length > 0) {
-        productItems = inv.items.map(i => ({
-          name: i.item_name || i.item_code,
-          qty: Number(i.qty) || 1,
-          price: Number(i.rate) || 0,
-          total: Number(i.amount) || ((Number(i.qty) || 1) * (Number(i.rate) || 0))
-        }));
-        subTotal = Number(inv.net_total || inv.total) || productItems.reduce((acc, it) => acc + it.total, 0);
-        vat = Number(inv.total_taxes_and_charges) || 0;
-        grandTotal = Number(inv.grand_total) || (subTotal + vat);
-      }
-
-      // Lấy đúng địa chỉ và mã số thuế từ hồ sơ Customer trong ERPNext
-      const custName = inv.customer;
-      if (custName) {
-        const custData = await fetchJson('/api/resource/Customer/' + encodeURIComponent(custName), {
-          'Authorization': 'token 6ccdf2b19b0b86b:f5e1f0858f92561'
-        });
-        if (custData && custData.data) {
-          if (custData.data.primary_address) {
-            customerAddress = custData.data.primary_address
-              .replace(/<br\\s*[\\/]?>/gi, ', ')
-              .replace(/[\\r\\n]+/g, ' ')
-              .replace(/\\s+,/g, ',')
-              .replace(/,\\s*,/g, ',')
-              .replace(/\\s+/g, ' ')
-              .replace(/^,\\s*|,\\s*$/g, '')
-              .trim();
-          }
-          if (!customerAddress && custData.data.customer_primary_address) {
-            const addrData = await fetchJson('/api/resource/Address/' + encodeURIComponent(custData.data.customer_primary_address), {
-              'Authorization': 'token 6ccdf2b19b0b86b:f5e1f0858f92561'
-            });
-            if (addrData && addrData.data) {
-              const parts = [addrData.data.address_line1, addrData.data.address_line2, addrData.data.city, addrData.data.state, addrData.data.country].filter(Boolean);
-              if (parts.length > 0) customerAddress = parts.join(', ');
-            }
-          }
-          if (custData.data.tax_id) {
-            customerTaxId = custData.data.tax_id;
-          }
-        }
-      }
-    }
-  } catch (err) {}
-}
-
-if (!customerAddress) {
-  customerAddress = 'Địa chỉ chưa cập nhật';
-}
-
-if (!productItems || productItems.length === 0) {
+let productItems = Array.isArray(query.items) ? query.items : [];
+if (productItems.length > 0) {
+  productItems = productItems.map(i => ({
+    name: i.name || i.item_name || i.item_code || 'Sản phẩm',
+    qty: Number(i.qty) || 1,
+    price: Number(i.price || i.rate) || 0,
+    total: Number(i.total || i.amount) || ((Number(i.qty) || 1) * (Number(i.price || i.rate) || 0))
+  }));
+} else {
+  const fallbackTotal = Number(query.total || query.grand_total || query.grandTotal || 15000);
   productItems = [
-    { name: 'Sản phẩm theo đơn hàng ' + orderId, qty: 1, price: grandTotal || 15000, total: grandTotal || 15000 }
+    { name: 'Sản phẩm theo đơn hàng ' + orderId, qty: 1, price: fallbackTotal, total: fallbackTotal }
   ];
-  subTotal = grandTotal || 15000;
-  grandTotal = subTotal + vat;
 }
+
+const subTotal = Number(query.net_total || query.subTotal || query.sub_total) || productItems.reduce((acc, it) => acc + it.total, 0);
+const vat = Number(query.total_taxes_and_charges || query.vat || 0);
+const grandTotal = Number(query.grand_total || query.grandTotal || query.total) || (subTotal + vat);
 
 function formatMoney(amount) {
   const num = Math.round(Number(amount) || 0);
@@ -234,7 +158,7 @@ const boxTop = 170;
 const boxHeight = 85;
 const colWidth = 250;
 
-// Customer Card (Địa chỉ thực tế từ ERPNext)
+// Customer Card
 doc.rect(40, boxTop, colWidth, boxHeight).lineWidth(1).strokeColor('#e2e8f0').fillAndStroke('#ffffff', '#cbd5e1');
 doc.fillColor('#1e40af').font('Arial-Bold').fontSize(10).text('THÔNG TIN KHÁCH HÀNG', 50, boxTop + 8);
 doc.fillColor('#334155').font('Arial').fontSize(9)
@@ -244,7 +168,7 @@ doc.fillColor('#334155').font('Arial').fontSize(9)
    .text('Địa chỉ: ' + customerAddress, 50, boxTop + 40, { width: colWidth - 20, height: 26, ellipsis: true })
    .text('Mã số thuế: ' + (customerTaxId || 'Chưa đăng ký'), 50, boxTop + 68);
 
-// Invoice Card (Thông tin đơn thực tế từ ERPNext)
+// Invoice Card
 doc.rect(305, boxTop, colWidth, boxHeight).lineWidth(1).strokeColor('#e2e8f0').fillAndStroke('#ffffff', '#cbd5e1');
 doc.fillColor('#1e40af').font('Arial-Bold').fontSize(10).text('THÔNG TIN HÓA ĐƠN', 315, boxTop + 8);
 doc.fillColor('#334155').font('Arial').fontSize(9)
@@ -382,7 +306,7 @@ db.get('SELECT id, nodes FROM workflow_entity WHERE id = ?', ['download_pdf_wf']
           db.close();
           process.exit(1);
         }
-        console.log('Successfully updated BOTH workflow_entity and workflow_history with dynamic ERPNext customer address and order items!');
+        console.log('Successfully updated workflow to pure stateless PDF rendering engine (Zero secrets, Zero external requests)!');
         db.close();
       });
     });
