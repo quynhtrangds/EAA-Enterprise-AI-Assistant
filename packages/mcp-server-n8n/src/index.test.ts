@@ -2,7 +2,9 @@ import { describe, it, expect } from 'vitest';
 import {
   sanitizeWebhookPath,
   buildTargetUrl,
-  validateAndSanitizeDownloadUrl
+  validateAndSanitizeDownloadUrl,
+  generateSignedDownloadUrl,
+  verifySignedDownloadToken
 } from './index.js';
 
 describe('packages/mcp-server-n8n: Security & SSRF Hardening Suite', () => {
@@ -93,6 +95,50 @@ describe('packages/mcp-server-n8n: Security & SSRF Hardening Suite', () => {
     it('fallback về URL mặc định khi rawDownloadUrl không phải chuỗi hợp lệ', () => {
       expect(validateAndSanitizeDownloadUrl(null, fallback, allowedHosts)).toBe(fallback);
       expect(validateAndSanitizeDownloadUrl(12345, fallback, allowedHosts)).toBe(fallback);
+    });
+  });
+
+  describe('generateSignedDownloadUrl & verifySignedDownloadToken (Anti-Tamper & Anti-IDOR)', () => {
+    const secret = 'test-secret-key-12345';
+    const orderId = 'ACC-SINV-2026-00002';
+    const customer = 'Palmer Productions Ltd.';
+
+    it('tạo link download có đầy đủ tham số expires và signature hợp lệ', () => {
+      const urlStr = generateSignedDownloadUrl(orderId, customer, secret, 60000);
+      const u = new URL(urlStr);
+
+      expect(u.searchParams.get('order_id')).toBe(orderId);
+      expect(u.searchParams.get('customer_name')).toBe(customer);
+      expect(u.searchParams.has('expires')).toBe(true);
+      expect(u.searchParams.has('signature')).toBe(true);
+
+      const exp = u.searchParams.get('expires')!;
+      const sig = u.searchParams.get('signature')!;
+      const verification = verifySignedDownloadToken(orderId, exp, sig, secret);
+      expect(verification.valid).toBe(true);
+    });
+
+    it('từ chối token khi signature bị sửa đổi (Anti-Tampering)', () => {
+      const urlStr = generateSignedDownloadUrl(orderId, customer, secret, 60000);
+      const u = new URL(urlStr);
+      const exp = u.searchParams.get('expires')!;
+
+      // Kẻ tấn công sửa đổi orderId khác (IDOR attempt)
+      const tamperedCheck = verifySignedDownloadToken('ACC-SINV-2026-99999', exp, u.searchParams.get('signature')!, secret);
+      expect(tamperedCheck.valid).toBe(false);
+      expect(tamperedCheck.reason).toMatch(/không hợp lệ/);
+    });
+
+    it('từ chối khi link tải đã hết hạn (Expiry Protection)', () => {
+      // Giả lập link đã tạo từ quá khứ (-1000ms)
+      const expiredUrl = generateSignedDownloadUrl(orderId, customer, secret, -1000);
+      const u = new URL(expiredUrl);
+      const exp = u.searchParams.get('expires')!;
+      const sig = u.searchParams.get('signature')!;
+
+      const res = verifySignedDownloadToken(orderId, exp, sig, secret);
+      expect(res.valid).toBe(false);
+      expect(res.reason).toMatch(/hết hạn/);
     });
   });
 });

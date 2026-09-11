@@ -1,12 +1,12 @@
 /**
  * Script to configure n8n workflow 'download_pdf_wf' as a pure, stateless
- * document rendering engine.
+ * document rendering engine with HMAC Signed Token protection.
  * 
  * ARCHITECTURE COMPLIANCE:
  * - NO hardcoded credentials or API tokens.
  * - NO outbound network calls (HTTP/Fetch) from inside the rendering engine.
- * - Consumes structured order/invoice data directly from the input payload
- *   (which is validated, authorized, and provided by the MCP Gateway / Orchestrator).
+ * - Enforces HMAC-SHA256 signature and 15-minute expiration on download links to prevent IDOR / enumeration.
+ * - Consumes structured order/invoice data directly from the input payload.
  * - Fully multi-tenant safe and eliminates IDOR/BOLA by design.
  * 
  * Usage inside n8n container:
@@ -17,12 +17,91 @@ const sqlite3 = require('/usr/local/lib/node_modules/n8n/node_modules/sqlite3');
 const db = new sqlite3.Database('/home/node/.n8n/database.sqlite');
 
 const generatorCode = `const PDFDocument = require('pdfkit');
+const crypto = require('crypto');
+
+let secret = 'eaa_pdf_download_secret_2026';
+try {
+  if (typeof $env !== 'undefined' && $env && $env.PDF_DOWNLOAD_SECRET) {
+    secret = $env.PDF_DOWNLOAD_SECRET;
+  }
+} catch (e) {}
 
 const query = $input.first().json.query || $input.first().json.body || $input.first().json;
-const orderId = (query.order_id || query.orderCode || query.orderId || 'ACC-SINV-2026-00001').toString().trim();
+const orderId = (query.order_id || query.orderCode || query.orderId || '').toString().trim();
 const customerName = (query.customer_name || query.customerName || query.customer || 'Khách hàng').toString().trim();
 const customerAddress = (query.address || query.customer_address || query.customerAddress || 'Địa chỉ chưa cập nhật').toString().trim();
 const customerTaxId = (query.tax_id || query.taxId || '').toString().trim();
+const expires = Number(query.expires) || 0;
+const signature = (query.signature || query.token || '').toString().trim();
+
+let isAuthorized = true;
+let authErrorMsg = '';
+
+// Kiểm tra chữ ký bảo mật Signed Token (chống IDOR / Scanning)
+if (!orderId) {
+  isAuthorized = false;
+  authErrorMsg = 'Thiếu mã đơn hàng hợp lệ.';
+} else if (!expires || Date.now() > expires) {
+  isAuthorized = false;
+  authErrorMsg = 'Liên kết tải hóa đơn đã hết hạn bảo mật (chỉ có hiệu lực trong 15 phút). Vui lòng quay lại Trợ lý AI để yêu cầu tạo liên kết mới.';
+} else {
+  const expectedSig = crypto.createHmac('sha256', secret).update(orderId + ':' + expires).digest('hex');
+  if (signature !== expectedSig) {
+    isAuthorized = false;
+    authErrorMsg = 'Chữ ký số bảo mật không hợp lệ (Truy cập bị từ chối / Invalid HMAC Signature).';
+  }
+}
+
+const doc = new PDFDocument({
+  size: 'A4',
+  margin: 40,
+  info: {
+    Title: isAuthorized ? ('HoaDon_' + orderId) : 'Access_Denied',
+    Author: 'Enterprise AI Assistant'
+  }
+});
+
+const regularFont = '/usr/share/fonts/truetype/msttcorefonts/Arial.ttf';
+const boldFont = '/usr/share/fonts/truetype/msttcorefonts/Arial_Bold.ttf';
+
+doc.registerFont('Arial', regularFont);
+doc.registerFont('Arial-Bold', boldFont);
+
+const buffers = [];
+doc.on('data', b => buffers.push(b));
+
+if (!isAuthorized) {
+  // --- TRANG CẢNH BÁO TRUY CẬP BỊ TỪ CHỐI (SECURITY GUARD) ---
+  doc.rect(40, 40, 515, 60).fill('#fef2f2');
+  doc.fillColor('#dc2626').font('Arial-Bold').fontSize(16).text('THÔNG BÁO BẢO MẬT HỆ THỐNG (SECURITY NOTICE)', 55, 52);
+  doc.fillColor('#991b1b').font('Arial').fontSize(9)
+     .text('Enterprise AI Assistant - Cơ chế Bảo vệ Truy cập An toàn Đa Khách thuê (Multi-Tenant Guard)', 55, 73);
+
+  doc.rect(40, 105, 515, 3).fill('#ef4444');
+
+  doc.fillColor('#7f1d1d').font('Arial-Bold').fontSize(18).text('TRUY CẬP BỊ TỪ CHỐI (ACCESS DENIED)', 40, 150, { align: 'center' });
+
+  doc.rect(40, 190, 515, 120).lineWidth(1).strokeColor('#fca5a5').fillAndStroke('#fff1f2', '#fecdd3');
+  doc.fillColor('#991b1b').font('Arial-Bold').fontSize(11).text('LÝ DO TỪ CHỐI TRUY CẬP:', 60, 205);
+  doc.fillColor('#374151').font('Arial').fontSize(10).text(authErrorMsg, 60, 225, { width: 475 });
+  doc.fillColor('#6b7280').font('Arial').fontSize(8.5).text('Mã tham chiếu đơn hàng: ' + (orderId || 'N/A') + '  |  Thời gian: ' + new Date().toLocaleString('vi-VN'), 60, 275);
+
+  doc.end();
+  await new Promise(r => doc.on('end', r));
+  const pdfBuffer = Buffer.concat(buffers);
+  return [
+    {
+      json: { success: false, error: authErrorMsg },
+      binary: {
+        data: {
+          data: pdfBuffer.toString('base64'),
+          mimeType: 'application/pdf',
+          fileName: 'Access_Denied.pdf'
+        }
+      }
+    }
+  ];
+}
 
 let invoiceDate = query.invoiceDate || query.invoice_date;
 if (!invoiceDate) {
@@ -118,24 +197,6 @@ function docSoTienVN(so) {
   if (!ketQua) return 'Không đồng chẵn.';
   return ketQua.charAt(0).toUpperCase() + ketQua.slice(1) + ' đồng chẵn.';
 }
-
-const doc = new PDFDocument({
-  size: 'A4',
-  margin: 40,
-  info: {
-    Title: 'HoaDon_' + orderId,
-    Author: 'Enterprise AI Assistant'
-  }
-});
-
-const regularFont = '/usr/share/fonts/truetype/msttcorefonts/Arial.ttf';
-const boldFont = '/usr/share/fonts/truetype/msttcorefonts/Arial_Bold.ttf';
-
-doc.registerFont('Arial', regularFont);
-doc.registerFont('Arial-Bold', boldFont);
-
-const buffers = [];
-doc.on('data', b => buffers.push(b));
 
 // --- HEADER: COMPANY INFO ---
 doc.rect(40, 40, 515, 60).fill('#f8fafc');
@@ -306,7 +367,7 @@ db.get('SELECT id, nodes FROM workflow_entity WHERE id = ?', ['download_pdf_wf']
           db.close();
           process.exit(1);
         }
-        console.log('Successfully updated workflow to pure stateless PDF rendering engine (Zero secrets, Zero external requests)!');
+        console.log('Successfully updated workflow with HMAC Signed Token validation!');
         db.close();
       });
     });

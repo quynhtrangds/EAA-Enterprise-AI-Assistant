@@ -1,6 +1,7 @@
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
+import crypto from 'node:crypto';
 
 export const mcpServer = new Server({
   name: 'mcp-server-n8n',
@@ -73,6 +74,48 @@ export function validateAndSanitizeDownloadUrl(
   } catch {
     return fallbackUrl;
   }
+}
+
+export function generateSignedDownloadUrl(
+  orderId: string,
+  customerName: string = '',
+  secret: string = process.env.PDF_DOWNLOAD_SECRET || process.env.JWT_SECRET || 'eaa_pdf_download_secret_2026',
+  expiresInMs: number = 15 * 60 * 1000,
+  baseUrl: string = 'http://localhost:5678/webhook/download-invoice'
+): string {
+  const expires = Date.now() + expiresInMs;
+  const signature = crypto.createHmac('sha256', secret).update(`${orderId}:${expires}`).digest('hex');
+  const url = new URL(baseUrl);
+  url.searchParams.set('order_id', orderId);
+  if (customerName) {
+    url.searchParams.set('customer_name', customerName);
+  }
+  url.searchParams.set('expires', expires.toString());
+  url.searchParams.set('signature', signature);
+  return url.toString();
+}
+
+export function verifySignedDownloadToken(
+  orderId: string,
+  expires: number | string,
+  signature: string,
+  secret: string = process.env.PDF_DOWNLOAD_SECRET || process.env.JWT_SECRET || 'eaa_pdf_download_secret_2026'
+): { valid: boolean; reason?: string } {
+  if (!orderId) {
+    return { valid: false, reason: 'Thiếu mã đơn hàng' };
+  }
+  const expNum = Number(expires);
+  if (!expires || isNaN(expNum)) {
+    return { valid: false, reason: 'Thiếu thời hạn hợp lệ' };
+  }
+  if (Date.now() > expNum) {
+    return { valid: false, reason: 'Liên kết tải file đã hết hạn (chỉ có hiệu lực 15 phút)' };
+  }
+  const expectedSignature = crypto.createHmac('sha256', secret).update(`${orderId}:${expNum}`).digest('hex');
+  if (signature !== expectedSignature) {
+    return { valid: false, reason: 'Chữ ký bảo mật không hợp lệ (Tampered/Invalid Signature)' };
+  }
+  return { valid: true };
 }
 
 mcpServer.setRequestHandler(ListToolsRequestSchema, async () => {
@@ -233,7 +276,8 @@ mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
       responseData = await response.text();
     }
 
-    const fallbackDownloadUrl = `http://localhost:5678/webhook/download-invoice?order_id=${encodeURIComponent(orderId)}&customer_name=${encodeURIComponent(customerName)}`;
+    const downloadSecret = process.env.PDF_DOWNLOAD_SECRET || process.env.JWT_SECRET || 'eaa_pdf_download_secret_2026';
+    const fallbackDownloadUrl = generateSignedDownloadUrl(orderId, customerName, downloadSecret);
     
     let baseHost = 'enterprise_ai_n8n';
     try {
@@ -241,11 +285,25 @@ mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
     } catch {}
 
     const allowedHosts = ['localhost', '127.0.0.1', 'enterprise_ai_n8n', baseHost];
-    const rawDownloadUrl = (responseData && typeof responseData === 'object' && (responseData as any).downloadUrl)
-      ? (responseData as any).downloadUrl
-      : fallbackDownloadUrl;
+    let signedDownloadUrl = fallbackDownloadUrl;
 
-    const downloadUrl = validateAndSanitizeDownloadUrl(rawDownloadUrl, fallbackDownloadUrl, allowedHosts);
+    if (responseData && typeof responseData === 'object' && (responseData as any).downloadUrl) {
+      const sanitized = validateAndSanitizeDownloadUrl((responseData as any).downloadUrl, fallbackDownloadUrl, allowedHosts);
+      try {
+        const u = new URL(sanitized);
+        if (!u.searchParams.has('signature') || !u.searchParams.has('expires')) {
+          const expires = Date.now() + 15 * 60 * 1000;
+          const signature = crypto.createHmac('sha256', downloadSecret).update(`${orderId}:${expires}`).digest('hex');
+          u.searchParams.set('expires', expires.toString());
+          u.searchParams.set('signature', signature);
+        }
+        signedDownloadUrl = u.toString();
+      } catch {
+        signedDownloadUrl = sanitized;
+      }
+    }
+
+    const downloadUrl = signedDownloadUrl;
 
     const resultPayload: any = {
       success: true,
