@@ -557,6 +557,21 @@ toolsRouter.post('/tools/call', async (req, res, next) => {
           }
         }
 
+        // Khi gọi connector n8n, tự động bổ sung credentials ERPNext của tenant (nếu có) để phục vụ xác thực order
+        if (serverName === 'n8n' && user.tenantId) {
+          const erpRes = await query<{ is_active: boolean }>(
+            `SELECT is_active FROM tenant_integrations WHERE tenant_id = $1 AND integration_code = 'erpnext'`,
+            [user.tenantId]
+          );
+          if (erpRes.rows.length > 0 && erpRes.rows[0]?.is_active === true) {
+            const erpSecrets = await VaultService.readSecret(`integrations/${user.tenantId}/erpnext`);
+            if (erpSecrets?.apiKey && erpSecrets.apiUrl) {
+              credentials = credentials || { apiKey: '', apiUrl: '' };
+              (credentials as any).erpnext = { apiKey: erpSecrets.apiKey, apiUrl: erpSecrets.apiUrl };
+            }
+          }
+        }
+
         if (credentials) {
           mergedArgs = { ...mergedArgs, _integrationCredentials: credentials };
         } else if (serverName === 'erpnext' && servers.includes('postgres')) {

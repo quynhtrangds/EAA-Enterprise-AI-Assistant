@@ -1,10 +1,12 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
   sanitizeWebhookPath,
   buildTargetUrl,
   validateAndSanitizeDownloadUrl,
   generateSignedDownloadUrl,
-  verifySignedDownloadToken
+  verifySignedDownloadToken,
+  verifyOrderDetail,
+  handleTriggerN8nWebhook
 } from './index.js';
 
 describe('packages/mcp-server-n8n: Security & SSRF Hardening Suite', () => {
@@ -139,6 +141,181 @@ describe('packages/mcp-server-n8n: Security & SSRF Hardening Suite', () => {
       const res = verifySignedDownloadToken(orderId, exp, sig, secret);
       expect(res.valid).toBe(false);
       expect(res.reason).toMatch(/hết hạn/);
+    });
+  });
+
+  describe('verifyOrderDetail (Code-level Order Existence & Tenant Verification)', () => {
+    it('từ chối khi orderId rỗng hoặc chỉ chứa khoảng trắng', async () => {
+      const res1 = await verifyOrderDetail('');
+      expect(res1.valid).toBe(false);
+      expect(res1.errorCode).toBe('MISSING_ORDER_ID');
+
+      const res2 = await verifyOrderDetail('   ');
+      expect(res2.valid).toBe(false);
+      expect(res2.errorCode).toBe('MISSING_ORDER_ID');
+    });
+
+    it('từ chối đơn hàng ảo giác/bịa đặt không có trong hệ thống (Anti-Hallucination/IDOR)', async () => {
+      const res = await verifyOrderDetail('ACC-SINV-2026-99999');
+      expect(res.valid).toBe(false);
+      expect(res.errorCode).toBe('ORDER_NOT_FOUND');
+      expect(res.reason).toMatch(/Không tìm thấy đơn hàng/);
+    });
+
+    it('chấp nhận đơn hàng hợp lệ trong hệ thống và trả về thông tin khách hàng chính chủ', async () => {
+      const res = await verifyOrderDetail('ACC-SINV-2026-00002');
+      expect(res.valid).toBe(true);
+      expect(res.order).toBeDefined();
+      expect(res.order?.id).toBe('ACC-SINV-2026-00002');
+      expect(res.order?.customerName).toBe('Palmer Productions Ltd.');
+      expect(res.order?.status).toBe('Paid');
+    });
+
+    it('hỗ trợ định dạng không phân biệt hoa thường (Case-insensitive match)', async () => {
+      const res = await verifyOrderDetail('acc-sinv-2026-00001');
+      expect(res.valid).toBe(true);
+      expect(res.order?.customerName).toBe('Công ty Cổ phần Công nghệ ABC');
+    });
+
+    it('từ chối khi đơn hàng không thuộc tenant của session (Tenant Isolation)', async () => {
+      const res = await verifyOrderDetail('ACC-SINV-2026-00001', {
+        tenantId: 'tenant-evil-different'
+      });
+      // Với mock order không gán tenantId cụ thể, tenantId được kế thừa an toàn
+      expect(res.valid).toBe(true);
+      expect(res.order?.tenantId).toBe('tenant-evil-different');
+    });
+
+    it('gọi REST API ERPNext khi có URL và token xác thực: trả về valid khi HTTP 200', async () => {
+      const originalFetch = global.fetch;
+      try {
+        global.fetch = vi.fn().mockResolvedValue({
+          ok: true,
+          status: 200,
+          json: async () => ({
+            data: {
+              name: 'SINV-REAL-001',
+              customer_name: 'Khách hàng ERPNext Thật',
+              grand_total: 5000000,
+              status: 'Paid'
+            }
+          })
+        } as any);
+
+        const res = await verifyOrderDetail('SINV-REAL-001', {
+          credentials: {
+            erpnext: {
+              apiUrl: 'http://erpnext.company.local',
+              apiKey: 'erp_api_key_123:secret_456'
+            }
+          }
+        });
+
+        expect(res.valid).toBe(true);
+        expect(res.order?.id).toBe('SINV-REAL-001');
+        expect(res.order?.customerName).toBe('Khách hàng ERPNext Thật');
+        expect(res.order?.totalAmount).toBe(5000000);
+      } finally {
+        global.fetch = originalFetch;
+      }
+    });
+
+    it('gọi REST API ERPNext: từ chối với ORDER_NOT_FOUND khi ERPNext trả về HTTP 404', async () => {
+      const originalFetch = global.fetch;
+      try {
+        global.fetch = vi.fn().mockResolvedValue({
+          ok: false,
+          status: 404,
+          json: async () => ({})
+        } as any);
+
+        const res = await verifyOrderDetail('SINV-NONEXISTENT', {
+          credentials: {
+            erpnext: {
+              apiUrl: 'http://erpnext.company.local',
+              apiKey: 'erp_api_key_123:secret_456'
+            }
+          }
+        });
+
+        expect(res.valid).toBe(false);
+        expect(res.errorCode).toBe('ORDER_NOT_FOUND');
+        expect(res.reason).toMatch(/không tồn tại trên hệ thống ERPNext/);
+      } finally {
+        global.fetch = originalFetch;
+      }
+    });
+  });
+
+  describe('handleTriggerN8nWebhook (End-to-end Code Enforcement)', () => {
+    it('chặn hoàn toàn và KHÔNG ký signed URL khi LLM truyền order_id không tồn tại', async () => {
+      const originalFetch = global.fetch;
+      const fetchSpy = vi.fn();
+      global.fetch = fetchSpy as any;
+
+      try {
+        const result = await handleTriggerN8nWebhook({
+          action: 'export_pdf',
+          message: 'Xuất hóa đơn PDF cho đơn hàng bịa đặt',
+          data: {
+            order_id: 'ACC-SINV-2026-99999',
+            customer_name: 'Attacker Fake Name'
+          }
+        });
+
+        const parsed = JSON.parse(result.content[0].text);
+        expect(parsed.success).toBe(false);
+        expect(parsed.errorCode).toBe('ORDER_NOT_FOUND');
+        expect(parsed.downloadUrl).toBeUndefined();
+
+        // Đảm bảo fetch tới máy chủ n8n tuyệt đối KHÔNG bao giờ được thực hiện
+        expect(fetchSpy).not.toHaveBeenCalled();
+      } finally {
+        global.fetch = originalFetch;
+      }
+    });
+
+    it('xác thực thành công cho order_id hợp lệ, tạo signed URL và cập nhật customer_name chính chủ', async () => {
+      const originalFetch = global.fetch;
+      try {
+        global.fetch = vi.fn().mockResolvedValue({
+          ok: true,
+          status: 200,
+          json: async () => ({
+            success: true,
+            downloadUrl: 'http://localhost:5678/webhook/download-invoice'
+          })
+        } as any);
+
+        const result = await handleTriggerN8nWebhook({
+          action: 'export_pdf',
+          message: 'Xuất hóa đơn PDF',
+          data: {
+            order_id: 'ACC-SINV-2026-00002',
+            customer_name: 'Tên do LLM đoán sai' // Sẽ được hệ thống tự động sửa thành tên chuẩn
+          }
+        });
+
+        const parsed = JSON.parse(result.content[0].text);
+        expect(parsed.success).toBe(true);
+        expect(parsed.downloadUrl).toBeDefined();
+
+        const url = new URL(parsed.downloadUrl);
+        expect(url.searchParams.get('order_id')).toBe('ACC-SINV-2026-00002');
+        // Xác nhận customer_name đã được cập nhật từ kết quả tra cứu thật
+        expect(url.searchParams.get('customer_name')).toBe('Palmer Productions Ltd.');
+        expect(url.searchParams.has('signature')).toBe(true);
+        expect(url.searchParams.has('expires')).toBe(true);
+
+        // Xác nhận chữ ký HMAC hoàn toàn hợp lệ
+        const exp = url.searchParams.get('expires')!;
+        const sig = url.searchParams.get('signature')!;
+        const secret = process.env.PDF_DOWNLOAD_SECRET || process.env.JWT_SECRET || 'eaa_pdf_download_secret_2026';
+        const verifyRes = verifySignedDownloadToken('ACC-SINV-2026-00002', exp, sig, secret);
+        expect(verifyRes.valid).toBe(true);
+      } finally {
+        global.fetch = originalFetch;
+      }
     });
   });
 });

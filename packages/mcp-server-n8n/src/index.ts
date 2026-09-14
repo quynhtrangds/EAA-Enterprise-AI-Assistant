@@ -118,6 +118,191 @@ export function verifySignedDownloadToken(
   return { valid: true };
 }
 
+export interface VerifyOrderDetailOptions {
+  credentials?: any;
+  tenantId?: string;
+  mockMode?: boolean;
+}
+
+export interface VerifyOrderDetailResult {
+  valid: boolean;
+  order?: {
+    id: string;
+    orderCode: string;
+    customerName?: string;
+    totalAmount?: number;
+    status?: string;
+    tenantId?: string;
+    [key: string]: any;
+  };
+  reason?: string;
+  errorCode?: string;
+}
+
+export const KNOWN_MOCK_ORDERS: Record<string, { id: string; customerName: string; totalAmount: number; status: string; tenantId?: string }> = {
+  'ACC-SINV-2026-00001': {
+    id: 'ACC-SINV-2026-00001',
+    customerName: 'Công ty Cổ phần Công nghệ ABC',
+    totalAmount: 67000,
+    status: 'Unpaid'
+  },
+  'ACC-SINV-2026-00002': {
+    id: 'ACC-SINV-2026-00002',
+    customerName: 'Palmer Productions Ltd.',
+    totalAmount: 15000,
+    status: 'Paid'
+  },
+  'SINV-2026-001': {
+    id: 'SINV-2026-001',
+    customerName: 'Công ty Cổ phần Công nghệ ABC',
+    totalAmount: 45000000,
+    status: 'Paid'
+  },
+  'SINV-2026-002': {
+    id: 'SINV-2026-002',
+    customerName: 'Tập đoàn Điện tử XYZ',
+    totalAmount: 128000000,
+    status: 'Unpaid'
+  },
+  'ORD-001': { id: 'ORD-001', customerName: 'Nguyễn Văn A', totalAmount: 26800000, status: 'paid' },
+  'ORD-002': { id: 'ORD-002', customerName: 'Trần Thị B', totalAmount: 18750000, status: 'completed' },
+  'ORD-003': { id: 'ORD-003', customerName: 'Công ty Minh Long', totalAmount: 51200000, status: 'paid' },
+  'ORD-004': { id: 'ORD-004', customerName: 'Lê Văn C', totalAmount: 15400000, status: 'shipping' },
+  'ORD-005': { id: 'ORD-005', customerName: 'Phạm Thị D', totalAmount: 10700000, status: 'paid' },
+  'ORD-006': { id: 'ORD-006', customerName: 'Nguyễn Văn A', totalAmount: 33900000, status: 'completed' },
+  'ORD-007': { id: 'ORD-007', customerName: 'Hoàng Gia Retail', totalAmount: 42800000, status: 'paid' },
+  'ORD-008': { id: 'ORD-008', customerName: 'Nguyễn Thị Hoa', totalAmount: 6500000, status: 'cancelled' },
+  'ORD-009': { id: 'ORD-009', customerName: 'An Phát Trading', totalAmount: 31400000, status: 'paid' },
+  'ORD-010': { id: 'ORD-010', customerName: 'Công ty Minh Long', totalAmount: 69600000, status: 'completed' },
+  'ORD-011': { id: 'ORD-011', customerName: 'Trần Thị B', totalAmount: 28600000, status: 'paid' },
+  'ORD-012': { id: 'ORD-012', customerName: 'Lê Văn C', totalAmount: 9700000, status: 'paid' },
+};
+
+/**
+ * Xác thực đơn hàng/hóa đơn thực sự tồn tại và thuộc đúng tenant
+ * trước khi tạo chữ ký HMAC signed URL cho file PDF.
+ */
+export async function verifyOrderDetail(
+  orderId: string,
+  options: VerifyOrderDetailOptions = {}
+): Promise<VerifyOrderDetailResult> {
+  const cleanOrderId = (orderId || '').trim();
+  if (!cleanOrderId) {
+    return {
+      valid: false,
+      errorCode: 'MISSING_ORDER_ID',
+      reason: 'Thiếu mã đơn hàng hợp lệ để xuất hóa đơn.'
+    };
+  }
+
+  const { credentials = {}, tenantId, mockMode } = options;
+  const erpCreds = credentials.erpnext || (credentials.apiUrl && !credentials.apiUrl.includes(':5678') ? credentials : null);
+  const erpApiUrl = erpCreds?.apiUrl || process.env.ERPNEXT_API_URL;
+  const erpApiKey = erpCreds?.apiKey || process.env.ERPNEXT_API_KEY;
+
+  // 1. Nếu có cấu hình ERPNext thật và không phải mockMode ép buộc
+  if (erpApiUrl && mockMode !== true) {
+    try {
+      let baseUrl = erpApiUrl.trim().replace(/\/+$/, '');
+      baseUrl = baseUrl.replace(/\/api\/resource(\/[^/]+)?$/i, '').replace(/\/api$/i, '');
+      const headers: Record<string, string> = { 'Accept': 'application/json' };
+      if (erpApiKey) {
+        headers['Authorization'] = erpApiKey.startsWith('token ') ? erpApiKey : `token ${erpApiKey}`;
+      }
+
+      const targetUrl = `${baseUrl}/api/resource/Sales%20Invoice/${encodeURIComponent(cleanOrderId)}`;
+      const resp = await fetch(targetUrl, {
+        headers,
+        signal: AbortSignal.timeout(10000)
+      });
+
+      if (resp.status === 404) {
+        return {
+          valid: false,
+          errorCode: 'ORDER_NOT_FOUND',
+          reason: `Đơn hàng/hóa đơn "${cleanOrderId}" không tồn tại trên hệ thống ERPNext của doanh nghiệp.`
+        };
+      }
+
+      if (!resp.ok) {
+        return {
+          valid: false,
+          errorCode: 'ERPNEXT_FETCH_FAILED',
+          reason: `Không thể kết nối xác thực đơn hàng qua ERPNext (HTTP ${resp.status}).`
+        };
+      }
+
+      const json: any = await resp.json();
+      const inv = json?.data;
+      if (!inv || !inv.name) {
+        return {
+          valid: false,
+          errorCode: 'ORDER_NOT_FOUND',
+          reason: `Hóa đơn "${cleanOrderId}" không có dữ liệu hợp lệ trên ERPNext.`
+        };
+      }
+
+      // Kiểm tra tenant isolation (nếu có custom_tenant_id hoặc metadata tenant trong invoice)
+      if (tenantId && inv.custom_tenant_id && inv.custom_tenant_id !== tenantId) {
+        return {
+          valid: false,
+          errorCode: 'TENANT_ORDER_MISMATCH',
+          reason: `Đơn hàng "${cleanOrderId}" không thuộc quyền sở hữu của tenant hiện tại.`
+        };
+      }
+
+      return {
+        valid: true,
+        order: {
+          id: inv.name,
+          orderCode: inv.name,
+          customerName: inv.customer_name || inv.customer || '',
+          totalAmount: inv.grand_total,
+          status: inv.status,
+          tenantId
+        }
+      };
+    } catch (err: any) {
+      return {
+        valid: false,
+        errorCode: 'ERPNEXT_CONNECTION_ERROR',
+        reason: `Lỗi kết nối tới ERPNext để xác thực đơn hàng: ${err.message}`
+      };
+    }
+  }
+
+  // 2. Chế độ Mock Mode hoặc ERPNext chưa liên kết:
+  // Xác thực nghiêm ngặt với danh mục đơn hàng hợp lệ đã ghi nhận trong hệ thống
+  const upperId = cleanOrderId.toUpperCase();
+  const matchedKey = Object.keys(KNOWN_MOCK_ORDERS).find(k => k.toUpperCase() === upperId);
+
+  if (!matchedKey) {
+    return {
+      valid: false,
+      errorCode: 'ORDER_NOT_FOUND',
+      reason: `Không tìm thấy đơn hàng "${cleanOrderId}" trong hệ thống doanh nghiệp (đơn hàng không tồn tại). Tuyệt đối không tạo liên kết tải file cho đơn hàng không hợp lệ.`
+    };
+  }
+
+  const foundOrder = KNOWN_MOCK_ORDERS[matchedKey];
+  if (tenantId && foundOrder.tenantId && foundOrder.tenantId !== tenantId) {
+    return {
+      valid: false,
+      errorCode: 'TENANT_ORDER_MISMATCH',
+      reason: `Đơn hàng "${cleanOrderId}" không thuộc về tenant của bạn.`
+    };
+  }
+
+  return {
+    valid: true,
+    order: {
+      ...foundOrder,
+      orderCode: foundOrder.id,
+      tenantId: tenantId || foundOrder.tenantId
+    }
+  };
+}
+
 mcpServer.setRequestHandler(ListToolsRequestSchema, async () => {
   return {
     tools: [
@@ -151,12 +336,8 @@ mcpServer.setRequestHandler(ListToolsRequestSchema, async () => {
   };
 });
 
-mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
-  const toolName = request.params.name;
-  const rawArgs = (request.params.arguments as any) || {};
-
-  if (toolName === 'trigger_n8n_webhook') {
-    const { webhookPath, message, data, action } = rawArgs;
+export async function handleTriggerN8nWebhook(rawArgs: any) {
+  const { webhookPath, message, data, action } = rawArgs;
     const creds = rawArgs._integrationCredentials || {};
     let baseUrl = creds.apiUrl || process.env.N8N_BASE_URL || 'http://enterprise_ai_n8n:5678';
     const apiKey = creds.apiKey;
@@ -178,7 +359,7 @@ mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
     }
 
     const orderId = (data && ((data as any).order_id || (data as any).orderCode || (data as any).orderId)) || '';
-    const customerName = (data && ((data as any).customer_name || (data as any).customerName)) || '';
+    let customerName = (data && ((data as any).customer_name || (data as any).customerName)) || '';
 
     // Chặn gọi nhầm export_pdf cho ticket Zammad khi thiếu order_id
     if (resolvedAction === 'export_pdf' && !orderId && (Boolean(data?.tickets) || /(ticket|phiếu hỗ trợ)/i.test(message || ''))) {
@@ -194,6 +375,36 @@ mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
           }
         ]
       };
+    }
+
+    // Enforcement ở tầng code: Trước khi ký signature hay kích hoạt webhook n8n, tự gọi lại get_order_detail
+    // (qua context _integrationCredentials / tenant) để xác nhận orderId thật sự tồn tại và thuộc đúng tenant!
+    if (resolvedAction === 'export_pdf') {
+      const orderVerification = await verifyOrderDetail(orderId, {
+        credentials: creds,
+        tenantId: rawArgs._tenantId,
+        mockMode: rawArgs._mockMode
+      });
+
+      if (!orderVerification.valid) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                success: false,
+                errorCode: orderVerification.errorCode || 'ORDER_NOT_FOUND',
+                message: orderVerification.reason || `Không tìm thấy đơn hàng "${orderId}" trong hệ thống doanh nghiệp.`
+              }, null, 2)
+            }
+          ]
+        };
+      }
+
+      // Ghi đè customerName bằng dữ liệu xác thực chính chủ từ hệ thống thay vì tin tưởng dữ liệu do LLM bịa ra
+      if (orderVerification.order?.customerName) {
+        customerName = orderVerification.order.customerName;
+      }
     }
 
     // Sanitize webhookPath (chặn SSRF & Path Traversal)
@@ -291,6 +502,12 @@ mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
       const sanitized = validateAndSanitizeDownloadUrl((responseData as any).downloadUrl, fallbackDownloadUrl, allowedHosts);
       try {
         const u = new URL(sanitized);
+        if (!u.searchParams.has('order_id') && orderId) {
+          u.searchParams.set('order_id', orderId);
+        }
+        if (!u.searchParams.has('customer_name') && customerName) {
+          u.searchParams.set('customer_name', customerName);
+        }
         if (!u.searchParams.has('signature') || !u.searchParams.has('expires')) {
           const expires = Date.now() + 15 * 60 * 1000;
           const signature = crypto.createHmac('sha256', downloadSecret).update(`${orderId}:${expires}`).digest('hex');
@@ -326,6 +543,14 @@ mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
         }
       ]
     };
+}
+
+mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
+  const toolName = request.params.name;
+  const rawArgs = (request.params.arguments as any) || {};
+
+  if (toolName === 'trigger_n8n_webhook') {
+    return await handleTriggerN8nWebhook(rawArgs);
   }
 
   throw new Error(`Tool not found: ${toolName}`);

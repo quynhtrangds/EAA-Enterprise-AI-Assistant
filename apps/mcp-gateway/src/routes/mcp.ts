@@ -131,7 +131,20 @@ export async function prepareToolExecution(
         try {
           await validateIntegrationUrlAsync(secrets.apiUrl);
 
-          args._integrationCredentials = { apiKey: secrets.apiKey, apiUrl: secrets.apiUrl };
+          const creds: any = { apiKey: secrets.apiKey, apiUrl: secrets.apiUrl };
+          if (serverName === 'n8n' && user.tenantId) {
+            const erpRes = await query<{ is_active: boolean }>(
+              `SELECT is_active FROM tenant_integrations WHERE tenant_id = $1 AND integration_code = 'erpnext'`,
+              [user.tenantId]
+            );
+            if (erpRes.rows.length > 0 && erpRes.rows[0]?.is_active === true) {
+              const erpSecrets = await VaultService.readSecret(`integrations/${user.tenantId}/erpnext`);
+              if (erpSecrets?.apiKey && erpSecrets.apiUrl) {
+                creds.erpnext = { apiKey: erpSecrets.apiKey, apiUrl: erpSecrets.apiUrl };
+              }
+            }
+          }
+          args._integrationCredentials = creds;
           args._targetServer = serverName;
           return args;
         } catch (validationErr) {
