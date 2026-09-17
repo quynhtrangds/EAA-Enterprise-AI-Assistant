@@ -104,16 +104,19 @@ export VAULT_TOKEN="$ROOT_TOKEN"
 vault secrets enable -path=secret kv-v2 >/dev/null 2>&1 \
   || true   # đã tồn tại thì bỏ qua
 
-# --- 6. Token ID 'root' cho mcp-gateway ---
-if ! vault token lookup root >/dev/null 2>&1; then
-  if vault token create -id=root -policy=root >/dev/null 2>&1; then
-    echo "[vault-entrypoint] Đã tạo token 'root' cho mcp-gateway"
-  else
-    echo "[vault-entrypoint] CẢNH BÁO: không tạo được token ID 'root'."
-    echo "[vault-entrypoint] Hãy copy root_token trong $KEY_FILE vào"
-    echo "[vault-entrypoint] VAULT_TOKEN (apps/mcp-gateway/.env) rồi restart mcp-gateway."
+# --- 6. Token ID cho mcp-gateway (root và custom VAULT_TOKEN nếu được chỉ định) ---
+TARGET_TOKEN="${VAULT_TOKEN:-root}"
+for T_ID in "root" "$TARGET_TOKEN"; do
+  if [ -n "$T_ID" ] && ! vault token lookup "$T_ID" >/dev/null 2>&1; then
+    if vault token create -id="$T_ID" -policy=root >/dev/null 2>&1; then
+      echo "[vault-entrypoint] Đã tạo token '$T_ID' cho mcp-gateway"
+    else
+      echo "[vault-entrypoint] CẢNH BÁO: không tạo được token ID '$T_ID'."
+      echo "[vault-entrypoint] Hãy copy root_token trong $KEY_FILE vào"
+      echo "[vault-entrypoint] VAULT_TOKEN (apps/mcp-gateway/.env) rồi restart mcp-gateway."
+    fi
   fi
-fi
+done
 
 echo "[vault-entrypoint] Vault sẵn sàng tại http://0.0.0.0:8200 (persistent storage)"
 

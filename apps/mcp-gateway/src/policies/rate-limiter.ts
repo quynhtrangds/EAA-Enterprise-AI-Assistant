@@ -1,4 +1,4 @@
-﻿import rateLimit from 'express-rate-limit';
+import rateLimit from 'express-rate-limit';
 import { AppError } from '../errors/app-error.js';
 
 interface RateLimitData {
@@ -108,3 +108,61 @@ export function resetLoginRateLimitForTesting() {
   loginUsernameRateLimitStore.clear();
   rateLimitStore.clear();
 }
+
+/**
+ * Dọn dẹp các mục đã hết hạn khỏi bộ nhớ (Map) định kỳ.
+ * Ngăn chặn rò rỉ bộ nhớ (Memory Leak) do tích lũy các cặp key hết hạn theo thời gian.
+ */
+export function cleanupRateLimitStores(now: number = Date.now()): { cleanedTools: number; cleanedLogins: number } {
+  let cleanedTools = 0;
+  let cleanedLogins = 0;
+
+  for (const [key, data] of rateLimitStore.entries()) {
+    if (now > data.resetAt) {
+      rateLimitStore.delete(key);
+      cleanedTools++;
+    }
+  }
+
+  for (const [key, data] of loginUsernameRateLimitStore.entries()) {
+    if (now > data.resetAt) {
+      loginUsernameRateLimitStore.delete(key);
+      cleanedLogins++;
+    }
+  }
+
+  return { cleanedTools, cleanedLogins };
+}
+
+// Timer dọn dẹp định kỳ chạy ngầm (mặc định mỗi 60 giây)
+let cleanupTimer: NodeJS.Timeout | null = null;
+
+export function startRateLimitCleanup(intervalMs: number = 60 * 1000): NodeJS.Timeout {
+  if (cleanupTimer) return cleanupTimer;
+  cleanupTimer = setInterval(() => {
+    cleanupRateLimitStores();
+  }, intervalMs);
+
+  // unref() để timer không ngăn cản tiến trình Node thoát (khi test hoặc graceful shutdown)
+  if (typeof cleanupTimer.unref === 'function') {
+    cleanupTimer.unref();
+  }
+  return cleanupTimer;
+}
+
+export function stopRateLimitCleanup(): void {
+  if (cleanupTimer) {
+    clearInterval(cleanupTimer);
+    cleanupTimer = null;
+  }
+}
+
+export function getRateLimitStoreSizesForTesting(): { toolStoreSize: number; loginStoreSize: number } {
+  return {
+    toolStoreSize: rateLimitStore.size,
+    loginStoreSize: loginUsernameRateLimitStore.size
+  };
+}
+
+// Tự động kích hoạt timer dọn dẹp khi module được nạp
+startRateLimitCleanup();

@@ -1,5 +1,11 @@
-﻿import { describe, it, expect, beforeEach } from 'vitest';
-import { checkToolRateLimit, checkLoginRateLimit, resetLoginRateLimitForTesting } from './rate-limiter.js';
+import { describe, it, expect, beforeEach } from 'vitest';
+import {
+  checkToolRateLimit,
+  checkLoginRateLimit,
+  resetLoginRateLimitForTesting,
+  cleanupRateLimitStores,
+  getRateLimitStoreSizesForTesting
+} from './rate-limiter.js';
 import { AppError } from '../errors/app-error.js';
 
 describe('Rate Limiter', () => {
@@ -121,6 +127,57 @@ describe('Rate Limiter', () => {
 
       // userB vẫn thử được bình thường
       expect(() => checkLoginRateLimit(userB)).not.toThrow();
+    });
+  });
+
+  describe('Rate Limiter Memory Leak Cleanup (cleanupRateLimitStores)', () => {
+    it('dọn dẹp sạch các mục đã hết hạn và giữ nguyên các mục còn hiệu lực', () => {
+      const now = Date.now();
+
+      // Tạo các entry
+      checkToolRateLimit('user-active', 'tool_1', 'session-1');
+      checkLoginRateLimit('active_user');
+
+      const initialSizes = getRateLimitStoreSizesForTesting();
+      expect(initialSizes.toolStoreSize).toBe(1);
+      expect(initialSizes.loginStoreSize).toBe(1);
+
+      // Chạy dọn dẹp tại thời điểm hiện tại -> không mục nào bị xóa
+      const clean1 = cleanupRateLimitStores(now);
+      expect(clean1.cleanedTools).toBe(0);
+      expect(clean1.cleanedLogins).toBe(0);
+
+      const midSizes = getRateLimitStoreSizesForTesting();
+      expect(midSizes.toolStoreSize).toBe(1);
+      expect(midSizes.loginStoreSize).toBe(1);
+
+      // Giả lập thời gian sau 65 giây (đã quá WINDOW_MS 60s)
+      const futureNow = now + 65 * 1000;
+      const clean2 = cleanupRateLimitStores(futureNow);
+      expect(clean2.cleanedTools).toBe(1);
+      expect(clean2.cleanedLogins).toBe(1);
+
+      const finalSizes = getRateLimitStoreSizesForTesting();
+      expect(finalSizes.toolStoreSize).toBe(0);
+      expect(finalSizes.loginStoreSize).toBe(0);
+    });
+
+    it('giải phóng bộ nhớ cho nhiều session ngẫu nhiên của guest', () => {
+      const now = Date.now();
+
+      for (let i = 0; i < 50; i++) {
+        checkToolRateLimit('guest', 'search_customer', `random-session-${i}`);
+        checkLoginRateLimit(`random-user-${i}`);
+      }
+
+      expect(getRateLimitStoreSizesForTesting().toolStoreSize).toBe(50);
+      expect(getRateLimitStoreSizesForTesting().loginStoreSize).toBe(50);
+
+      // Sau 61 giây
+      cleanupRateLimitStores(now + 61 * 1000);
+
+      expect(getRateLimitStoreSizesForTesting().toolStoreSize).toBe(0);
+      expect(getRateLimitStoreSizesForTesting().loginStoreSize).toBe(0);
     });
   });
 });
