@@ -149,7 +149,7 @@ if (productItems.length > 0) {
     const qty = Number(i.qty || i.quantity) || 1;
     const price = Number(i.price || i.rate || i.unitPrice) || 0;
     const total = Number(i.total || i.amount || i.totalPrice) || (qty * price);
-    const name = i.name || i.item_name || i.productName || i.item_code || i.productCode || 'Sản phẩm';
+    const name = i.item_name || i.productName || (i.name && !/^[0-9a-z]{10}$/.test(i.name) ? i.name : '') || i.item_code || i.productCode || i.name || 'Sản phẩm';
     return { name, qty, price, total };
   });
 } else {

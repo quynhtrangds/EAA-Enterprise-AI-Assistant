@@ -520,7 +520,7 @@ export async function handleTriggerN8nWebhook(rawArgs: any) {
     // Thu thập chi tiết đơn hàng (items, total, status) để gắn vào downloadUrl
     const rawItems = orderVerification?.order?.items || (data && Array.isArray(data.items) ? data.items : []);
     const normalizedItems = rawItems.map((i: any) => ({
-      name: i.name || i.item_name || i.productName || i.item_code || i.productCode || 'Sản phẩm',
+      name: i.item_name || i.productName || (i.name && !/^[0-9a-z]{10}$/.test(i.name) ? i.name : '') || i.item_code || i.productCode || i.name || 'Sản phẩm',
       qty: Number(i.qty || i.quantity) || 1,
       price: Number(i.price || i.rate || i.unitPrice) || 0,
       total: Number(i.total || i.amount || i.totalPrice) || ((Number(i.qty || i.quantity) || 1) * (Number(i.price || i.rate || i.unitPrice) || 0))
