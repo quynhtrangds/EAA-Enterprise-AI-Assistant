@@ -114,28 +114,55 @@ if (!invoiceDate) {
   }
 }
 
-let rawStatus = (query.status || query.invoiceStatus || 'Đã thanh toán (Paid)').toString();
-let invoiceStatus = rawStatus === 'Paid' ? 'Đã thanh toán (Paid)' : rawStatus;
+let rawStatus = (query.status || query.invoiceStatus || '').toString().trim();
+let invoiceStatus = 'Đã thanh toán (Paid)';
+if (rawStatus.toLowerCase() === 'unpaid') {
+  invoiceStatus = 'Chưa thanh toán (Unpaid)';
+} else if (rawStatus.toLowerCase() === 'overdue') {
+  invoiceStatus = 'Quá hạn thanh toán (Overdue)';
+} else if (rawStatus.toLowerCase() === 'draft') {
+  invoiceStatus = 'Bản nháp (Draft)';
+} else if (rawStatus.toLowerCase() === 'cancelled') {
+  invoiceStatus = 'Đã hủy (Cancelled)';
+} else if (rawStatus) {
+  invoiceStatus = rawStatus === 'Paid' ? 'Đã thanh toán (Paid)' : rawStatus;
+}
 
 let currencyUnit = (query.currency && query.currency.trim()) || 'VNĐ';
 if (currencyUnit === 'VND') currencyUnit = 'VNĐ';
 
-let productItems = Array.isArray(query.items) ? query.items : [];
-if (productItems.length > 0) {
-  productItems = productItems.map(i => ({
-    name: i.name || i.item_name || i.item_code || 'Sản phẩm',
-    qty: Number(i.qty) || 1,
-    price: Number(i.price || i.rate) || 0,
-    total: Number(i.total || i.amount) || ((Number(i.qty) || 1) * (Number(i.price || i.rate) || 0))
-  }));
-} else {
-  const fallbackTotal = Number(query.total || query.grand_total || query.grandTotal || 15000);
-  productItems = [
-    { name: 'Sản phẩm theo đơn hàng ' + orderId, qty: 1, price: fallbackTotal, total: fallbackTotal }
-  ];
+let productItems = [];
+if (Array.isArray(query.items)) {
+  productItems = query.items;
+} else if (typeof query.items === 'string' && query.items.trim()) {
+  try {
+    productItems = JSON.parse(query.items);
+  } catch (e) {
+    try {
+      productItems = JSON.parse(decodeURIComponent(query.items));
+    } catch (e2) {}
+  }
 }
 
-const subTotal = Number(query.net_total || query.subTotal || query.sub_total) || productItems.reduce((acc, it) => acc + it.total, 0);
+if (productItems.length > 0) {
+  productItems = productItems.map(i => {
+    const qty = Number(i.qty || i.quantity) || 1;
+    const price = Number(i.price || i.rate || i.unitPrice) || 0;
+    const total = Number(i.total || i.amount || i.totalPrice) || (qty * price);
+    const name = i.name || i.item_name || i.productName || i.item_code || i.productCode || 'Sản phẩm';
+    return { name, qty, price, total };
+  });
+} else {
+  const fallbackTotal = Number(query.total || query.grand_total || query.grandTotal || 0);
+  if (fallbackTotal > 0) {
+    productItems = [
+      { name: 'Sản phẩm theo đơn hàng ' + orderId, qty: 1, price: fallbackTotal, total: fallbackTotal }
+    ];
+  }
+}
+
+const calculatedSubTotal = productItems.reduce((acc, it) => acc + it.total, 0);
+const subTotal = Number(query.net_total || query.subTotal || query.sub_total) || calculatedSubTotal;
 const vat = Number(query.total_taxes_and_charges || query.vat || 0);
 const grandTotal = Number(query.grand_total || query.grandTotal || query.total) || (subTotal + vat);
 

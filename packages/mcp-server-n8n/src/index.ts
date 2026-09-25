@@ -81,7 +81,8 @@ export function generateSignedDownloadUrl(
   customerName: string = '',
   secret: string = process.env.PDF_DOWNLOAD_SECRET || process.env.JWT_SECRET || 'eaa_pdf_download_secret_2026',
   expiresInMs: number = 15 * 60 * 1000,
-  baseUrl: string = 'http://localhost:5678/webhook/download-invoice'
+  baseUrl: string = 'http://localhost:5678/webhook/download-invoice',
+  extraParams: Record<string, any> = {}
 ): string {
   const expires = Date.now() + expiresInMs;
   const signature = crypto.createHmac('sha256', secret).update(`${orderId}:${expires}`).digest('hex');
@@ -89,6 +90,21 @@ export function generateSignedDownloadUrl(
   url.searchParams.set('order_id', orderId);
   if (customerName) {
     url.searchParams.set('customer_name', customerName);
+  }
+  if (extraParams.total !== undefined && extraParams.total !== null) {
+    url.searchParams.set('total', extraParams.total.toString());
+  }
+  if (extraParams.status) {
+    url.searchParams.set('status', extraParams.status.toString());
+  }
+  if (extraParams.currency) {
+    url.searchParams.set('currency', extraParams.currency.toString());
+  }
+  if (extraParams.posting_date || extraParams.postingDate) {
+    url.searchParams.set('posting_date', (extraParams.posting_date || extraParams.postingDate).toString());
+  }
+  if (extraParams.items && Array.isArray(extraParams.items) && extraParams.items.length > 0) {
+    url.searchParams.set('items', JSON.stringify(extraParams.items));
   }
   url.searchParams.set('expires', expires.toString());
   url.searchParams.set('signature', signature);
@@ -139,18 +155,26 @@ export interface VerifyOrderDetailResult {
   errorCode?: string;
 }
 
-export const KNOWN_MOCK_ORDERS: Record<string, { id: string; customerName: string; totalAmount: number; status: string; tenantId?: string }> = {
+export const KNOWN_MOCK_ORDERS: Record<string, { id: string; customerName: string; totalAmount: number; status: string; tenantId?: string; items?: any[] }> = {
   'ACC-SINV-2026-00001': {
     id: 'ACC-SINV-2026-00001',
-    customerName: 'Công ty Cổ phần Công nghệ ABC',
+    customerName: 'Grant Plastics Ltd.',
     totalAmount: 67000,
-    status: 'Unpaid'
+    status: 'Overdue',
+    items: [
+      { name: 'Backpack', item_code: 'SKU008', qty: 20, price: 500, total: 10000 },
+      { name: 'Headphones', item_code: 'SKU009', qty: 40, price: 300, total: 12000 },
+      { name: 'Camera', item_code: 'SKU010', qty: 50, price: 900, total: 45000 }
+    ]
   },
   'ACC-SINV-2026-00002': {
     id: 'ACC-SINV-2026-00002',
     customerName: 'Palmer Productions Ltd.',
     totalAmount: 15000,
-    status: 'Paid'
+    status: 'Paid',
+    items: [
+      { name: 'Desk Chair', item_code: 'SKU001', qty: 1, price: 15000, total: 15000 }
+    ]
   },
   'SINV-2026-001': {
     id: 'SINV-2026-001',
@@ -259,7 +283,10 @@ export async function verifyOrderDetail(
           customerName: inv.customer_name || inv.customer || '',
           totalAmount: inv.grand_total,
           status: inv.status,
-          tenantId
+          tenantId,
+          items: inv.items,
+          currency: inv.currency || inv.party_account_currency,
+          postingDate: inv.posting_date
         }
       };
     } catch (err: any) {
@@ -379,8 +406,9 @@ export async function handleTriggerN8nWebhook(rawArgs: any) {
 
     // Enforcement ở tầng code: Trước khi ký signature hay kích hoạt webhook n8n, tự gọi lại get_order_detail
     // (qua context _integrationCredentials / tenant) để xác nhận orderId thật sự tồn tại và thuộc đúng tenant!
+    let orderVerification: VerifyOrderDetailResult | null = null;
     if (resolvedAction === 'export_pdf') {
-      const orderVerification = await verifyOrderDetail(orderId, {
+      orderVerification = await verifyOrderDetail(orderId, {
         credentials: creds,
         tenantId: rawArgs._tenantId,
         mockMode: rawArgs._mockMode
@@ -488,7 +516,29 @@ export async function handleTriggerN8nWebhook(rawArgs: any) {
     }
 
     const downloadSecret = process.env.PDF_DOWNLOAD_SECRET || process.env.JWT_SECRET || 'eaa_pdf_download_secret_2026';
-    const fallbackDownloadUrl = generateSignedDownloadUrl(orderId, customerName, downloadSecret);
+    
+    // Thu thập chi tiết đơn hàng (items, total, status) để gắn vào downloadUrl
+    const rawItems = orderVerification?.order?.items || (data && Array.isArray(data.items) ? data.items : []);
+    const normalizedItems = rawItems.map((i: any) => ({
+      name: i.name || i.item_name || i.productName || i.item_code || i.productCode || 'Sản phẩm',
+      qty: Number(i.qty || i.quantity) || 1,
+      price: Number(i.price || i.rate || i.unitPrice) || 0,
+      total: Number(i.total || i.amount || i.totalPrice) || ((Number(i.qty || i.quantity) || 1) * (Number(i.price || i.rate || i.unitPrice) || 0))
+    }));
+
+    const orderTotal = orderVerification?.order?.totalAmount ?? (data && (data.total ?? data.grand_total)) ?? (normalizedItems.length > 0 ? normalizedItems.reduce((acc: number, it: any) => acc + it.total, 0) : undefined);
+    const orderStatus = orderVerification?.order?.status || (data && data.status) || undefined;
+    const orderCurrency = orderVerification?.order?.currency || (data && data.currency) || 'VNĐ';
+    const postingDate = orderVerification?.order?.postingDate || (data && (data.posting_date || data.postingDate)) || undefined;
+
+    const extraParams: Record<string, any> = {};
+    if (normalizedItems.length > 0) extraParams.items = normalizedItems;
+    if (orderTotal !== undefined && orderTotal !== null) extraParams.total = orderTotal;
+    if (orderStatus) extraParams.status = orderStatus;
+    if (orderCurrency) extraParams.currency = orderCurrency;
+    if (postingDate) extraParams.posting_date = postingDate;
+
+    const fallbackDownloadUrl = generateSignedDownloadUrl(orderId, customerName, downloadSecret, 15 * 60 * 1000, 'http://localhost:5678/webhook/download-invoice', extraParams);
     
     let baseHost = 'enterprise_ai_n8n';
     try {
@@ -507,6 +557,21 @@ export async function handleTriggerN8nWebhook(rawArgs: any) {
         }
         if (!u.searchParams.has('customer_name') && customerName) {
           u.searchParams.set('customer_name', customerName);
+        }
+        if (extraParams.total !== undefined && !u.searchParams.has('total')) {
+          u.searchParams.set('total', extraParams.total.toString());
+        }
+        if (extraParams.items && !u.searchParams.has('items')) {
+          u.searchParams.set('items', JSON.stringify(extraParams.items));
+        }
+        if (extraParams.status && !u.searchParams.has('status')) {
+          u.searchParams.set('status', extraParams.status);
+        }
+        if (extraParams.currency && !u.searchParams.has('currency')) {
+          u.searchParams.set('currency', extraParams.currency);
+        }
+        if (extraParams.posting_date && !u.searchParams.has('posting_date')) {
+          u.searchParams.set('posting_date', extraParams.posting_date);
         }
         if (!u.searchParams.has('signature') || !u.searchParams.has('expires')) {
           const expires = Date.now() + 15 * 60 * 1000;

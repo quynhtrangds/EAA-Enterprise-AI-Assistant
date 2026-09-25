@@ -552,8 +552,8 @@ toolsRouter.post('/tools/call', async (req, res, next) => {
         if (isActive) {
           const vaultPath = `integrations/${user.tenantId}/${serverName}`;
           const secrets = await VaultService.readSecret(vaultPath);
-          if (secrets?.apiKey && secrets.apiUrl) {
-            credentials = { apiKey: secrets.apiKey, apiUrl: secrets.apiUrl };
+          if (secrets?.apiUrl && (secrets.apiKey || serverName === 'n8n')) {
+            credentials = { apiKey: secrets.apiKey || '', apiUrl: secrets.apiUrl };
           }
         }
 

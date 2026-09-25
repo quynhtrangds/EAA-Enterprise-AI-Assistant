@@ -174,7 +174,7 @@ describe('packages/mcp-server-n8n: Security & SSRF Hardening Suite', () => {
     it('hỗ trợ định dạng không phân biệt hoa thường (Case-insensitive match)', async () => {
       const res = await verifyOrderDetail('acc-sinv-2026-00001');
       expect(res.valid).toBe(true);
-      expect(res.order?.customerName).toBe('Công ty Cổ phần Công nghệ ABC');
+      expect(res.order?.customerName).toBe('Grant Plastics Ltd.');
     });
 
     it('từ chối khi đơn hàng không thuộc tenant của session (Tenant Isolation)', async () => {
